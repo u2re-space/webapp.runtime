@@ -167,3 +167,9 @@ index/*
 ./index/*
 */index/
 */index/*
+
+#
+pack/
+pack/*
+./pack/
+./pack/*

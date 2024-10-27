@@ -15,7 +15,7 @@ const { app, ipcMain, nativeTheme } = electron;
 const chrome = new ChromeApp(app);
 const restartChrome = async () => {
     chrome.init();
-    chrome.loadURL("file://" + (await paths["@webapp"]) + "/index.html");
+    chrome.loadURL(`file://${import.meta.dirname}/index.html`);
 }
 
 // execute application...

@@ -1,21 +1,12 @@
 {
-    "name": "pwa-idc-ls",
+    "name": "web-app",
     "version": "0.0.1",
-    "description": "Electron edition of IDC-LX0",
-    "author": "IDC-LC-2024",
-    "authors": [
-        "unit-404 <conway24b@gmail.com>",
-        "user-404 <conway24b@yandex.ru>"
-    ],
+    "description": "Electron Package of WebApp",
+    "author": "unknown",
     "type": "module",
     "main": "app/index.mjs",
-    "engines": {
-        "node": ">=22"
-    },
-    "keywords": [
-        "fastify",
-        "server"
-    ],
+    "engines": {"node": ">=22"},
+    "keywords": ["fastify", "server"],
     "license": "MIT",
     "private": false,
     "scripts": {
@@ -39,11 +30,17 @@
         "last 1 firefox version"
     ],
     "build": {
-        "appId": "pwa.idc.lx",
-        "files": [
-            "app"
-        ],
+        "appId": "web.app",
+        "files": ["app"],
         "extraResources": [
+            {
+                "from": "../pwa/",
+                "to": "./pwa"
+            },
+            {
+                "from": "../assets/",
+                "to": "./assets"
+            },
             {
                 "from": "../index/",
                 "to": "./index"
@@ -56,13 +53,11 @@
         "directories": {
             "buildResources": "resources"
         },
-        "extraFiles": [
-            "credentials"
-        ],
+        "extraFiles": ["credentials"],
         "publish": null,
         "win": {
             "target": "portable",
-            "icon": "../src/assets/icons/home/512x.png"
+            "icon": "../assets/icons/home/512x.png"
         }
     },
     "config": {
@@ -70,7 +65,7 @@
             "makers": [],
             "publishers": [],
             "packagerConfig": {
-                "icon": "../src/assets/icons/home/512x.png"
+                "icon": "../assets/icons/home/512x.png"
             }
         }
     }

@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
-    "name": "web-core",
-    "short_name": "web-core",
+    "name": "webapp",
+    "short_name": "webapp",
     "version": "0.0.1",
     "start_url": "/",
     "author": "idc-lc",
