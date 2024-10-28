@@ -173,3 +173,8 @@ pack/
 pack/*
 ./pack/
 ./pack/*
+
+#
+package-lock.json
+./package-lock.json
+*/package-lock.json
