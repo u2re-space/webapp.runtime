@@ -57,6 +57,14 @@
         <style>
         </style>
 
+        <meta http-equiv="Content-Security-Policy" content="
+            default-src 'self' blob:* data:*;
+            img-src *;
+            style-src 'self' 'unsafe-inline' 'strict-dynamic' blob:* data:*;
+            script-src 'self' 'unsafe-inline' blob:* data:*;
+            worker-src 'self' blob:* data:*;
+        ">
+
         <!-- -->
         <script>
             // avoid any dragging when no-needed...

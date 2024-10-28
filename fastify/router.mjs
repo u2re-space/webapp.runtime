@@ -57,6 +57,13 @@ export default async function (fastify, options = {}) {
     fastify.addHook("onSend", function (req, reply, payload, next) {
         reply.header("Cross-Origin-Embedder-Policy", "require-corp");
         reply.header("Cross-Origin-Opener-Policy", "same-origin");
+        reply.header("Content-Security-Policy", 
+            "default-src 'self' blob:* data:*;" +
+            "img-src *;" +
+            "style-src 'self' 'unsafe-inline' 'strict-dynamic' blob:* data:*;" +
+            "script-src 'self' 'unsafe-inline' blob:* data:*;" +
+            "worker-src 'self' blob:* data:*;");
+
         reply.header("Access-Control-Allow-Methods", "*");
         reply.header("Access-Control-Allow-Origin", "*");
         reply.header("Access-Control-Allow-Headers", "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Service-Worker-Allowed, X-Access-Secret, X-Access-Key");
