@@ -177,6 +177,12 @@ index/*
 */index/*
 
 #
+u2/
+u2/*
+./u2/
+./u2/*
+
+#
 pack/
 pack/*
 ./pack/

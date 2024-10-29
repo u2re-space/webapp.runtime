@@ -59,9 +59,9 @@ export default async function (fastify, options = {}) {
         reply.header("Cross-Origin-Opener-Policy", "same-origin");
         reply.header("Content-Security-Policy", 
             "default-src 'self' blob: data:;" +
-            "img-src *;" +
-            "style-src 'self' 'unsafe-eval' 'unsafe-inline' blob: data:;" +
-            "script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: data:;" + //'strict-dynamic'
+            "img-src 'self' * blob: data:;" +
+            "style-src 'self' 'unsafe-inline' blob: data:;" +
+            "script-src 'self' 'unsafe-inline' blob: data:;" + //'strict-dynamic'
             "worker-src 'self' blob:* data:*;");
 
         reply.header("Access-Control-Allow-Methods", "*");

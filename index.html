@@ -81,9 +81,9 @@
 
         <meta http-equiv="Content-Security-Policy" content="
             default-src 'self' blob: data:;
-            img-src *;
-            style-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;
-            script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;
+            img-src 'self' * blob: data:;
+            style-src 'self' 'unsafe-inline' blob: data:;
+            script-src 'self' 'unsafe-inline' blob: data:;
             worker-src 'self' blob:* data:*;
         ">
 
@@ -124,9 +124,9 @@
             //
             (async()=>{
                 if (typeof navigator != "undefined") {
-                    await navigator?.serviceWorker?.register?.(new URL(SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
+                    await navigator?.serviceWorker?.register?.(new URL(/* @vite-ignore */ SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
                 }
-                import(APP_JS)?.then?.((m)=>m?.default?.(document?.querySelector?.("#root")))?.catch?.(console.error.bind(console));
+                import(/* @vite-ignore */ `${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#root")))?.catch?.(console.error.bind(console));
             })();
         </script>
     </body>
