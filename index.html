@@ -55,13 +55,35 @@
 
         <!-- critical styles -->
         <style>
+            script {
+                display: none !important;
+            }
+
+            body {
+                display: grid !important;
+                grid-template-columns: minmax(0px, 1fr) !important;
+                grid-template-rows: minmax(0px, 1fr) !important;
+            }
+
+            body > * {
+                inline-size: 100% !important;
+                block-size: 100% !important;
+                grid-column: 1 / 1 span !important;
+                grid-row: 1 / 1 span !important;
+
+                /* */
+                display: grid;
+                grid-template-columns: minmax(0px, 1fr);
+                grid-template-rows: minmax(0px, 1fr);
+            }
+
         </style>
 
         <meta http-equiv="Content-Security-Policy" content="
-            default-src 'self' blob:* data:*;
+            default-src 'self' blob: data:;
             img-src *;
-            style-src 'self' 'unsafe-inline' 'strict-dynamic' blob:* data:*;
-            script-src 'self' 'unsafe-inline' blob:* data:*;
+            style-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;
+            script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;
             worker-src 'self' blob:* data:*;
         ">
 

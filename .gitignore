@@ -161,6 +161,14 @@ private/*
 */private/*
 
 #
+assets/
+assets/*
+./assets/
+./assets/*
+*/assets/
+*/assets/*
+
+#
 index/
 index/*
 ./index/
