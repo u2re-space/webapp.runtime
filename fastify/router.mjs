@@ -117,6 +117,7 @@ export default async function (fastify, options = {}) {
     fastify.register(fastifyStatic, { prefix: "/pwa/"   , root: path.resolve(__dirname, "pwa/")   , decorateReply: false, list: true, });
     fastify.register(fastifyStatic, { prefix: "/index/" , root: path.resolve(__dirname, "index/") , decorateReply: false, list: true, });
     fastify.register(fastifyStatic, { prefix: "/assets/", root: path.resolve(__dirname, "assets/"), decorateReply: false, list: true, });
+    fastify.register(fastifyStatic, { prefix: "/u2/", root: path.resolve(__dirname, "u2/"), decorateReply: false, list: true, });
 
     //
     fastify.get('/', options, (request, reply) => {
