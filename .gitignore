@@ -177,10 +177,10 @@ index/*
 */index/*
 
 #
-u2/
-u2/*
-./u2/
-./u2/*
+externals/
+externals/*
+./externals/
+./externals/*
 
 #
 pack/
