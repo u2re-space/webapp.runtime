@@ -86,11 +86,16 @@
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
             head, script, style { display: none !important; pointer-events: none !important; }
+
+            /* */
             body {
                 display: grid !important;
                 grid-template-columns: minmax(0px, 1fr) !important;
                 grid-template-rows: minmax(0px, 1fr) !important;
+                pointer-events: none;
             }
+
+            /* */
             body > * {
                 inline-size: 100% !important;
                 block-size: 100% !important;
@@ -101,7 +106,13 @@
                 display: grid;
                 grid-template-columns: minmax(0px, 1fr);
                 grid-template-rows: minmax(0px, 1fr);
+
+                /* */
+                pointer-events: none;
             }
+
+            /* */
+            body > * > * { pointer-events: auto; }
         </style>
 
         <!-- -->
