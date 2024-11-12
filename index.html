@@ -113,6 +113,13 @@
 
             /* */
             body > * > * { pointer-events: auto; }
+            
+            /* */
+            :where(*) {
+                box-sizing: border-box;
+                transition-behavior: allow-discrete;
+                interpolate-size: allow-keywords;
+            }
         </style>
 
         <!-- -->
