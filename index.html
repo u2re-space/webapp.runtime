@@ -92,6 +92,7 @@
                 padding: 0px;
                 margin: 0px;
                 border: none 0px transparent;
+                background-color: transparent;
             }
 
             /* */
@@ -118,6 +119,7 @@
                 grid-template-rows: minmax(0px, 1fr);
 
                 /* */
+                background-color: transparent;
                 pointer-events: none;
                 position: fixed;
                 inset: 0px;
@@ -131,7 +133,7 @@
             #viewport { display: grid; pointer-events: auto; };
 
             /* #root slot, etc. */
-            #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; }
+            #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; background-color: transparent; }
 
             /* */
             :where(*) {
