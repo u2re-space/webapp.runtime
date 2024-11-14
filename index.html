@@ -88,17 +88,27 @@
             head, script, style { display: none !important; pointer-events: none !important; }
 
             /* */
+            html, body {
+                padding: 0px;
+                margin: 0px;
+                border: none 0px transparent;
+            }
+
+            /* */
             body {
                 display: grid !important;
                 grid-template-columns: minmax(0px, 1fr) !important;
                 grid-template-rows: minmax(0px, 1fr) !important;
                 pointer-events: none;
+                position: relative;
             }
 
             /* */
             body > * {
                 inline-size: 100% !important;
                 block-size: 100% !important;
+
+                /* */
                 grid-column: 1 / 1 span !important;
                 grid-row: 1 / 1 span !important;
 
@@ -109,11 +119,20 @@
 
                 /* */
                 pointer-events: none;
+                position: fixed;
+                inset: 0px;
+
+                /* */
+                inset-inline-end: auto;
+                inset-block-end: auto;
             }
 
             /* */
-            body > * > * { pointer-events: auto; }
-            
+            #viewport { display: grid; pointer-events: auto; };
+
+            /* #root slot, etc. */
+            #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; }
+
             /* */
             :where(*) {
                 box-sizing: border-box;
@@ -145,11 +164,28 @@
         </script>
     </head>
     <body>
+
+        <!-- -->
         <div id="background" class="container u2-container"></div>
-        <div id="viewport"   class="container u2-container"><u-scrollbox id="root">
-            <!-- Web Application Slot -->
-        </u-scrollbox></div>
-        <div id="overlays"   class="container u2-container u2-toplayer"></div>
+        <u-scrollbox id="viewport" class="container u2-container">
+            <div id="root"><!-- Web Application Slot --></div>
+        </u-scrollbox>
+        <div id="overlays"   class="container u2-container u2-toplayer">
+
+            <!-- -->
+            <u-statusbar id="statusbar"></u-statusbar>
+            <u-contextmenu id="contextmenu"></u-contextmenu>
+            <u-focustext
+                value=""
+                id="focustext"
+                class="ui-focus ui-mobile-input ui-dedicated"
+                data-chroma="0"
+                data-scheme="solid"
+                data-highlight="1">
+
+            </u-focustext>
+
+        </div>
 
         <!-- Web App loader -->
         <script data-owner="runtime" data-type="loader" type="module" async defer>
