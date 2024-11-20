@@ -7,9 +7,14 @@ import zlib from "node:zlib"
 //
 const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.crt") => {
     for (const dir of dirList) {
-        const check = await fs
-            .stat(path.resolve(import.meta.dirname, dir + agr, testFile))
-            .catch(() => false);
+        let check = null;
+        try {
+            check = await fs
+                .stat(path.resolve(import.meta.dirname, dir + agr, testFile))
+                .catch(() => false);
+        } catch(e) {
+            console.warn(e);
+        }
         if (check) {
             return path.resolve(import.meta.dirname, dir);
         }
@@ -19,7 +24,7 @@ const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.c
 
 //
 const DIRNAME = "webapp.runtime";
-const __dirname = (await probeDirectory(["../../"+DIRNAME+"/", "../"+DIRNAME+"/", "./"+DIRNAME+"/", "./"], "./", "index.html"));
+const __dirname = (await probeDirectory(["../", "./", "../../"+DIRNAME+"/", "../"+DIRNAME+"/", "./"+DIRNAME+"/"], "./", "index.html"));
 const LOADER = fs.readFile(path.resolve(__dirname, "index.html"), {encoding: 'utf-8'});
 
 //

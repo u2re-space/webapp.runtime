@@ -5,6 +5,8 @@
     "private": false,
     "type": "module",
     "scripts": {
+        "build": "npm install --include=dev",
+        "start": "node ./fastify/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm"
     },
     "browserslist": [
         "last 1 chrome version",
