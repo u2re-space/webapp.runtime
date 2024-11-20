@@ -80,66 +80,68 @@
 
         <!-- -->
         <style data-owner="runtime" data-type="layers">
-            @layer u2-props, u2-core, u2-zoom, u2-normalize, u2-theme, u2-colors, u2-rows, u2-grid-box, u2-layout;
+            @layer u2-props, u2-core, u2-zoom, u2-normalize, ui-system, u2-theme, u2-colors, u2-rows, u2-grid-box, u2-layout;
         </style>
 
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
-            head, script, style { display: none !important; pointer-events: none !important; }
-
-            /* */
-            html, body {
-                padding: 0px;
-                margin: 0px;
-                border: none 0px transparent;
-                background-color: transparent;
-            }
-
-            /* */
-            body {
-                display: grid !important;
-                grid-template-columns: minmax(0px, 1fr) !important;
-                grid-template-rows: minmax(0px, 1fr) !important;
-                pointer-events: none;
-                position: relative;
-            }
-
-            /* */
-            body > * {
-                inline-size: 100% !important;
-                block-size: 100% !important;
+            @layer ui-system {
+                head, script, style { display: none !important; pointer-events: none !important; }
 
                 /* */
-                grid-column: 1 / 1 span !important;
-                grid-row: 1 / 1 span !important;
+                html, body {
+                    padding: 0px;
+                    margin: 0px;
+                    border: none 0px transparent;
+                    background-color: transparent;
+                }
 
                 /* */
-                display: grid;
-                grid-template-columns: minmax(0px, 1fr);
-                grid-template-rows: minmax(0px, 1fr);
+                body {
+                    display: grid !important;
+                    grid-template-columns: minmax(0px, 1fr) !important;
+                    grid-template-rows: minmax(0px, 1fr) !important;
+                    pointer-events: none;
+                    position: relative;
+                }
 
                 /* */
-                background-color: transparent;
-                pointer-events: none;
-                position: fixed;
-                inset: 0px;
+                body > * {
+                    inline-size: 100% !important;
+                    block-size: 100% !important;
+
+                    /* */
+                    grid-column: 1 / 1 span !important;
+                    grid-row: 1 / 1 span !important;
+
+                    /* */
+                    display: grid;
+                    grid-template-columns: minmax(0px, 1fr);
+                    grid-template-rows: minmax(0px, 1fr);
+
+                    /* */
+                    background-color: transparent;
+                    pointer-events: none;
+                    position: fixed;
+                    inset: 0px;
+
+                    /* */
+                    inset-inline-end: auto;
+                    inset-block-end: auto;
+                }
 
                 /* */
-                inset-inline-end: auto;
-                inset-block-end: auto;
-            }
+                #viewport { display: grid; pointer-events: auto; };
 
-            /* */
-            #viewport { display: grid; pointer-events: auto; };
+                /* #root slot, etc. */
+                #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; background-color: transparent; }
 
-            /* #root slot, etc. */
-            #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; background-color: transparent; }
-
-            /* */
-            :where(*) {
-                box-sizing: border-box;
-                transition-behavior: allow-discrete;
-                interpolate-size: allow-keywords;
+                /* */
+                :where(*) {
+                    box-sizing: border-box;
+                    transition-behavior: allow-discrete;
+                    interpolate-size: allow-keywords;
+                }
             }
         </style>
 
