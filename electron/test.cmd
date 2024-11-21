@@ -1,2 +1,2 @@
-call electron ./app/index.mjs
+call electron ./index/index.mjs
 pause

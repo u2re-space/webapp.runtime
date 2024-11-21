@@ -169,12 +169,20 @@ assets/*
 */assets/*
 
 #
-index/
-index/*
-./index/
-./index/*
-*/index/
-*/index/*
+webext/
+webext/*
+./webext/
+./webext/*
+*/webext/
+*/webext/*
+
+#
+app/
+app/*
+./app/
+./app/*
+*/app/
+*/app/*
 
 #
 externals/

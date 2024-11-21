@@ -6,8 +6,8 @@ COPY ./index.html ./
 COPY ./fastify ./fastify
 COPY ./assets ./assets
 COPY ./externals ./externals
-COPY ./index ./index
 COPY ./https ./https
+COPY ./app ./app
 COPY ./pwa ./pwa
 RUN npm install --include=dev
 RUN npm ci

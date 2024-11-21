@@ -6,7 +6,7 @@ import path from 'path';
 const { BrowserWindow } = electron;
 
 //
-export default class ChromeApp {
+export default class BrowserApp {
     constructor(app) {
         this.app = app;
         this.browser = null;
@@ -26,7 +26,7 @@ export default class ChromeApp {
                 sandbox: false,
                 devTools: true,
                 transparent: true,
-                preload: path.resolve(import.meta.dirname, "../agents/injector.mjs")
+                preload: path.resolve(import.meta.dirname, "./injector.mjs")
             };
 
             //

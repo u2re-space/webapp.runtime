@@ -28,7 +28,7 @@
         <meta name="full-screen" content="yes">
 
         <!---->
-        <meta name="application-name" content="IDC-LX0">
+        <meta name="application-name" content="U2RE">
         <meta name="author" content="intendant, unit-404, community">
         <meta name="designer" content="intendant, unit-404, community, Google">
         <meta name="publisher" content="intendant, unit-404, community, Github">
@@ -36,7 +36,7 @@
         <!-- -->
         <meta name="distribution" content="web">
         <meta name="dcterms.audience" content="Global">
-        <meta name="generator" content="Webpack, Svelte, SCSS">
+        <meta name="generator" content="app.runtime">
         <meta name="referrer" content="origin-when-cross-origin">
         <meta name="keywords"
             content="pwa, source, project, intendant, idc, software, experimental, nextgen, ng, 2024, 2025, future, wip, portfolio">
@@ -54,24 +54,24 @@
         <base href="./" />
 
         <!-- -->
-        <link ref="prefetch" href="/externals/lib/dom.js">
-        <link ref="prefetch" href="/externals/lib/interact.js">
-        <link ref="prefetch" href="/externals/lib/object.js">
-        <link ref="prefetch" href="/externals/lib/uniform.js">
+        <link ref="prefetch" href="./externals/lib/dom.js">
+        <link ref="prefetch" href="./externals/lib/interact.js">
+        <link ref="prefetch" href="./externals/lib/object.js">
+        <link ref="prefetch" href="./externals/lib/uniform.js">
 
         <!-- -->
-        <link ref="prefetch" href="/externals/core/core.js">
-        <link ref="prefetch" href="/externals/core/design.js">
-        <link ref="prefetch" href="/externals/core/existence.js">
-        <link ref="prefetch" href="/externals/core/grid.js">
-        <link ref="prefetch" href="/externals/core/theme.js">
+        <link ref="prefetch" href="./externals/core/core.js">
+        <link ref="prefetch" href="./externals/core/design.js">
+        <link ref="prefetch" href="./externals/core/existence.js">
+        <link ref="prefetch" href="./externals/core/grid.js">
+        <link ref="prefetch" href="./externals/core/theme.js">
 
         <!-- -->
-        <link ref="prefetch" href="/externals/wcomp/image.js">
-        <link ref="prefetch" href="/externals/wcomp/contextmenu.js">
-        <link ref="prefetch" href="/externals/wcomp/longtext.js">
-        <link ref="prefetch" href="/externals/wcomp/rows.js">
-        <link ref="prefetch" href="/externals/wcomp/scrollbox.js">
+        <link ref="prefetch" href="./externals/wcomp/image.js">
+        <link ref="prefetch" href="./externals/wcomp/contextmenu.js">
+        <link ref="prefetch" href="./externals/wcomp/longtext.js">
+        <link ref="prefetch" href="./externals/wcomp/rows.js">
+        <link ref="prefetch" href="./externals/wcomp/scrollbox.js">
 
         <!-- webpackIgnore: true-->
         <link rel="manifest" href="./pwa/manifest.json">
@@ -134,7 +134,7 @@
                 #viewport { display: grid; pointer-events: auto; };
 
                 /* #root slot, etc. */
-                #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; background-color: transparent; }
+                #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
 
                 /* */
                 :where(*) {
@@ -194,7 +194,7 @@
 
         <!-- Web App loader -->
         <script data-owner="runtime" data-type="loader" type="module" async defer>
-            const APP_JS = "./index/app.js";
+            const APP_JS = "./app/app.js";
             const SW_JS  = "./pwa/service.mjs";
 
             //

@@ -24,7 +24,7 @@ const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.c
 
 //
 const DIRNAME = "webapp.runtime";
-const __dirname = (await probeDirectory(["../", "./", "../../"+DIRNAME+"/", "../"+DIRNAME+"/", "./"+DIRNAME+"/"], "./", "index.html"));
+const __dirname = (await probeDirectory(["../frontend", "./frontend", "../../"+DIRNAME+"/frontend", "../"+DIRNAME+"/frontend", "./"+DIRNAME+"/frontend"], "./", "index.html"));
 const LOADER = fs.readFile(path.resolve(__dirname, "index.html"), {encoding: 'utf-8'});
 
 //
@@ -119,12 +119,7 @@ export default async function (fastify, options = {}) {
     const CODE = await LOADER;
 
     //
-    fastify.register(fastifyStatic, { prefix: "/pwa/"   , root: path.resolve(__dirname, "pwa/")   , decorateReply: false, list: true, });
-    fastify.register(fastifyStatic, { prefix: "/index/" , root: path.resolve(__dirname, "index/") , decorateReply: false, list: true, });
-    fastify.register(fastifyStatic, { prefix: "/assets/", root: path.resolve(__dirname, "assets/"), decorateReply: false, list: true, });
-    fastify.register(fastifyStatic, { prefix: "/externals/", root: path.resolve(__dirname, "externals/"), decorateReply: false, list: true, });
-
-    //
+    fastify.register(fastifyStatic, { prefix: "/", root: path.resolve(__dirname, "/"), decorateReply: true, list: true, });
     fastify.get('/', options, (request, reply) => {
         reply?.code(200)?.header?.('Content-Type', 'text/html; charset=utf-8')?.type?.('text/html')?.send?.(CODE)
     });

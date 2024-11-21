@@ -1,21 +1,13 @@
 //import module from 'module-alias';
 import electron from 'electron';
-import ChromeApp from './apps/chrome.mjs';
-//import path from "path";
-import paths from "../imports.mjs";
+import BrowserApp from './browser.mjs';
 
 //
 const { app, ipcMain, nativeTheme } = electron;
-
-/////////////////////
-// App Controller  //
-/////////////////////
-
-//
-const chrome = new ChromeApp(app);
-const restartChrome = async () => {
-    chrome.init();
-    chrome.loadURL(`file://${import.meta.dirname}/index.html`);
+const browser = new BrowserApp(app);
+const restart = async () => {
+    browser.init();
+    browser.loadURL(`file://${import.meta.dirname}/../../frontend/index.html`);
 }
 
 // execute application...
@@ -46,12 +38,12 @@ export const main = (async()=>{
     //}).catch(console.warn.bind(console));
 
     //
-    await restartChrome();
+    await restart();
 
     //
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length < 1) {
-            await restartChrome();
+            await restart();
         }
     })
 
@@ -76,7 +68,7 @@ ipcMain.handle('dark-mode:system', () => {
 
 //
 ipcMain.handle('theme-color:change', (event, [color, symbolColor]) => {
-    chrome.browser.setTitleBarOverlay({
+    browser.browser.setTitleBarOverlay({
         color: color || "#000000",
         symbolColor: symbolColor || "#FFFFFF"
     });

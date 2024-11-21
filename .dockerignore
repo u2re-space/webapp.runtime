@@ -20,5 +20,9 @@
 **/obj
 **/secrets.dev.yaml
 **/values.dev.yaml
+**/electron
+**/electron/*
+./electron/*
+electron/*
 LICENSE
 README.md

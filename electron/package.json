@@ -4,13 +4,13 @@
     "description": "Electron Package of WebApp",
     "author": "unknown",
     "type": "module",
-    "main": "app/index.mjs",
+    "main": "./index/index.mjs",
     "engines": {"node": ">=22"},
     "keywords": ["fastify", "server"],
     "license": "MIT",
     "private": false,
     "scripts": {
-        "start": "electron ./app/index.mjs",
+        "start": "electron ./index/index.mjs",
         "make-win64": "npx electron-builder --win --x64"
     },
     "target": "web",
@@ -31,24 +31,10 @@
     ],
     "build": {
         "appId": "web.app",
-        "files": ["app"],
+        "files": ["index"],
         "extraResources": [
-            {
-                "from": "../pwa/",
-                "to": "./pwa"
-            },
-            {
-                "from": "../assets/",
-                "to": "./assets"
-            },
-            {
-                "from": "../index/",
-                "to": "./index"
-            },
-            {
-                "from": "../https/",
-                "to": "./https"
-            }
+            { "from": "../frontend/", "to": "./frontend" },
+            { "from": "../https/", "to": "./https" }
         ],
         "directories": {
             "buildResources": "resources"
