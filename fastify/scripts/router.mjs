@@ -24,7 +24,7 @@ const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.c
 
 //
 const DIRNAME = "webapp.runtime";
-const __dirname = (await probeDirectory(["../frontend", "./frontend", "../../"+DIRNAME+"/frontend", "../"+DIRNAME+"/frontend", "./"+DIRNAME+"/frontend"], "./", "index.html"));
+const __dirname = (await probeDirectory(["../../frontend", "../frontend", "./frontend", "../../"+DIRNAME+"/frontend", "../"+DIRNAME+"/frontend", "./"+DIRNAME+"/frontend"], "./", "index.html"));
 const LOADER = fs.readFile(path.resolve(__dirname, "index.html"), {encoding: 'utf-8'});
 
 //

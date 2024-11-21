@@ -33,8 +33,7 @@
         "appId": "web.app",
         "files": ["index"],
         "extraResources": [
-            { "from": "../frontend/", "to": "./frontend" },
-            { "from": "../https/", "to": "./https" }
+            { "from": "../frontend/", "to": "./frontend" }
         ],
         "directories": {
             "buildResources": "resources"

@@ -2,11 +2,16 @@ import fs from "node:fs/promises"
 import path from "node:path"
 
 //
-const probeDirectory = async (dirList, agr = "local/") => {
+const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.crt") => {
     for (const dir of dirList) {
-        const check = await fs
-            .stat(path.resolve(import.meta.dirname, dir + agr, "certificate.crt"))
-            .catch(() => false);
+        let check = null;
+        try {
+            check = await fs
+                .stat(path.resolve(import.meta.dirname, dir + agr, testFile))
+                .catch(() => false);
+        } catch(e) {
+            console.warn(e);
+        }
         if (check) {
             return path.resolve(import.meta.dirname, dir);
         }
@@ -17,8 +22,9 @@ const probeDirectory = async (dirList, agr = "local/") => {
 //
 const probe = await probeDirectory([
     "./",
-    "./webapp/https/",
-    "../webapp/https/",
+    "./https/",
+    "./fastify/https/",
+    "../fastify/https/",
 ], "local/");
 
 //

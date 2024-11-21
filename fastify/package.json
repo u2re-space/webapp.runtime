@@ -14,7 +14,7 @@
     "private": false,
     "scripts": {
         "build": "npm install --include=dev",
-        "start": "node ./index.mjs --port 443 --address 0.0.0.0 --debug --options --esm"
+        "start": "node ./scripts/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm"
     },
     "target": "web",
     "dependencies": {
