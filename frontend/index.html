@@ -173,8 +173,9 @@
         <div id="background" class="container u2-container">
             <canvas id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%;"></canvas>
         </div>
-        <u-scrollbox id="viewport" class="container u2-container">
-            <div id="root"><!-- Web Application Slot --></div>
+        <ui-scrollbox id="viewport" class="container u2-container">
+            <!--<div id="root"></div>-->
+            <!-- Web Application Slot -->
         </u-scrollbox>
         <div id="overlays"   class="container u2-container u2-toplayer">
 
@@ -202,7 +203,7 @@
                 if (typeof navigator != "undefined") {
                     await navigator?.serviceWorker?.register?.(new URL(/* @vite-ignore */ SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
                 }
-                import(/* @vite-ignore */ `${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#root")))?.catch?.(console.error.bind(console));
+                import(/* @vite-ignore */ `${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#viewport")))?.catch?.(console.error.bind(console));
             })();
         </script>
     </body>
