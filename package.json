@@ -12,8 +12,7 @@
         "last 1 chrome version",
         "last 1 firefox version"
     ],
-    "dependencies": {
-    },
     "devDependencies": {
+        "vite": "^6.0.0"
     }
 }
