@@ -66,7 +66,8 @@ export default async function (fastify, options = {}) {
             "default-src 'self' blob: data:;" +
             "img-src 'self' * blob: data:;" +
             "style-src 'self' 'unsafe-inline' blob: data:;" +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'script-src-elem' blob: data:;" + //'strict-dynamic'
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;" + //'strict-dynamic'
+            "script-src-elem 'self' 'unsafe-inline' blob: data:;" +
             "worker-src 'self' blob:* data:*;");
 
         reply.header("Access-Control-Allow-Methods", "*");
@@ -91,6 +92,8 @@ export default async function (fastify, options = {}) {
         );
         reply.header("Cache-Control", cacheControl);
         if (
+            req.routeOptions.url.includes("pwa/") ||
+            req.routeOptions.url.includes("/pwa") || 
             req.routeOptions.url.includes("assets/") ||
             req.routeOptions.url.includes("/assets") || 
             req.routeOptions.url.includes(".mjs") || 
