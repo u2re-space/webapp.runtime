@@ -46,7 +46,7 @@
             default-src 'self' blob: data:;
             img-src 'self' * blob: data:;
             style-src 'self' 'unsafe-inline' blob: data:;
-            script-src 'self' 'unsafe-inline' blob: data:;
+            script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;
             worker-src 'self' blob:* data:*;
         ">
 
@@ -170,7 +170,7 @@
 
         <!-- -->
         <div id="background" class="container u2-container">
-            <canvas data-src="/assets/wallpaper/stock.webp" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%;"></canvas>
+            <canvas data-src="/assets/wallpaper/stock.png" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%;"></canvas>
         </div>
         <ui-scrollbox id="viewport" class="container u2-container">
             <!--<div id="root"></div>-->
