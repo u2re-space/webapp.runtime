@@ -91,16 +91,7 @@ export default async function (fastify, options = {}) {
             ].join(", ")
         );
         reply.header("Cache-Control", cacheControl);
-        if (
-            req.routeOptions.url.includes("pwa/") ||
-            req.routeOptions.url.includes("/pwa") || 
-            req.routeOptions.url.includes("assets/") ||
-            req.routeOptions.url.includes("/assets") || 
-            req.routeOptions.url.includes(".mjs") || 
-            req.routeOptions.url.includes(".js")
-        ) {
-            reply.header("Service-Worker-Allowed", "/");
-        }
+        reply.header("Service-Worker-Allowed", "/");
         reply.removeHeader("Clear-Site-Data");
         next();
     });
