@@ -55,31 +55,6 @@
         <base href="./" />
 
         <!-- -->
-        <link ref="prefetch" href="./externals/lib/dom.js">
-        <link ref="prefetch" href="./externals/lib/interact.js">
-        <link ref="prefetch" href="./externals/lib/object.js">
-        <link ref="prefetch" href="./externals/lib/uniform.js">
-
-        <!-- -->
-        <link ref="prefetch" href="./externals/core/core.js">
-        <link ref="prefetch" href="./externals/core/design.js">
-        <link ref="prefetch" href="./externals/core/existence.js">
-        <link ref="prefetch" href="./externals/core/grid.js">
-        <link ref="prefetch" href="./externals/core/theme.js">
-
-        <!-- -->
-        <link ref="prefetch" href="./externals/wcomp/image.js">
-        <link ref="prefetch" href="./externals/wcomp/contextmenu.js">
-        <link ref="prefetch" href="./externals/wcomp/longtext.js">
-        <link ref="prefetch" href="./externals/wcomp/rows.js">
-        <link ref="prefetch" href="./externals/wcomp/scrollbox.js">
-
-        <!-- webpackIgnore: true-->
-        <link rel="manifest" href="./pwa/manifest.json">
-        <link rel="icon" type="image/png" href="./favicon.png">
-        <link rel="apple-touch-icon" href="./favicon.png">
-
-        <!-- -->
         <style data-owner="runtime" data-type="layers">
             @layer u2-props, u2-core, u2-zoom, u2-normalize, ui-system, u2-theme, u2-colors, u2-rows, u2-grid-box, u2-layout;
         </style>
@@ -90,7 +65,7 @@
                 *:not(:defined) { display: none; };
                 
                 /* */
-                head, script, style { display: none !important; pointer-events: none !important; }
+                head, script, style, meta { display: none !important; pointer-events: none !important; }
 
                 /* */
                 html, body {
@@ -148,6 +123,31 @@
                 }
             }
         </style>
+
+        <!-- -->
+        <link ref="prefetch" href="./externals/lib/dom.js">
+        <link ref="prefetch" href="./externals/lib/interact.js">
+        <link ref="prefetch" href="./externals/lib/object.js">
+        <link ref="prefetch" href="./externals/lib/uniform.js">
+
+        <!-- -->
+        <link ref="prefetch" href="./externals/core/core.js">
+        <link ref="prefetch" href="./externals/core/design.js">
+        <link ref="prefetch" href="./externals/core/existence.js">
+        <link ref="prefetch" href="./externals/core/grid.js">
+        <link ref="prefetch" href="./externals/core/theme.js">
+
+        <!-- -->
+        <link ref="prefetch" href="./externals/wcomp/image.js">
+        <link ref="prefetch" href="./externals/wcomp/contextmenu.js">
+        <link ref="prefetch" href="./externals/wcomp/longtext.js">
+        <link ref="prefetch" href="./externals/wcomp/rows.js">
+        <link ref="prefetch" href="./externals/wcomp/scrollbox.js">
+
+        <!-- webpackIgnore: true-->
+        <link rel="manifest" href="./pwa/manifest.json">
+        <link rel="icon" type="image/png" href="./favicon.png">
+        <link rel="apple-touch-icon" href="./favicon.png">
 
         <!-- -->
         <script data-owner="runtime" data-type="interact">
