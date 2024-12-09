@@ -66,8 +66,8 @@ export default async function (fastify, options = {}) {
             "default-src 'self' blob: data:;" +
             "img-src 'self' * blob: data:;" +
             "style-src 'self' 'unsafe-inline' blob: data:;" +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:;" + //'strict-dynamic'
-            "script-src-elem 'self' 'unsafe-inline' blob: data:;" +
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" + //'strict-dynamic'
+            "script-src-elem 'self' 'unsafe-inline' node: blob: data:;" +
             "worker-src 'self' blob:* data:*;");
 
         reply.header("Access-Control-Allow-Methods", "*");
