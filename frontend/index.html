@@ -178,6 +178,20 @@
                 navigator.virtualKeyboard.overlaysContent = true;
             }
         </script>
+
+        <!-- Web App loader -->
+        <script data-owner="runtime" data-type="loader" type="module" async defer>
+            const APP_JS = "./app/app.js";
+            const SW_JS  = "./pwa/service.mjs";
+
+            //
+            (async()=>{
+                if (typeof navigator != "undefined") {
+                    await navigator?.serviceWorker?.register?.(new URL(/* @vite-ignore */ SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
+                }
+                import(/* @vite-ignore */ `${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#viewport")))?.catch?.(console.error.bind(console));
+            })();
+        </script>
     </head>
     <body data-scheme="accent" data-chroma="0" data-alpha="1" data-highlight="0" style="pointer-events: auto; background-color: var(--current-surface-color, currentColor); overflow: hidden;">
 
@@ -204,21 +218,6 @@
                 <input type="text" label="test" placeholder="test-longtext" tabindex="-1" draggable="false" autocomplete="on" class="u2-input" value="" scroll="no"/>
             </ui-focustext>
             <ui-tooltip id="tooltip"></ui-tooltip>
-
         </div>
-
-        <!-- Web App loader -->
-        <script data-owner="runtime" data-type="loader" type="module" async defer>
-            const APP_JS = "./app/app.js";
-            const SW_JS  = "./pwa/service.mjs";
-
-            //
-            (async()=>{
-                if (typeof navigator != "undefined") {
-                    await navigator?.serviceWorker?.register?.(new URL(/* @vite-ignore */ SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
-                }
-                import(/* @vite-ignore */ `${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#viewport")))?.catch?.(console.error.bind(console));
-            })();
-        </script>
     </body>
 </html>
