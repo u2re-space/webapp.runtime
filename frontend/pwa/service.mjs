@@ -1,41 +1,7 @@
-
-
-//
-const provide = async (path = "") => {
-    path = path?.url ?? path;
-    const relPath = path.replace(location.origin, "");
-    if (relPath.startsWith("/opfs")) {
-        const params = relPath.split(/\?/i)?.[1] || relPath;
-        const $path = new URLSearchParams(params).get("path");
-        const parts = $path?.split?.("/") || $path || "";
-
-        //
-        let dir = await navigator?.storage
-            ?.getDirectory?.()
-            ?.catch?.(console.warn.bind(console));
-        for (let I = 0; I < parts.length - 1; I++) {
-            if (!parts[I]) continue;
-            dir = await dir
-                ?.getDirectoryHandle?.(parts[I], { create: false })
-                ?.catch?.(console.warn.bind(console));
-            if (!dir) break;
-        }
-
-        //
-        const fileh = await dir?.getFileHandle?.(parts[parts.length - 1], {
-            create: false,
-        });
-        return await fileh?.getFile?.();
-    } else if (relPath.startsWith("/")) {
-        return fetch(path);
-    }
-    return null;
-};
-
 // Config
 const NETWORK_TIMEOUT_MS = 6000; // hosting, amvera
 //const NETWORK_TIMEOUT_MS = 3000; //localhost, router
-const RUNTIME = "idc-ls";
+const RUNTIME = "webapp";
 
 //
 const isSameOrigin = (urlString) => {
@@ -56,12 +22,14 @@ const _WARN_ = (...args) => {
 //
 const tryFetch = (req, event) => {
     const sendResponse = async (response) => {
-        let resp = (await response)?.clone?.()?.catch?.((e)=>{
+        const resp = ((async ()=>((await response)?.clone?.()?.catch?.((e)=>{
             console.warn(e);
             return response;
-        }) || (await response);
-        if (!(resp instanceof Response)) { throw Error("Invalid Response"); };
-        caches.open(RUNTIME).then(async (c)=>c.add(await resp).catch(_WARN_));
+        }) || (await response)))())?.then?.((rc)=>{
+            // TODO: improve caching (batch)
+            caches.open(RUNTIME)?.then?.(async (c)=>c?.add?.(rc)?.catch?.(_WARN_));
+            return rc;
+        });
         return resp;
     };
 
@@ -85,18 +53,6 @@ const tryFetch = (req, event) => {
 const fit = (req, event) => {
 
     //
-    const relPath = (req?.url ?? req).replace(location.origin, "");
-    if (relPath.startsWith("/opfs")) {
-        const preload = (async () => {
-            const filex = provide(relPath);
-            const result = sendResponse(new Response(await filex)).catch(console.warn.bind(console));
-            return result;
-        })();
-        event?.waitUntil?.(preload);
-        return preload;
-    }
-
-    //
     const loading = (async ()=>{
         for (let i = 0; i < 3; i++) {
             try {
@@ -111,19 +67,18 @@ const fit = (req, event) => {
     })();
 
     //
-    const cached = caches.open(RUNTIME).then((c) => c.match(req, {
-            ignoreSearch: true,
-            ignoreMethod: true,
-            ignoreVary: true,
-        })
-    ).catch(()=>null);
+    const cached = caches.open(RUNTIME).then((c) => c?.match?.(req, {
+        ignoreSearch: true,
+        ignoreMethod: true,
+        ignoreVary: true,
+    })).catch(()=>null);
 
     //
     event?.waitUntil?.(cached);
 
     //
-    const anyone = loading.then((r)=>(r||cached)).catch(()=>cached);
-    anyone.then(()=>self.skipWaiting())
+    const anyone = loading?.then?.((r)=>(r||cached))?.catch(()=>cached);
+    anyone?.then?.(()=>self.skipWaiting());
     return anyone?.then?.((resp)=>{
         if (!(resp instanceof Response)) { throw Error("Invalid Response"); };
         return resp;
@@ -148,8 +103,7 @@ const preloadNeeded = (list) => {
 };
 
 //
-const PRE_CACHE_FORCE = [
-].map((u) => new URL(u, self.location.origin).href);
+const PRE_CACHE_FORCE = [].map((u) => new URL(u, self.location.origin).href);
 
 //
 self?.addEventListener?.("install", (event) => {
