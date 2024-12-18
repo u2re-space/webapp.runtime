@@ -26,8 +26,9 @@ const tryFetch = (req, event) => {
             console.warn(e);
             return response;
         }) || (await response)))())?.then?.((rc)=>{
-            // TODO: improve caching (batch)
-            caches.open(RUNTIME)?.then?.(async (c)=>c?.add?.(rc)?.catch?.(_WARN_));
+            if (rc && (rc?.ok || rc?.status == 200)) {
+                caches.open(RUNTIME)?.then?.(async (c)=>c?.add?.(await rc)?.catch?.(_WARN_));
+            }
             return rc;
         });
         return resp;
