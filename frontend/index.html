@@ -99,7 +99,7 @@
                     grid-template-rows: minmax(0px, 1fr);
 
                     /* */
-                    background-color: transparent;
+                    background-color: transparent !important;
                     pointer-events: none;
                     position: fixed;
                     inset: 0px;
@@ -193,17 +193,17 @@
             })();
         </script>
     </head>
-    <body data-scheme="accent" data-chroma="1" data-alpha="1" data-highlight="0" style="pointer-events: auto; background-color: var(--current-surface-color, currentColor); overflow: hidden;">
+    <body data-scheme="accent" data-chroma="1" data-alpha="1" data-highlight="0" style="pointer-events: auto; overflow: hidden;">
 
         <!-- -->
-        <div id="background" class="container u2-container">
+        <div id="background" class="container u2-container" data-alpha="0">
             <canvas data-src="/assets/wallpaper/stock.png" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%;"></canvas>
         </div>
-        <div id="viewport" class="container u2-container">
+        <div id="viewport" class="container u2-container" data-alpha="0">
             <!--<div id="root"></div>-->
             <!-- Web Application Slot -->
         </div>
-        <div id="overlays"   class="container u2-container u2-toplayer">
+        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0">
 
             <!-- -->
             <ui-statusbar id="statusbar"></ui-statusbar>
