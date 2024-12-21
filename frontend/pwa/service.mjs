@@ -5,8 +5,11 @@ const RUNTIME = "webapp";
 
 //
 const isSameOrigin = (urlString) => {
-    const urlOrigin = new URL(urlString).origin;
-    return urlOrigin.startsWith(self.location.origin);
+    const urlOrigin = new URL(urlString)?.origin?.trim?.();
+    return urlOrigin?.startsWith?.(self.location.origin) || 
+           urlOrigin?.startsWith?.("#") || 
+           urlOrigin?.startsWith?.("?") || 
+           !urlOrigin?.startsWith?.("http");
 };
 
 //
@@ -82,7 +85,6 @@ const fit = (req, event) => {
     const useCached = (!navigator.onLine || (navigator?.connection?.effectiveType == "slow-2g"));
     const anyone = (useCached ? cached : Promise.try(tryLoad))?.then?.((r)=>(r||cached))?.catch(()=>cached);
     anyone?.then?.(()=>self.skipWaiting());
-    anyone?.then?.(console.log.bind(console));
     return anyone;
 };
 
