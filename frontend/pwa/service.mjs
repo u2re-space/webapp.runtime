@@ -32,7 +32,7 @@ const tryFetch = (req, event) => {
                 return rc;
             })?.catch?.(console.warn.bind(console));
         }
-        return rc;
+        return response;
     };
 
     //
