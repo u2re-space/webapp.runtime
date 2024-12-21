@@ -55,7 +55,7 @@ const tryFetch = (req, event) => {
 const fit = (req, event) => {
 
     //
-    const loading = (async ()=>{
+    const tryLoad = async ()=>{
         for (let i = 0; i < 3; i++) {
             try {
                 const resp = await tryFetch(req, event);
@@ -66,7 +66,7 @@ const fit = (req, event) => {
             console.warn("Attempt: " + i + ", failed, trying again...");
         }
         return null;
-    })();
+    };
 
     //
     const cached = caches.open(RUNTIME).then((c) => c?.match?.(req, {
@@ -79,7 +79,8 @@ const fit = (req, event) => {
     event?.waitUntil?.(cached);
 
     //
-    const anyone = loading?.then?.((r)=>(r||cached))?.catch(()=>cached);
+    const useCached = (!navigator.onLine || (navigator?.connection?.effectiveType == "slow-2g"));
+    const anyone = (useCached ? cached : Promise.try(tryLoad))?.then?.((r)=>(r||cached))?.catch(()=>cached);
     anyone?.then?.(()=>self.skipWaiting());
     return anyone?.then?.((resp)=>{
         if (!(resp instanceof Response)) { throw Error("Invalid Response"); };
