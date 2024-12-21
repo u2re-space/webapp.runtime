@@ -82,10 +82,7 @@ const fit = (req, event) => {
     const useCached = (!navigator.onLine || (navigator?.connection?.effectiveType == "slow-2g"));
     const anyone = (useCached ? cached : Promise.try(tryLoad))?.then?.((r)=>(r||cached))?.catch(()=>cached);
     anyone?.then?.(()=>self.skipWaiting());
-    return anyone?.then?.((resp)=>{
-        if (!(resp instanceof Response)) { throw Error("Invalid Response"); };
-        return resp;
-    });
+    return anyone;
 };
 
 //
