@@ -24,14 +24,14 @@ const tryFetch = (req, event) => {
             const clone = await (await response)?.clone?.();
             return (clone || response);
         });
-        const rc = (await resp) || (await response);
-        if (rc && (rc?.ok || rc?.status == 200)) {
-            Promise?.try?.(async ()=>{
+        Promise?.try?.(async ()=>{
+            const rc = (await resp) || (await response);
+            if (rc && (rc?.ok || rc?.status == 200)) {
                 const cache = await caches.open(RUNTIME);
                 cache?.add?.(rc);
                 return rc;
-            })?.catch?.(console.warn.bind(console));
-        }
+            }
+        })?.catch?.(console.warn.bind(console));
         return response;
     };
 
