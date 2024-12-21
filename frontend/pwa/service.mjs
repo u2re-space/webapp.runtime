@@ -12,26 +12,27 @@ const isSameOrigin = (urlString) => {
 //
 const _WARN_ = (...args) => {
     const real = args.filter((v) => v != null);
-    if (real && real.length > 0) {
-        console.warn(...real);
-    }
-    //return args[0];
+    if (real && real.length > 0)
+        { console.warn(...real); };
     return null;
 };
 
 //
 const tryFetch = (req, event) => {
     const sendResponse = async (response) => {
-        const resp = ((async ()=>((await response)?.clone?.()?.catch?.((e)=>{
-            console.warn(e);
-            return response;
-        }) || (await response)))())?.then?.((rc)=>{
-            if (rc && (rc?.ok || rc?.status == 200)) {
-                caches.open(RUNTIME)?.then?.(async (c)=>c?.add?.(await rc)?.catch?.(_WARN_));
-            }
-            return rc;
+        const resp = Promise?.try?.(async ()=>{
+            const clone = await (await response)?.clone?.();
+            return (clone || response);
         });
-        return resp;
+        const rc = (await resp) || (await response);
+        if (rc && (rc?.ok || rc?.status == 200)) {
+            Promise?.try?.(async ()=>{
+                const cache = await caches.open(RUNTIME);
+                cache?.add?.(rc);
+                return rc;
+            });
+        }
+        return rc;
     };
 
     //
