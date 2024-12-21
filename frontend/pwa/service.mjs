@@ -30,7 +30,7 @@ const tryFetch = (req, event) => {
                 const cache = await caches.open(RUNTIME);
                 cache?.add?.(rc);
                 return rc;
-            });
+            })?.catch?.(console.warn.bind(console));
         }
         return rc;
     };
