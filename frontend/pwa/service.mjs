@@ -28,7 +28,7 @@ const tryFetch = (req, event) => {
             const rc = (await resp) || (await response);
             if (rc && (rc?.ok || rc?.status == 200)) {
                 const cache = await caches.open(RUNTIME)?.catch?.(console.warn.bind(console));
-                await cache?.add?.(rc)?.catch?.(console.warn.bind(console));
+                await cache?.put?.(req, rc)?.catch?.(console.warn.bind(console));
                 return rc;
             }
         })?.catch?.(console.warn.bind(console));
