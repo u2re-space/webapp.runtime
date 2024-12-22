@@ -3,6 +3,14 @@ const NETWORK_TIMEOUT_MS = 6000; // hosting, amvera
 //const NETWORK_TIMEOUT_MS = 3000; //localhost, router
 const RUNTIME = "webapp";
 
+const efficientTimeout = {
+    "5g": 1000,
+    "4g": 2000,
+    "3g": 4000,
+    "2g": 4000,
+    "2g-slow": 4000
+};
+
 //
 const isSameOrigin = (urlString) => {
     const urlOrigin = new URL(urlString)?.origin?.trim?.();
@@ -41,7 +49,7 @@ const tryFetch = (req, event) => {
     //
     {
         // @ts-ignore
-        const ctime = !navigator.onLine || (navigator?.connection?.effectiveType == "slow-2g") ? 1000 : NETWORK_TIMEOUT_MS;
+        const ctime = !navigator.onLine || (navigator?.connection?.rtt*2) || efficientTimeout[navigator?.connection?.effectiveType] || 1000;
         const fc = new Promise((resolve, reject) =>setTimeout(() => reject(null), ctime)).catch(_WARN_);
         const fp = fetch(req, {
             cache: "no-store",
@@ -82,7 +90,7 @@ const fit = (req, event) => {
     event?.waitUntil?.(cached);
 
     //
-    const useCached = (!navigator.onLine || (navigator?.connection?.effectiveType == "slow-2g"));
+    const useCached = (!navigator.onLine || navigator?.connection?.effectiveType == "slow-2g");
     const anyone = (useCached ? cached : Promise.try(tryLoad))?.then?.((r)=>(r||cached))?.catch(()=>cached);
     anyone?.then?.(()=>self.skipWaiting());
     return anyone;
