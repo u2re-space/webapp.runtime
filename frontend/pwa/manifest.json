@@ -36,6 +36,12 @@
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
+        },
+        {
+            "src": "../assets/icons/home/512b.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "badge"
         }
     ],
     "related_applications": [
