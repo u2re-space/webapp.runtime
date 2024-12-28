@@ -6,7 +6,8 @@
     "type": "module",
     "scripts": {
         "build": "npm install --include=dev",
-        "start": "node ./fastify/scripts/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm"
+        "start": "node ./fastify/scripts/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm",
+        "tauri": "tauri"
     },
     "browserslist": [
         "last 1 chrome version",
