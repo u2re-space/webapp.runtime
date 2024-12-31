@@ -65,6 +65,13 @@
                 *:not(:defined) { display: none; };
                 
                 /* */
+                :root, :scope, :host, body, :where(*) {
+                    dynamic-range-limit: constrained-high;
+                    transition-behavior: allow-discrete;
+                    interpolate-size: allow-keywords;
+                }
+
+                /* */
                 link, head, script, style, meta { display: none !important; pointer-events: none !important; }
 
                 /* */
