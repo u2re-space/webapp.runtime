@@ -31,7 +31,7 @@ const _WARN_ = (...args) => {
 //
 const tryFetch = (req, event, cachedResponse = null) => {
     const sendResponse = async (response) => {
-        if ((await response).status === 304) { return cachedResponse; };
+        if ((await response)?.status === 304) { return cachedResponse; };
 
         //
         const resp = Promise?.try?.(async ()=>{
