@@ -62,7 +62,7 @@
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
             @layer ui-system {
-                *:not(:defined) { display: none; background-color: transparent; color: transparent; };
+                *:not(:defined) { --tm-bg-alpha: 0; display: none; background-color: transparent; color: transparent; };
 
                 /* */
                 :root, :scope, :host, body, :where(*) {
@@ -71,6 +71,7 @@
                     interpolate-size: allow-keywords;
                     background-color: transparent;
                     color: transparent;
+                    --tm-bg-alpha: 0;
                 }
 
                 /* */
