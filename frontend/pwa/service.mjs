@@ -55,11 +55,13 @@ const tryFetch = (req, event, cachedResponse = null) => {
     {   //
         const eTag = cachedResponse?.headers?.get?.('ETag');
         const etagH = eTag ? { 'If-None-Match': eTag } : {};
+        const url = (req?.url || req?.url);
 
         // @ts-ignore
         const ctime = !navigator.onLine || Math.min((navigator?.connection?.rtt*4) || efficientTimeout[navigator?.connection?.effectiveType], efficientTimeout[navigator?.connection?.effectiveType]) || 1000;
         const fc = new Promise((resolve, reject) =>setTimeout(() => reject(null), ctime)).catch(_WARN_);
         const fp = fetch(req, {
+            priority: (url?.includes?.(".mjs") || url?.includes?.(".js") || url?.includes?.(".css")) ? "high" : "low",
             headers: {...etagH},
             cache: "no-store",
             signal: AbortSignal.timeout(ctime + 2000),
