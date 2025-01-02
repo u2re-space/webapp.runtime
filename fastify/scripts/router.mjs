@@ -36,13 +36,14 @@ export default async function (fastify, options = {}) {
         global: true,
         inflateIfDeflated: true,
         encodings: ["deflate", "gzip", "brotli"],
+        threshold: 128,
         brotliOptions: {
             params: {
-                [zlib.constants.BROTLI_PARAM_MODE]:
-                    zlib.constants.BROTLI_MODE_TEXT,
+                [zlib.constants.BROTLI_PARAM_MODE]: zlib.constants.BROTLI_MODE_TEXT,
                 [zlib.constants.BROTLI_PARAM_QUALITY]: 11,
             },
         },
+        encodings: ['br', 'deflate', 'gzip', 'identity'],
         zlibOptions: { level: 9 },
     });
 
