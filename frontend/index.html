@@ -62,13 +62,15 @@
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
             @layer ui-system {
-                *:not(:defined) { display: none; };
-                
+                *:not(:defined) { display: none; background-color: transparent; color: transparent; };
+
                 /* */
                 :root, :scope, :host, body, :where(*) {
                     dynamic-range-limit: constrained-high;
                     transition-behavior: allow-discrete;
                     interpolate-size: allow-keywords;
+                    background-color: transparent;
+                    color: transparent;
                 }
 
                 /* */
