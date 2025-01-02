@@ -29,8 +29,11 @@ const _WARN_ = (...args) => {
 };
 
 //
-const tryFetch = (req, event) => {
+const tryFetch = (req, event, cachedResponse = null) => {
     const sendResponse = async (response) => {
+        if (response.status === 304) { return cachedResponse; };
+
+        //
         const resp = Promise?.try?.(async ()=>{
             const clone = await (await response)?.clone?.();
             return (clone || response);
@@ -47,11 +50,15 @@ const tryFetch = (req, event) => {
     };
 
     //
-    {
+    {   //
+        const eTag = cachedResponse?.headers?.get?.('ETag');
+        const etagH = eTag ? { 'If-None-Match': eTag } : {};
+
         // @ts-ignore
         const ctime = !navigator.onLine || Math.min((navigator?.connection?.rtt*4) || efficientTimeout[navigator?.connection?.effectiveType], efficientTimeout[navigator?.connection?.effectiveType]) || 1000;
         const fc = new Promise((resolve, reject) =>setTimeout(() => reject(null), ctime)).catch(_WARN_);
         const fp = fetch(req, {
+            headers: {...etagH},
             cache: "no-store",
             signal: AbortSignal.timeout(ctime + 2000),
             mode: (req?.url ?? req).startsWith("http:") ? "no-cors" : (isSameOrigin(req?.url ?? req) ? "same-origin" : "cors"),
@@ -64,12 +71,11 @@ const tryFetch = (req, event) => {
 
 //
 const fit = (req, event) => {
-
-    //
-    const tryLoad = async ()=>{
+    const tryLoad = async (cachedResponse = null)=>{
+        const $C = await cachedResponse;
         for (let i = 0; i < 3; i++) {
             try {
-                const resp = await tryFetch(req, event);
+                const resp = await tryFetch(req, event, $C);
                 if (await resp) { return resp; }
             } catch (e) {
                 console.warn(e);
@@ -91,7 +97,7 @@ const fit = (req, event) => {
 
     //
     const useCached = (!navigator.onLine || navigator?.connection?.effectiveType == "slow-2g");
-    const anyone = (useCached ? cached : Promise.try(tryLoad))?.then?.((r)=>(r||cached))?.catch(()=>cached);
+    const anyone = (useCached ? cached : Promise.try(tryLoad, cached))?.then?.((r)=>(r||cached))?.catch(()=>cached);
     anyone?.then?.(()=>self.skipWaiting());
     return anyone;
 };
