@@ -1,5 +1,7 @@
 import cors from "@fastify/cors"
 import fastifyStatic from "@fastify/static"
+import fastifyCaching from "@fastify/caching"
+import fastifyCompress from "@fastify/compress"
 import fs from "fs/promises"
 import path from "node:path"
 import zlib from "node:zlib"
@@ -23,6 +25,11 @@ const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.c
 };
 
 //
+export const UUIDv4 = () => {
+    return (crypto?.randomUUID ? crypto?.randomUUID() : ("10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16))));
+};
+
+//
 const DIRNAME = "webapp.runtime";
 const __dirname = (await probeDirectory(["../../frontend", "../frontend", "./frontend", "../../"+DIRNAME+"/frontend", "../"+DIRNAME+"/frontend", "./"+DIRNAME+"/frontend"], "./", "index.html"));
 const LOADER = fs.readFile(path.resolve(__dirname, "index.html"), {encoding: 'utf-8'});
@@ -32,7 +39,14 @@ export default async function (fastify, options = {}) {
     if (!fastify) throw Error("No Fastify...");
 
     //
-    await fastify.register(import("@fastify/compress"), {
+    await fastify.register(fastifyCaching, {
+        cacheSegment: UUIDv4(),
+        expiresIn: 3600,
+        privacy: fastifyCaching.privacy.PUBLIC
+    });
+
+    //
+    await fastify.register(fastifyCompress, {
         global: true,
         inflateIfDeflated: true,
         encodings: ["deflate", "gzip", "brotli"],

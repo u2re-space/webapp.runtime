@@ -29,5 +29,8 @@
     "browserslist": [
         "last 1 chrome version",
         "last 1 firefox version"
-    ]
+    ],
+    "devDependencies": {
+        "@fastify/caching": "^9.0.2"
+    }
 }
