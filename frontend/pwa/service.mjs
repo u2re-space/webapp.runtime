@@ -49,7 +49,7 @@ const tryFetch = (req, event) => {
     //
     {
         // @ts-ignore
-        const ctime = !navigator.onLine || (navigator?.connection?.rtt*4) || efficientTimeout[navigator?.connection?.effectiveType] || 1000;
+        const ctime = !navigator.onLine || Math.min((navigator?.connection?.rtt*4) || efficientTimeout[navigator?.connection?.effectiveType], efficientTimeout[navigator?.connection?.effectiveType]) || 1000;
         const fc = new Promise((resolve, reject) =>setTimeout(() => reject(null), ctime)).catch(_WARN_);
         const fp = fetch(req, {
             cache: "no-store",
