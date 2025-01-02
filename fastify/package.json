@@ -31,6 +31,7 @@
         "last 1 firefox version"
     ],
     "devDependencies": {
-        "@fastify/caching": "^9.0.2"
+        "@fastify/caching": "^9.0.2",
+        "@fastify/etag": "^6.0.2"
     }
 }

@@ -2,6 +2,7 @@ import cors from "@fastify/cors"
 import fastifyStatic from "@fastify/static"
 import fastifyCaching from "@fastify/caching"
 import fastifyCompress from "@fastify/compress"
+import Etag from "@fastify/etag"
 import fs from "fs/promises"
 import path from "node:path"
 import zlib from "node:zlib"
@@ -39,13 +40,6 @@ export default async function (fastify, options = {}) {
     if (!fastify) throw Error("No Fastify...");
 
     //
-    await fastify.register(fastifyCaching, {
-        cacheSegment: UUIDv4(),
-        expiresIn: 3600,
-        privacy: fastifyCaching.privacy.PUBLIC
-    });
-
-    //
     await fastify.register(fastifyCompress, {
         global: true,
         inflateIfDeflated: true,
@@ -59,6 +53,14 @@ export default async function (fastify, options = {}) {
         },
         encodings: ['br', 'deflate', 'gzip', 'identity'],
         zlibOptions: { level: 4 },
+    });
+
+    //
+    await fastify.register(Etag, { algorithm: "fnv1a" });
+    await fastify.register(fastifyCaching, {
+        cacheSegment: UUIDv4(),
+        expiresIn: 3600,
+        privacy: fastifyCaching.privacy.PUBLIC
     });
 
     //
