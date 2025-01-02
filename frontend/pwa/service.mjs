@@ -4,8 +4,8 @@ const NETWORK_TIMEOUT_MS = 6000; // hosting, amvera
 const RUNTIME = "webapp";
 
 const efficientTimeout = {
-    "5g": 1000,
-    "4g": 2000,
+    "5g": 2000,
+    "4g": 3000,
     "3g": 4000,
     "2g": 4000,
     "2g-slow": 4000
