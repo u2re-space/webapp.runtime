@@ -55,7 +55,7 @@ const tryFetch = (req, event, cachedResponse = null) => {
     {   //
         const eTag = cachedResponse?.headers?.get?.('ETag');
         const etagH = eTag ? { 'If-None-Match': eTag } : {};
-        const url = (req?.url || req?.url);
+        const url = (req?.url || req);
 
         // @ts-ignore
         const ctime = !navigator.onLine || Math.min((navigator?.connection?.rtt*4) || efficientTimeout[navigator?.connection?.effectiveType], efficientTimeout[navigator?.connection?.effectiveType]) || 1000;
@@ -65,7 +65,7 @@ const tryFetch = (req, event, cachedResponse = null) => {
             headers: {...etagH},
             cache: "no-store",
             signal: AbortSignal.timeout(ctime + 2000),
-            mode: (req?.url ?? req).startsWith("http:") ? "no-cors" : (isSameOrigin(req?.url ?? req) ? "same-origin" : "cors"),
+            mode: url?.startsWith("http:") ? "no-cors" : (isSameOrigin(url) ? "same-origin" : "cors"),
         }).then(sendResponse).catch(_WARN_);
 
         //
