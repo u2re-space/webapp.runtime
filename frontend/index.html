@@ -148,6 +148,11 @@
                 #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
 
                 /* */
+                #overlays {
+                    container-type: normal;
+                }
+
+                /* */
                 #overlays > * {
                     position: fixed;
                     inset: 0px;
@@ -240,7 +245,7 @@
             <!--<div id="root"></div>-->
             <!-- Web Application Slot -->
         </div>
-        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0">
+        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal;">
 
             <!-- -->
             <ui-statusbar id="statusbar"></ui-statusbar>
