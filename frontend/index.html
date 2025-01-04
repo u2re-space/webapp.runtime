@@ -97,17 +97,26 @@
                     grid-template-columns: minmax(0px, 1fr) !important;
                     grid-template-rows: minmax(0px, 1fr) !important;
                     pointer-events: none;
-                    position: relative;
+                    position: relative !important;
+                    overflow: hidden;
                 }
 
                 /* */
                 body > * {
+                    max-inline-size: 100cqi !important;
+                    max-block-size: 100cqb !important;
+
+                    /* */
                     inline-size: 100% !important;
                     block-size: 100% !important;
 
                     /* */
-                    grid-column: 1 / 1 span !important;
-                    grid-row: 1 / 1 span !important;
+                    min-inline-size: 0px !important;
+                    min-block-size: 0px !important;
+
+                    /* */
+                    grid-column: 1 / -1 !important;
+                    grid-row: 1 / -1 !important;
 
                     /* */
                     display: grid;
@@ -130,6 +139,11 @@
 
                 /* #root slot, etc. */
                 #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
+
+                /* */
+                #overlays > * {
+                    position: fixed;
+                }
 
                 /* */
                 :where(*) {
@@ -174,7 +188,7 @@
                     }
                 }
             }
-        
+
             // avoid any dragging when no-needed...
             document.documentElement.addEventListener("dragstart", (ev) => {
                 if (ev?.target?.matches?.("div, img, picture, canvas, video, svg")) {
