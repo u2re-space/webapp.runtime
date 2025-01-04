@@ -7,12 +7,12 @@
     "author": "U2RE",
     "id": "/",
     "scope": "/",
-    "display": "fullscreen",
+    "display": "standalone",
     "display_override": [
         "window-controls-overlay",
         "borderless",
-        "fullscreen",
-        "standalone"
+        "standalone",
+        "fullscreen"
     ],
     "description": "NTP PWA Application.",
     "theme_color": "#000000",
