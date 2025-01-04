@@ -80,6 +80,7 @@
 
                 /* */
                 html, body {
+                    inset: 0px;
                     padding: 0px;
                     margin: 0px;
                     border: none 0px transparent;
@@ -97,7 +98,7 @@
                     grid-template-columns: minmax(0px, 1fr) !important;
                     grid-template-rows: minmax(0px, 1fr) !important;
                     pointer-events: none;
-                    position: relative !important;
+                    position: fixed !important;
                     overflow: hidden;
                 }
 
@@ -143,6 +144,7 @@
                 /* */
                 #overlays > * {
                     position: fixed;
+                    inset: 0px;
                 }
 
                 /* */
