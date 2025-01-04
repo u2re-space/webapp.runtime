@@ -158,7 +158,9 @@
                 #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
 
                 /* */
-                #overlays > * { position: fixed; inset: 0px; };
+                #background > * { position: absolute; inset: 0px; };
+                #overlays > * { position: absolute; inset: 0px; };
+                #viewport > * { position: absolute; inset: 0px; };
 
                 /* */
                 :where(*) {
