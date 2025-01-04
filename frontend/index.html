@@ -102,13 +102,15 @@
 
                 /* */
                 body {
-                    display: flex !important;
+                    display: grid !important;
                     grid-template-columns: minmax(0px, 1fr) !important;
                     grid-template-rows: minmax(0px, 1fr) !important;
-                    pointer-events: none;
-                    position: fixed !important;
+                    position: relative !important;
                     overflow: hidden;
                     flex-direction: column;
+                    pointer-events: none;
+                    container-type: size;
+                    contain: strict;
                 }
 
                 /* */
@@ -136,7 +138,7 @@
                     /* */
                     background-color: transparent !important;
                     pointer-events: none;
-                    position: fixed;
+                    position: relative;
                     inset: 0px;
 
                     /* */
@@ -146,7 +148,7 @@
 
                     /* */
                     container-type: size;
-                    contain: none;
+                    contain: strict;
                 }
 
                 /* */
@@ -156,15 +158,7 @@
                 #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
 
                 /* */
-                #overlays {
-                    container-type: normal;
-                }
-
-                /* */
-                #overlays > * {
-                    position: fixed;
-                    inset: 0px;
-                }
+                #overlays > * { position: fixed; inset: 0px; };
 
                 /* */
                 :where(*) {
