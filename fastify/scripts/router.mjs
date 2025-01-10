@@ -80,7 +80,7 @@ export default async function (fastify, options = {}) {
         reply.header("Cross-Origin-Embedder-Policy", "require-corp");
         reply.header("Cross-Origin-Opener-Policy", "same-origin");
         reply.header("Content-Security-Policy", 
-            "default-src 'self' blob: data:;" +
+            "default-src https: 'self' blob: data:;" +
             "img-src 'self' * blob: data:;" +
             "style-src 'self' 'unsafe-inline' blob: data:;" +
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" + //'strict-dynamic'
