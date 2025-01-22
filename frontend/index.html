@@ -67,105 +67,117 @@
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
             @layer ui-system {
-                *:not(:defined) { --tm-bg-alpha: 0; display: none; background-color: transparent; color: transparent; };
-
+                
                 /* */
-                :root, :scope, :host, body, :where(*) {
-                    dynamic-range-limit: constrained-high;
-                    transition-behavior: allow-discrete;
-                    interpolate-size: allow-keywords;
-                    background-color: transparent;
-                    color: transparent;
-                    font-display: swap;
-                    --tm-bg-alpha: 0;
-                }
-
-                /* */
-                link, head, script, style, meta { display: none !important; pointer-events: none !important; }
-
-                /* */
-                html, body {
-                    inset: 0px;
-                    padding: 0px;
-                    margin: 0px;
-                    border: none 0px transparent;
-                    background-color: black;
-                    color: transparent;
-                    font-family: Calibri, Carlito, Caliburn, Seravek, 'Gill Sans Nova', Ubuntu, 'DejaVu Sans', Candara, Segoe, "Segoe UI", Optima, source-sans-pro, sans-serif;
-                }
-
-                /* */
-                a { color: transparent; text-decoration: none; };
-
-                /* */
-                body {
-                    display: grid !important;
-                    grid-template-columns: minmax(0px, 1fr) !important;
-                    grid-template-rows: minmax(0px, 1fr) !important;
-                    position: relative !important;
-                    overflow: hidden;
-                    flex-direction: column;
-                    pointer-events: none;
-                    container-type: size;
-                    contain: strict;
-                    padding: 0px;
-                    margin: 0px;
-                }
-
-                /* */
-                body > * {
-                    max-inline-size: 100% !important;
-                    max-block-size: 100% !important;
-
-                    /* */
-                    inline-size: 100% !important;
-                    block-size: 100% !important;
-
-                    /* */
-                    min-inline-size: 0px !important;
-                    min-block-size: 0px !important;
-
-                    /* */
-                    grid-column: 1 / -1 !important;
-                    grid-row: 1 / -1 !important;
-
-                    /* */
-                    display: grid;
-                    grid-template-columns: minmax(0px, 1fr);
-                    grid-template-rows: minmax(0px, 1fr);
-
-                    /* */
-                    background-color: transparent !important;
-                    pointer-events: none;
-                    position: absolute;
-                    inset: 0px;
-
-                    /* */
-                    inset-inline-end: auto;
-                    inset-block-end: auto;
-                    overflow: hidden;
-
-                    /* */
-                    container-type: size;
-                    contain: strict;
-                }
-
-                /* */
-                #viewport { display: grid; pointer-events: auto; margin: 0px; padding: 0px; };
-
-                /* #root slot, etc. */
-                #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
-
-                /* */
-                #background > * { position: absolute; inset: 0px; };
-                #overlays > * { position: absolute; inset: 0px; };
-                #viewport > * { position: absolute; inset: 0px; };
-
                 /* */
                 :where(*) {
                     box-sizing: border-box;
                     transition-behavior: allow-discrete;
                     interpolate-size: allow-keywords;
+                }
+
+                @media print {
+                    body > *:not(#viewport) {
+                        display: none !important;
+                        visibility: collapse !important;
+                    }
+                }
+
+                @media screen {
+
+                    *:not(:defined) { --tm-bg-alpha: 0; display: none; background-color: transparent; color: transparent; };
+
+                    /* */
+                    :root, :scope, :host, body, :where(*) {
+                        dynamic-range-limit: constrained-high;
+                        transition-behavior: allow-discrete;
+                        interpolate-size: allow-keywords;
+                        background-color: transparent;
+                        color: transparent;
+                        font-display: swap;
+                        --tm-bg-alpha: 0;
+                    }
+
+                    /* */
+                    link, head, script, style, meta { display: none !important; pointer-events: none !important; }
+
+                    /* */
+                    html, body {
+                        inset: 0px;
+                        padding: 0px;
+                        margin: 0px;
+                        border: none 0px transparent;
+                        background-color: black;
+                        color: transparent;
+                        font-family: Calibri, Carlito, Caliburn, Seravek, 'Gill Sans Nova', Ubuntu, 'DejaVu Sans', Candara, Segoe, "Segoe UI", Optima, source-sans-pro, sans-serif;
+                    }
+
+                    /* */
+                    a { color: transparent; text-decoration: none; };
+
+                    /* */
+                    body {
+                        display: grid !important;
+                        grid-template-columns: minmax(0px, 1fr) !important;
+                        grid-template-rows: minmax(0px, 1fr) !important;
+                        position: relative !important;
+                        overflow: hidden;
+                        flex-direction: column;
+                        pointer-events: none;
+                        container-type: size;
+                        contain: strict;
+                        padding: 0px;
+                        margin: 0px;
+                    }
+
+                    /* */
+                    body > * {
+                        max-inline-size: 100% !important;
+                        max-block-size: 100% !important;
+
+                        /* */
+                        inline-size: 100% !important;
+                        block-size: 100% !important;
+
+                        /* */
+                        min-inline-size: 0px !important;
+                        min-block-size: 0px !important;
+
+                        /* */
+                        grid-column: 1 / -1 !important;
+                        grid-row: 1 / -1 !important;
+
+                        /* */
+                        display: grid;
+                        grid-template-columns: minmax(0px, 1fr);
+                        grid-template-rows: minmax(0px, 1fr);
+
+                        /* */
+                        background-color: transparent !important;
+                        pointer-events: none;
+                        position: absolute;
+                        inset: 0px;
+
+                        /* */
+                        inset-inline-end: auto;
+                        inset-block-end: auto;
+                        overflow: hidden;
+
+                        /* */
+                        container-type: size;
+                        contain: strict;
+                    }
+
+                    /* */
+                    #viewport { display: grid; pointer-events: auto; margin: 0px; padding: 0px; };
+
+                    /* #root slot, etc. */
+                    #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
+
+                    /* */
+                    #background > * { position: absolute; inset: 0px; };
+                    #overlays > * { position: absolute; inset: 0px; };
+                    #viewport > * { position: absolute; inset: 0px; };
                 }
             }
         </style>
