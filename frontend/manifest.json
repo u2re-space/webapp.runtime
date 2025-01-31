@@ -1,17 +1,17 @@
 {
     "manifest_version": 3,
-    "name": "webapp",
-    "short_name": "webapp",
-    "version": "0.0.1",
+    "name": "os.u2re.space",
+    "short_name": "os.u2re.space",
+    "version": "canary",
     "start_url": "/",
-    "author": "U2RE",
+    "author": "u2re-dev",
     "id": "/",
     "scope": "/",
     "display": "fullscreen",
     "display_override": ["window-controls-overlay", "borderless", "fullscreen", "standalone"],
-    "description": "A readable Hacker News app.",
-    "theme_color": "#000000",
-    "background_color": "#000000",
+    "description": "U2RE Workspace App",
+    "theme_color": "#ffffff",
+    "background_color": "#ffffff",
     "orientation": "any",
     "categories": ["personalization", "education", "entertainment", "lifestyle"],
     "permissions": [
@@ -19,17 +19,6 @@
         "fullscreen",
         "theme"
     ],
-    "related_applications": [
-        {"platform": "play", "id": "*", "url": "*://*/*"},
-        {"platform": "itunes", "id": "*", "url": "*://*/*"},
-        {"platform": "windows", "id": "*", "url": "*://*/*"},
-        {"platform": "chrome_web_store", "id": "*", "url": "*://*/*"},
-        {"platform": "chromeos_play", "id": "*", "url": "*://*/*"},
-        {"platform": "webapp", "id": "*", "url": "*://*/*"},
-        {"platform": "f-droid", "id": "*", "url": "*://*/*"},
-        {"platform": "amazon", "id": "*", "url": "*://*/*"}
-    ],
-    "content_scripts": [],
     "incognito": "split",
     "chrome_url_overrides": {
         "newtab": "index.html"
