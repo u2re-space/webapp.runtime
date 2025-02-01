@@ -15,8 +15,8 @@
         "standalone"
     ],
     "description": "U2RE Workspace App",
-    "theme_color": "#ffffff", 
-    "background_color": "#ffffff",
+    "theme_color": "#000000", 
+    "background_color": "#000000",
     "orientation": "any",
     "categories": [
         "personalization",
@@ -26,6 +26,11 @@
     ],
     "permissions": ["window-management", "fullscreen", "theme"],
     "icons": [{
+        "src": "../assets/icons/home/512x.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any"
+    }, {
         "src": "../assets/icons/home/512x.png",
         "sizes": "512x512",
         "type": "image/png",

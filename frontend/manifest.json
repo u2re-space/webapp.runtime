@@ -10,8 +10,8 @@
     "display": "fullscreen",
     "display_override": ["window-controls-overlay", "borderless", "fullscreen", "standalone"],
     "description": "U2RE Workspace App",
-    "theme_color": "#ffffff",
-    "background_color": "#ffffff",
+    "theme_color": "#000000",
+    "background_color": "#000000",
     "orientation": "any",
     "categories": ["personalization", "education", "entertainment", "lifestyle"],
     "permissions": [
