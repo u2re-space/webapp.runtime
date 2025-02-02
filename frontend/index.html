@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-device-type="mobile">
     <head>
         <!-- Legacy compatible -->
         <!--<meta charset="utf-8" http-equiv="Content-Type" content="text/html; charset=utf-8">-->
@@ -67,8 +67,6 @@
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
             @layer ui-system {
-                
-                /* */
                 /* */
                 :where(*) {
                     box-sizing: border-box;
@@ -234,6 +232,19 @@
                 // @ts-ignore
                 navigator.virtualKeyboard.overlaysContent = true;
             }
+
+            //
+            const media = matchMedia("(((hover: hover) or (pointer: fine)) and ((width >= 9in) or (orientation: landscape)))");
+            media?.addEventListener?.("change", (e)=>{
+                document.documentElement.dataset.deviceType = e?.matches ? "desktop" : "mobile";
+                document.body.dataset.deviceType = e?.matches ? "desktop" : "mobile";
+            });
+
+            //
+            requestIdleCallback(()=>{
+                document.documentElement.dataset.deviceType = media?.matches ? "desktop" : "mobile";
+                document.body.dataset.deviceType = media?.matches ? "desktop" : "mobile";
+            });
         </script>
 
         <!-- Web App loader -->
@@ -251,7 +262,14 @@
             })();
         </script>
     </head>
-    <body data-scheme="accent" data-chroma="1" data-alpha="1" data-highlight="0" style="pointer-events: auto; overflow: hidden;">
+    <body 
+        data-device-type="mobile" 
+        data-scheme="accent" 
+        data-chroma="1" 
+        data-alpha="1" 
+        data-highlight="0" 
+        style="pointer-events: auto; overflow: hidden;"
+    >
 
         <!-- -->
         <div id="background" class="container u2-container" data-alpha="0">
