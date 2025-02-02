@@ -14,12 +14,7 @@
         <meta http-equiv="content-language" content="en-us">
 
         <!---->
-        <meta name="viewport" content="
-            width=device-width,
-            viewport-fit=cover,
-            initial-scale=1.0,
-            interactive-widget=overlays-content
-        ">
+        <meta name="viewport" content="width=device-width, height=device-height, viewport-fit=cover, initial-scale=1.0, interactive-widget=overlays-content">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-status-bar-style" content="black">
         <meta name="mobile-web-app-capable" content="yes">
@@ -270,16 +265,15 @@
         data-highlight="0" 
         style="pointer-events: auto; overflow: hidden;"
     >
-
         <!-- -->
-        <div id="background" class="container u2-container" data-alpha="0">
-            <canvas data-src="/assets/wallpaper/stock.webp" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%;"></canvas>
+        <div id="background" class="container u2-container" data-alpha="0" style="background-color: transparent; content-visibility: visible;">
+            <canvas data-src="/assets/wallpaper/stock.webp" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%; content-visibility: visible;"></canvas>
         </div>
-        <div id="viewport" class="container u2-container" data-alpha="0" data-print-pass>
+        <div id="viewport" class="container u2-container" data-alpha="0" style="background-color: transparent;" data-print-pass>
             <!--<div id="root"></div>-->
             <!-- Web Application Slot -->
         </div>
-        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal;">
+        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent;">
 
             <!-- -->
             <ui-statusbar id="statusbar"></ui-statusbar>
