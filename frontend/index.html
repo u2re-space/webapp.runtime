@@ -113,7 +113,7 @@
                         display: grid !important;
                         grid-template-columns: minmax(0px, 1fr) !important;
                         grid-template-rows: minmax(0px, 1fr) !important;
-                        position: relative !important;
+                        position: fixed !important;
                         overflow: hidden;
                         flex-direction: column;
                         pointer-events: none;
@@ -121,6 +121,10 @@
                         contain: strict;
                         padding: 0px;
                         margin: 0px;
+                        place-content: center;
+                        place-items: center;
+                        align-content: start !important;
+                        align-items: start !important;
                     }
 
                     /* */
@@ -171,6 +175,13 @@
                     #background > * { position: absolute; inset: 0px; };
                     #overlays > * { position: absolute; inset: 0px; };
                     #viewport > * { position: absolute; inset: 0px; };
+
+                    /* fix virtual keyboard and overlays issues */
+                    #overlays {
+                        inline-size: 100dvi !important;
+                        block-size: min(100dvb, var(--view-height, 100dvb)) !important;
+                        position: fixed !important;
+                    }
                 }
             }
         </style>
@@ -263,7 +274,7 @@
         data-chroma="1" 
         data-alpha="1" 
         data-highlight="0" 
-        style="pointer-events: auto; overflow: hidden;"
+        style="pointer-events: auto; overflow: hidden; align-content: start !important; align-items: start !important; position: fixed !important; inset-block-end: auto !important; inset-block-start: 0px !important;"
     >
         <!-- -->
         <div id="background" class="container u2-container" data-alpha="0" style="background-color: transparent; content-visibility: visible;">
@@ -273,7 +284,7 @@
             <!--<div id="root"></div>-->
             <!-- Web Application Slot -->
         </div>
-        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent;">
+        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent; block-size: min(100dvb, var(--view-height, 100dvb)) !important; position: fixed !important;">
 
             <!-- -->
             <ui-statusbar id="statusbar"></ui-statusbar>
