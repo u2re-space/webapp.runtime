@@ -184,6 +184,7 @@
 
                     /* fix virtual keyboard and overlays issues */
                     #overlays {
+						transition: block-size 100ms step-end !important;
                         inline-size: 100dvi !important;
                         block-size: min(100dvb, var(--view-height, 100dvb)) !important;
                         position: fixed !important;
@@ -290,7 +291,7 @@
             <!--<div id="root"></div>-->
             <!-- Web Application Slot -->
         </div>
-        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent; block-size: min(100dvb, var(--view-height, 100dvb)) !important; position: fixed !important;">
+        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent; block-size: min(100dvb, var(--view-height, 100dvb)) !important; position: fixed !important; transition: block-size 100ms step-end !important;">
 
             <!-- -->
             <ui-statusbar id="statusbar"></ui-statusbar>
