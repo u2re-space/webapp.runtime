@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
-    "name": "os.u2re.space",
-    "short_name": "os.u2re.space",
+    "name": "u2.os",
+    "short_name": "u2.os",
     "version": "canary",
     "start_url": "/",
     "author": "u2re-dev",
@@ -14,9 +14,9 @@
         "fullscreen",
         "standalone"
     ],
-    "description": "U2RE Workspace App",
-    "theme_color": "#101010", 
-    "background_color": "#101010",
+    "description": "Web OS-like",
+    "theme_color": "#000000",
+    "background_color": "#000000",
     "orientation": "any",
     "categories": [
         "personalization",
