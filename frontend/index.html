@@ -29,7 +29,7 @@
             script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;
             worker-src 'self' blob:* data:*;
         "/>
-        
+
         <!---->
         <title>U2RE.APP</title>
 
@@ -116,7 +116,7 @@
                     }
 
                     /* */
-                    body > *:not(#vital-test-fail-warning) {
+                    body > *:not(#vital-test-fail-warning, #filter) {
                         max-inline-size: 100% !important;
                         max-block-size: 100% !important;
 
@@ -170,6 +170,23 @@
                         inline-size: 100dvi !important;
                         block-size: min(100dvb, var(--view-height, 100dvb)) !important;
                         position: fixed !important;
+                    }
+
+                    #filter {
+                        mix-blend-mode: multiply !important;
+                        inset: 0px !important;
+                        position: fixed !important;
+                        margin: 0px;
+                        padding: 0px;
+                        inline-size: 100%;
+                        block-size: 100%;
+                        min-inline-size: 100dvi;
+                        min-block-size: 100dvb;
+                        background-color: oklch(calc(var(--brightness, 1) * 0.4 + 0.6) calc(var(--night-mode, 0) * 0.05) 35) !important;/**/
+                        pointer-events: none !important;
+                        z-index: 9999999 !important;
+                        content-visibility: visible;
+                        transform: translateZ(0px) !important;
                     }
                 }
             }
@@ -258,12 +275,12 @@
             })();
         </script>
     </head>
-    <body 
-        data-device-type="mobile" 
-        data-scheme="accent" 
-        data-chroma="1" 
-        data-alpha="1" 
-        data-highlight="0" 
+    <body
+        data-device-type="mobile"
+        data-scheme="accent"
+        data-chroma="1"
+        data-alpha="1"
+        data-highlight="0"
         style="pointer-events: auto; overflow: hidden; align-content: start !important; align-items: start !important; position: fixed !important; inset-block-end: auto !important; inset-block-start: 0px !important;"
     >
         <!-- -->
@@ -290,5 +307,7 @@
             </ui-focustext>
             <ui-tooltip data-hidden id="tooltip"></ui-tooltip>
         </div>
+
+        <div id="filter"></div>
     </body>
 </html>
