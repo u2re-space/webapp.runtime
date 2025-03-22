@@ -22,11 +22,11 @@
 
         <!-- CSP local rules -->
         <meta http-equiv="Content-Security-Policy" content="
+            script-src 'wasm-unsafe-eval' 'inline-speculation-rules' 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data: http:;
             default-src https: 'self' blob: data:;
             img-src 'self' * blob: data:;
             style-src 'self' 'unsafe-inline' blob: data:;
             script-src-elem 'self' 'unsafe-inline' node: blob: data:;
-            script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;
             worker-src 'self' blob:* data:*;
         "/>
 
@@ -217,63 +217,10 @@
         <link rel="apple-touch-icon" href="./favicon.png">
 
         <!-- -->
-        <script data-owner="runtime" data-type="interact">
-            // workaround for happy-fs
-            if (typeof process == "undefined" || !window?.process) {
-                window.process = {
-                    env: {
-                        NODE_ENV: "production"
-                    }
-                }
-            }
-
-            // avoid any dragging when no-needed...
-            document.documentElement.addEventListener("dragstart", (ev) => {
-                if (ev?.target?.matches?.("div, img, picture, canvas, video, svg")) {
-                    ev.preventDefault();
-                }
-            }, {passive: false, capture: true});
-
-            // comment to enable native context menu
-            document.documentElement.addEventListener("contextmenu", (ev)=>{
-                ev.preventDefault();
-            });
-
-            //
-            if ("virtualKeyboard" in navigator && navigator?.virtualKeyboard) {
-                // @ts-ignore
-                navigator.virtualKeyboard.overlaysContent = true;
-            }
-
-            //
-            const media = matchMedia("(((hover: hover) or (pointer: fine)) and ((width >= 9in) or (orientation: landscape)))");
-            media?.addEventListener?.("change", (e)=>{
-                document.documentElement.dataset.deviceType = e?.matches ? "desktop" : "mobile";
-                document.body.dataset.deviceType = e?.matches ? "desktop" : "mobile";
-            });
-
-            //
-            requestIdleCallback(()=>{
-                document.documentElement.dataset.deviceType = media?.matches ? "desktop" : "mobile";
-                document.body.dataset.deviceType = media?.matches ? "desktop" : "mobile";
-            });
-        </script>
+        <script src="./init.mjs"></script>
 
         <!-- Web App loader -->
-        <script data-owner="runtime" data-type="loader" type="module" async defer>
-            import { placeCSSCompatWarning } from "./vital.mjs";
-            const _SUB   = location?.hostname?.split?.(".")?.[0]?.trim?.();
-            const APP_JS = _SUB == "print" ? "./print/app.js" : "./app/app.js";
-            const SW_JS  = "./pwa/service.mjs";
-
-            //
-            if (placeCSSCompatWarning()) (async()=>{
-                if (typeof navigator != "undefined") {
-                    await navigator?.serviceWorker?.register?.(new URL(/* @vite-ignore */ SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
-                }
-                import(/* @vite-ignore */ `${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#viewport")))?.catch?.(console.error.bind(console));
-            })();
-        </script>
+        <script src="./load.mjs" type="module" async defer></script>
     </head>
     <body
         data-device-type="mobile"
