@@ -204,3 +204,9 @@ pack/*
 package-lock.json
 ./package-lock.json
 */package-lock.json
+
+#
+temp/
+temp/*
+./temp/
+./temp/*
