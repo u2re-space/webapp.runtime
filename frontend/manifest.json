@@ -31,7 +31,7 @@
     },
     "service_worker_allowed": "/",
     "web_accessible_resources": [ {
-        "resources": ["externals/*", "assets/*", "app/*", "./vital.mjs"],
+        "resources": ["externals/*", "assets/*", "apps/*", "./vital.mjs"],
         "matches": ["<all_urls>"]
     }]
 }
