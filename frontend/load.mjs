@@ -1,6 +1,6 @@
 import { placeCSSCompatWarning } from "./vital.mjs";
 const _SUB   = location?.hostname?.split?.(".")?.[0]?.trim?.();
-const APP_JS = "./app/app.js";//_SUB == "print" ? "./print/app.js" : "./app/app.js";
+const APP_JS = "./apps/OS/app.js";//_SUB == "print" ? "./print/app.js" : "./app/app.js";
 const SW_JS  = "./pwa/service.mjs";
 
 //

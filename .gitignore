@@ -181,12 +181,12 @@ webext/*
 */webext/*
 
 #
-app/
-app/*
-./app/
-./app/*
-*/app/
-*/app/*
+apps/
+apps/*
+./apps/
+./apps/*
+*/apps/
+*/apps/*
 
 #
 externals/
