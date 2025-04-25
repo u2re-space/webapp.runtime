@@ -79,7 +79,7 @@ export default async function (fastify, options = {}) {
     fastify.addHook("onSend", function (req, reply, payload, next) {
         reply.header("Cross-Origin-Embedder-Policy", "require-corp");
         reply.header("Cross-Origin-Opener-Policy", "same-origin");
-        reply.header("Content-Security-Policy", 
+        reply.header("Content-Security-Policy",
             "default-src https: 'self' blob: data:;" +
             "img-src 'self' * blob: data:;" +
             "style-src 'self' 'unsafe-inline' blob: data:;" +
@@ -101,7 +101,6 @@ export default async function (fastify, options = {}) {
                 "magnetometer=*",
                 "execution-while-out-of-viewport=*",
                 "execution-while-not-rendered=*",
-                "document-domain=*",
                 "accelerometer=*",
                 "display-capture=*",
                 "serial=*",
@@ -128,7 +127,7 @@ export default async function (fastify, options = {}) {
 
     //
     const CODE = await LOADER;
-    
+
     //
     fastify.get('/', options, (request, reply) => {
         reply?.code(200)?.header?.('Content-Type', 'text/html; charset=utf-8')?.type?.('text/html')?.send?.(CODE)
