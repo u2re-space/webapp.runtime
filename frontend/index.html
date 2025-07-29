@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en" data-device-type="mobile">
+    <head>
+        <meta charset="utf-8"/>
+        <meta name="viewport" content="width=device-width, viewport-fit=cover, initial-scale=1.0, user-scalable=no, interactive-widget=overlays-content"/>
+
+        <!---->
+        <meta name="apple-mobile-web-app-capable" content="yes"/>
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+        <meta name="mobile-web-app-capable" content="yes"/>
+
+        <!-- @vite-ignore -->
+        <meta name="theme-color" content="transparent" data-theme-color/>
+
+        <!---->
+        <meta name="full-screen" content="yes"/>
+        <meta name="application-name" content="U2RE"/>
+
+        <!---->
+        <meta property="og:locale" content="en"/>
+        <meta http-equiv="content-language" content="en-us"/>
+
+        <!-- CSP local rules -->
+        <meta http-equiv="Content-Security-Policy" content="
+            script-src 'wasm-unsafe-eval' 'inline-speculation-rules' 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data: http:;
+            default-src https: 'self' blob: data:;
+            img-src 'self' * blob: data:;
+            style-src 'self' 'unsafe-inline' blob: data:;
+            script-src-elem 'self' 'unsafe-inline' node: blob: data:;
+            worker-src 'self' blob:* data:*;
+        "/>
+
+        <!---->
+        <title>U2RE.APP</title>
+
+        <!-- -->
+        <base href="./" />
+
+        <!-- -->
+        <script type="importmap">
+        {
+            "imports": {
+                "u2re/": "/externals/modules/",
+                "u2re/cdnImport": "/externals/cdnImport.mjs",
+                "u2re/dom": "/externals/modules/dom.js",
+                "u2re/object": "/externals/modules/object.js",
+                "u2re/uniform": "/externals/modules/uniform.js",
+                "u2re/lure": "/externals/modules/blue.js,
+                "u2re/theme": "/externals/modules/theme.js
+            }
+        }
+        </script>
+
+        <!-- -->
+        <style data-owner="runtime" data-type="layers">
+            @layer u2-props, u2-core, u2-zoom, u2-normalize, ux-agate, ui-system, u2-theme, u2-colors, u2-rows, u2-grid-box, u2-layout;
+        </style>
+
+        <!-- critical styles -->
+        <style data-owner="runtime" data-type="system">
+            @layer ui-system {
+                /* */
+                :where(*) {
+                    box-sizing: border-box;
+                    transition-behavior: allow-discrete;
+                    interpolate-size: allow-keywords;
+                    background-color: transparent;
+                }
+
+                /* */
+                button, a, input, textarea {
+                    border: none 0px transparent;
+                }
+
+                @media print {
+                    body > *:not(#viewport) {
+                        display: none !important;
+                        visibility: collapse !important;
+                    }
+                }
+
+                @media screen {
+
+                    *:not(:defined) { --tm-bg-alpha: 0; display: none; background-color: transparent; color: transparent; };
+
+                    /* */
+                    :root, :scope, :host, body, :where(*) {
+                        dynamic-range-limit: constrained-high;
+                        transition-behavior: allow-discrete;
+                        interpolate-size: allow-keywords;
+                        background-color: transparent;
+                        color: transparent;
+                        font-display: swap;
+                        --tm-bg-alpha: 0;
+                    }
+
+                    /* */
+                    link, head, script, style, meta { display: none !important; pointer-events: none !important; }
+
+                    /* */
+                    html, body {
+                        inset: 0px;
+                        padding: 0px;
+                        margin: 0px;
+                        border: none 0px transparent;
+                        background-color: black;
+                        color: transparent;
+                        font-family: Calibri, Carlito, Caliburn, Seravek, 'Gill Sans Nova', Ubuntu, 'DejaVu Sans', Candara, Segoe, "Segoe UI", Optima, source-sans-pro, sans-serif;
+                    }
+
+                    /* */
+                    a { color: transparent; text-decoration: none; };
+
+                    /* */
+                    body {
+                        display: grid !important;
+                        grid-template-columns: minmax(0px, 1fr) !important;
+                        grid-template-rows: minmax(0px, 1fr) !important;
+                        position: fixed !important;
+                        overflow: hidden;
+                        flex-direction: column;
+                        pointer-events: none;
+                        container-type: size;
+                        contain: strict;
+                        padding: 0px;
+                        margin: 0px;
+                        place-content: center;
+                        place-items: center;
+                        align-content: start !important;
+                        align-items: start !important;
+                    }
+
+                    /* */
+                    body > *:not(#vital-test-fail-warning, #filter) {
+                        max-inline-size: 100% !important;
+                        max-block-size: 100% !important;
+
+                        /* */
+                        inline-size: 100% !important;
+                        block-size: 100% !important;
+
+                        /* */
+                        min-inline-size: 0px !important;
+                        min-block-size: 0px !important;
+
+                        /* */
+                        grid-column: 1 / -1 !important;
+                        grid-row: 1 / -1 !important;
+
+                        /* */
+                        display: grid;
+                        grid-template-columns: minmax(0px, 1fr);
+                        grid-template-rows: minmax(0px, 1fr);
+
+                        /* */
+                        background-color: transparent !important;
+                        pointer-events: none;
+                        position: absolute;
+                        inset: 0px;
+
+                        /* */
+                        inset-inline-end: auto;
+                        inset-block-end: auto;
+                        overflow: hidden;
+
+                        /* */
+                        container-type: size;
+                        contain: strict;
+                    }
+
+                    /* */
+                    #viewport { display: grid; pointer-events: auto; margin: 0px; padding: 0px; };
+
+                    /* #root slot, etc. */
+                    #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
+
+                    /* */
+                    #background > * { position: absolute; inset: 0px; };
+                    #overlays > * { position: absolute; inset: 0px; };
+                    #viewport > * { position: absolute; inset: 0px; };
+
+                    /* fix virtual keyboard and overlays issues */
+                    #overlays {
+						transition: block-size 100ms step-end !important;
+                        inline-size: 100dvi !important;
+                        block-size: min(100dvb, var(--view-height, 100dvb)) !important;
+                        position: fixed !important;
+                    }
+
+                    #filter {
+                        mix-blend-mode: multiply !important;
+                        inset: 0px !important;
+                        position: fixed !important;
+                        margin: 0px;
+                        padding: 0px;
+                        inline-size: 100%;
+                        block-size: 100%;
+                        min-inline-size: 100dvi;
+                        min-block-size: 100dvb;
+                        background-color: oklch(calc(var(--brightness, 1) * 0.4 + 0.6) calc(var(--night-mode, 0) * 0.05) 35) !important;/**/
+                        pointer-events: none !important;
+                        z-index: 9999999 !important;
+                        content-visibility: visible;
+                        transform: translateZ(0px) !important;
+                    }
+                }
+            }
+        </style>
+
+        <!-- -->
+        <link ref="prefetch" href="./externals/lib/dom.js">
+        <link ref="prefetch" href="./externals/lib/object.js">
+        <link ref="prefetch" href="./externals/lib/uniform.js">
+
+        <!-- -->
+        <link ref="prefetch" href="./externals/core/interact.js">
+        <link ref="prefetch" href="./externals/core/core.js">
+        <link ref="prefetch" href="./externals/core/design.js">
+        <link ref="prefetch" href="./externals/core/existence.js">
+        <link ref="prefetch" href="./externals/core/grid.js">
+        <link ref="prefetch" href="./externals/core/theme.js">
+
+        <!-- -->
+        <link ref="prefetch" href="./externals/wcomp/image.js">
+        <link ref="prefetch" href="./externals/wcomp/longtext.js">
+        <link ref="prefetch" href="./externals/wcomp/rows.js">
+        <link ref="prefetch" href="./externals/wcomp/scrollbox.js">
+
+        <!-- webpackIgnore: true-->
+        <link rel="manifest" href="./pwa/manifest.json">
+        <link rel="icon" type="image/png" href="./favicon.png">
+        <link rel="apple-touch-icon" href="./favicon.png">
+
+        <!-- -->
+        <script src="./init.mjs"></script>
+
+        <!-- Web App loader -->
+        <script src="./load.mjs" type="module" async defer></script>
+    </head>
+    <body
+        data-device-type="mobile"
+        data-scheme="accent"
+        data-chroma="1"
+        data-alpha="1"
+        data-highlight="0"
+        style="pointer-events: auto; overflow: hidden; align-content: start !important; align-items: start !important; position: fixed !important; inset-block-end: auto !important; inset-block-start: 0px !important;"
+    >
+        <!-- -->
+        <div id="background" class="container u2-container" data-alpha="0" style="background-color: transparent; content-visibility: visible;">
+            <canvas data-src="/assets/wallpaper/stock.webp" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%; content-visibility: visible;"></canvas>
+        </div>
+        <div id="viewport" class="container u2-container" data-alpha="0" style="background-color: transparent;" data-print-pass>
+            <!--<div id="root"></div>-->
+            <!-- Web Application Slot -->
+        </div>
+        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent; block-size: min(100dvb, var(--view-height, 100dvb)) !important; position: fixed !important; transition: block-size 100ms step-end !important;">
+
+            <!-- -->
+            <ui-statusbar id="statusbar"></ui-statusbar>
+            <!--<ui-contextmenu id="contextmenu"></ui-contextmenu>-->
+            <ui-focustext
+                value=""
+                id="focustext"
+                class="ui-focus ui-mobile-input ui-dedicated"
+                data-chroma="0"
+                data-scheme="solid"
+                data-highlight="1">
+                <input type="text" label="test" placeholder="test-longtext" tabindex="-1" draggable="false" autocomplete="on" class="u2-input" value="" scroll="no"/>
+            </ui-focustext>
+            <ui-tooltip data-hidden id="tooltip"></ui-tooltip>
+        </div>
+
+        <div id="filter"></div>
+    </body>
+</html>
