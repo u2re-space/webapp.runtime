@@ -1,11 +1,7 @@
 {
     "name": "@unite-2/webapp-runtime",
     "description": "Web App Runtime Loader",
-<<<<<<< HEAD
     "version": "1.0.0",
-=======
-    "version": "1.0.0alpha",
->>>>>>> 1186c27 (Try to push agains)
     "private": false,
     "type": "module",
     "scripts": {
@@ -15,11 +11,7 @@
     },
     "browserslist": [
         "last 1 chrome version",
-<<<<<<< HEAD
         "last 1 edge version"
-=======
-        "last 1 firefox version"
->>>>>>> 1186c27 (Try to push agains)
     ],
     "devDependencies": {
         "@tauri-apps/api": "^2.1.1",
