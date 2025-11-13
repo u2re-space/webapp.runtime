@@ -40,6 +40,13 @@ export default async function (fastify, options = {}) {
     if (!fastify) throw Error("No Fastify...");
 
     //
+    await fastify.register(compress, {
+        global: true,
+        brotliOptions: { params: {} },
+        zlibOptions: { level: 6 },
+    });
+
+    //
     await fastify.register(fastifyCompress, {
         global: true,
         inflateIfDeflated: true,
@@ -129,16 +136,35 @@ export default async function (fastify, options = {}) {
     const CODE = await LOADER;
 
     //
-    fastify.get('/', options, (request, reply) => {
-        reply?.code(200)?.header?.('Content-Type', 'text/html; charset=utf-8')?.type?.('text/html')?.send?.(CODE)
+    fastify.get('/health', async () => ({ ok: true }));
+    fastify.get('/', async (req, reply) => {
+        const links = [
+            '</assets/app.css>; rel=preload; as=style',
+            '</assets/app.js>; rel=modulepreload; as=script; crossorigin',
+            '</assets/logo.webp>; rel=preload; as=image'
+        ].join(', ');
+        if (reply.raw.writeEarlyHints) {
+            reply.raw.writeEarlyHints({ link: links });
+        }
+        return reply?.code(200)?.header?.('Content-Type', 'text/html; charset=utf-8')?.type?.('text/html')?.send?.(CODE)
     });
 
     //
-    fastify.register(fastifyStatic, { prefix: "/", root: path.resolve(__dirname, "./"), decorateReply: true, list: true, });
-    /*fastify.register(fastifyStatic, { prefix: "/externals/", root: path.resolve(__dirname, "./externals/"), list: true, });
-    fastify.register(fastifyStatic, { prefix: "/assets/", root: path.resolve(__dirname, "./assets/"), list: true, });
-    fastify.register(fastifyStatic, { prefix: "/pwa/", root: path.resolve(__dirname, "./pwa/"), list: true, });
-    fastify.register(fastifyStatic, { prefix: "/app/", root: path.resolve(__dirname, "./app/"), list: true, });*/
+    //await fastify.register(fastifyStatic, { prefix: "/", root: path.resolve(__dirname, "./"), decorateReply: true, list: true, });
+    await fastify.register(fastifyStatic, {
+        root: path.join(__dirname, 'public'),
+        prefix: '/',
+        setHeaders: (res, filePath) => {
+            if (/\.(?:[a-f0-9]{8,})\.(css|js|mjs|woff2|png|webp|svg)$/.test(filePath)) {
+                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                if (/\.(css)$/.test(filePath)) res.setHeader('Priority', 'u=0');        // выше
+                if (/\.(js|mjs)$/.test(filePath)) res.setHeader('Priority', 'u=1');
+                if (/\.(woff2)$/.test(filePath)) res.setHeader('Priority', 'u=2');
+            } else {
+                res.setHeader('Cache-Control', 'public, max-age=300');
+            }
+        },
+    });
 }
 
 //
@@ -150,14 +176,13 @@ if (Array.from(process.argv).some((e) => e.endsWith("port"))) {
 
 //
 export const options = {
+    http2: true,
     esm: true,
     debug: true,
     logger: true,
     ignoreTrailingSlash: true,
-    port,
-    https: Array.from(process.argv).some((e) => e.endsWith("no-https"))
-        ? null
-        : (await import("file://" + (await probeDirectory(["../../https/", "../https/", "./https/"]) + "/certificate.mjs"))).default,
+    port: port || 443,
+    https: { allowHTTP1: true, ...(Array.from(process.argv).some((e) => e.endsWith("no-https")) ? {} : (await import("file://" + (await probeDirectory(["../../https/", "../https/", "./https/"]) + "/certificate.mjs"))).default)},
     address: "0.0.0.0",
     host: "0.0.0.0",
 };

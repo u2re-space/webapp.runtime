@@ -30,12 +30,13 @@ const startRedirectServer = async () => {
         console.log('HTTP to HTTPS redirect server is running on port 80');
     } catch (err) {
         console.error('Error starting redirect server:', err);
-        process.exit(1);
     }
 };
 
+//
 if (import.meta.url === `file://${process.argv[1]}`) {
     startRedirectServer();
 }
 
+//
 export default startRedirectServer;
