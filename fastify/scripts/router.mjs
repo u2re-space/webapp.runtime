@@ -40,11 +40,11 @@ export default async function (fastify, options = {}) {
     if (!fastify) throw Error("No Fastify...");
 
     //
-    await fastify.register(compress, {
+    /*await fastify.register(compress, {
         global: true,
         brotliOptions: { params: {} },
         zlibOptions: { level: 6 },
-    });
+    });*/
 
     //
     await fastify.register(fastifyCompress, {
@@ -94,9 +94,11 @@ export default async function (fastify, options = {}) {
             "script-src-elem 'self' 'unsafe-inline' node: blob: data:;" +
             "worker-src 'self' blob:* data:*;");
 
+        reply.header("Content-Language", "*");
+        reply.header("Access-Control-Request-Headers", "*");
         reply.header("Access-Control-Allow-Methods", "*");
         reply.header("Access-Control-Allow-Origin", "*");
-        reply.header("Access-Control-Allow-Headers", "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Service-Worker-Allowed, X-Access-Secret, X-Access-Key");
+        reply.header("Access-Control-Allow-Headers", "*");
         reply.header(
             "Permissions-Policy",
             [
@@ -139,10 +141,10 @@ export default async function (fastify, options = {}) {
     fastify.get('/health', async () => ({ ok: true }));
     fastify.get('/', async (req, reply) => {
         const links = [
-            '</assets/app.css>; rel=preload; as=style',
-            '</assets/app.js>; rel=modulepreload; as=script; crossorigin',
+            '</apps/cw/index.css>; rel=preload; as=style',
+            '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin',
             '</assets/logo.webp>; rel=preload; as=image'
-        ].join(', ');
+        ]//.join(', ');
         if (reply.raw.writeEarlyHints) {
             reply.raw.writeEarlyHints({ link: links });
         }
@@ -151,19 +153,30 @@ export default async function (fastify, options = {}) {
 
     //
     //await fastify.register(fastifyStatic, { prefix: "/", root: path.resolve(__dirname, "./"), decorateReply: true, list: true, });
-    await fastify.register(fastifyStatic, {
-        root: path.join(__dirname, 'public'),
-        prefix: '/',
-        setHeaders: (res, filePath) => {
-            if (/\.(?:[a-f0-9]{8,})\.(css|js|mjs|woff2|png|webp|svg)$/.test(filePath)) {
-                res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-                if (/\.(css)$/.test(filePath)) res.setHeader('Priority', 'u=0');        // выше
-                if (/\.(js|mjs)$/.test(filePath)) res.setHeader('Priority', 'u=1');
-                if (/\.(woff2)$/.test(filePath)) res.setHeader('Priority', 'u=2');
-            } else {
-                res.setHeader('Cache-Control', 'public, max-age=300');
-            }
-        },
+    await fastify.register(async (instance) => {
+        instance.addHook("onRequest", async (req, reply) => {
+            const timeout = 2000;
+            if (req.raw.setTimeout) req.raw.setTimeout(timeout, () => {
+                req.raw.destroy(new Error("Timeout"));
+            });
+            if (req.raw.stream && req.raw.stream.setTimeout) req.raw.stream.setTimeout(timeout, () => {
+                req.raw.stream.destroy(new Error("Timeout"));
+            });
+        });
+        await instance.register(fastifyStatic, {
+            root: path.resolve(__dirname, '../frontend/'),
+            prefix: '/',
+            setHeaders: (res, filePath) => {
+                if (/\.(?:[a-f0-9]{8,})\.(css|js|mjs|woff2|png|webp|svg)$/.test(filePath)) {
+                    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                    if (/\.(css)$/.test(filePath)) res.setHeader('Priority', 'u=0');        // выше
+                    if (/\.(js|mjs)$/.test(filePath)) res.setHeader('Priority', 'u=1');
+                    if (/\.(woff2)$/.test(filePath)) res.setHeader('Priority', 'u=2');
+                } else {
+                    res.setHeader('Cache-Control', 'public, max-age=300');
+                }
+            },
+        });
     });
 }
 

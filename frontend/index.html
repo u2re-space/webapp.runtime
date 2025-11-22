@@ -20,41 +20,11 @@
         <meta property="og:locale" content="en"/>
         <meta http-equiv="content-language" content="en-us"/>
 
-        <!-- CSP local rules -->
-        <meta http-equiv="Content-Security-Policy" content="
-            script-src 'wasm-unsafe-eval' 'inline-speculation-rules' 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data: http:;
-            default-src https: 'self' blob: data:;
-            img-src 'self' * blob: data:;
-            style-src 'self' 'unsafe-inline' blob: data:;
-            script-src-elem 'self' 'unsafe-inline' node: blob: data:;
-            worker-src 'self' blob:* data:*;
-        "/>
-
         <!---->
         <title>U2RE.APP</title>
 
         <!-- -->
         <base href="./" />
-
-        <!-- -->
-        <script type="importmap">
-        {
-            "imports": {
-                "u2re/": "/externals/modules/",
-                "u2re/cdnImport": "/externals/cdnImport.mjs",
-                "u2re/dom": "/externals/modules/dom.js",
-                "u2re/object": "/externals/modules/object.js",
-                "u2re/uniform": "/externals/modules/uniform.js",
-                "u2re/lure": "/externals/modules/blue.js,
-                "u2re/theme": "/externals/modules/theme.js
-            }
-        }
-        </script>
-
-        <!-- -->
-        <style data-owner="runtime" data-type="layers">
-            @layer u2-props, u2-core, u2-zoom, u2-normalize, ux-agate, ui-system, u2-theme, u2-colors, u2-rows, u2-grid-box, u2-layout;
-        </style>
 
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
@@ -64,7 +34,6 @@
                     box-sizing: border-box;
                     transition-behavior: allow-discrete;
                     interpolate-size: allow-keywords;
-                    background-color: transparent;
                 }
 
                 /* */
@@ -74,8 +43,8 @@
 
                 @media print {
                     body > *:not(#viewport) {
-                        display: none !important;
-                        visibility: collapse !important;
+                        display: none;
+                        visibility: collapse;
                     }
                 }
 
@@ -88,8 +57,6 @@
                         dynamic-range-limit: constrained-high;
                         transition-behavior: allow-discrete;
                         interpolate-size: allow-keywords;
-                        background-color: transparent;
-                        color: transparent;
                         font-display: swap;
                         --tm-bg-alpha: 0;
                     }
@@ -113,10 +80,10 @@
 
                     /* */
                     body {
-                        display: grid !important;
-                        grid-template-columns: minmax(0px, 1fr) !important;
-                        grid-template-rows: minmax(0px, 1fr) !important;
-                        position: fixed !important;
+                        display: grid;
+                        grid-template-columns: minmax(0px, 1fr);
+                        grid-template-rows: minmax(0px, 1fr);
+                        position: fixed;
                         overflow: hidden;
                         flex-direction: column;
                         pointer-events: none;
@@ -126,26 +93,26 @@
                         margin: 0px;
                         place-content: center;
                         place-items: center;
-                        align-content: start !important;
-                        align-items: start !important;
+                        align-content: start;
+                        align-items: start;
                     }
 
                     /* */
                     body > *:not(#vital-test-fail-warning, #filter) {
-                        max-inline-size: 100% !important;
-                        max-block-size: 100% !important;
+                        max-inline-size: 100%;
+                        max-block-size: 100%;
 
                         /* */
-                        inline-size: 100% !important;
-                        block-size: 100% !important;
+                        inline-size: 100% ;
+                        block-size: 100%;
 
                         /* */
-                        min-inline-size: 0px !important;
-                        min-block-size: 0px !important;
+                        min-inline-size: 0px;
+                        min-block-size: 0px;
 
                         /* */
-                        grid-column: 1 / -1 !important;
-                        grid-row: 1 / -1 !important;
+                        grid-column: 1 / -1;
+                        grid-row: 1 / -1;
 
                         /* */
                         display: grid;
@@ -153,7 +120,6 @@
                         grid-template-rows: minmax(0px, 1fr);
 
                         /* */
-                        background-color: transparent !important;
                         pointer-events: none;
                         position: absolute;
                         inset: 0px;
@@ -172,7 +138,7 @@
                     #viewport { display: grid; pointer-events: auto; margin: 0px; padding: 0px; };
 
                     /* #root slot, etc. */
-                    #viewport > * { pointer-events: auto; inline-size: 100% !important; block-size: 100% !important; background-color: transparent; }
+                    #viewport > * { pointer-events: auto; inline-size: 100%; block-size: 100%; }
 
                     /* */
                     #background > * { position: absolute; inset: 0px; };
@@ -181,27 +147,27 @@
 
                     /* fix virtual keyboard and overlays issues */
                     #overlays {
-						transition: block-size 100ms step-end !important;
-                        inline-size: 100dvi !important;
-                        block-size: min(100dvb, var(--view-height, 100dvb)) !important;
-                        position: fixed !important;
+						transition: block-size 100ms step-end;
+                        inline-size: 100dvi;
+                        block-size: min(100dvb, var(--view-height, 100dvb));
+                        position: fixed;
                     }
 
                     #filter {
-                        mix-blend-mode: multiply !important;
-                        inset: 0px !important;
-                        position: fixed !important;
+                        mix-blend-mode: multiply;
+                        inset: 0px;
+                        position: fixed;
                         margin: 0px;
                         padding: 0px;
                         inline-size: 100%;
                         block-size: 100%;
                         min-inline-size: 100dvi;
                         min-block-size: 100dvb;
-                        background-color: oklch(calc(var(--brightness, 1) * 0.4 + 0.6) calc(var(--night-mode, 0) * 0.05) 35) !important;/**/
-                        pointer-events: none !important;
-                        z-index: 9999999 !important;
+                        background-color: oklch(calc(var(--brightness, 1) * 0.4 + 0.6) calc(var(--night-mode, 0) * 0.05) 35);/**/
+                        pointer-events: none;
+                        z-index: 9999999;
                         content-visibility: visible;
-                        transform: translateZ(0px) !important;
+                        transform: translateZ(0px);
                     }
                 }
             }
@@ -233,9 +199,6 @@
 
         <!-- -->
         <script src="./init.mjs"></script>
-
-        <!-- Web App loader -->
-        <script src="./load.mjs" type="module" async defer></script>
     </head>
     <body
         data-device-type="mobile"
@@ -243,33 +206,9 @@
         data-chroma="1"
         data-alpha="1"
         data-highlight="0"
-        style="pointer-events: auto; overflow: hidden; align-content: start !important; align-items: start !important; position: fixed !important; inset-block-end: auto !important; inset-block-start: 0px !important;"
+        style="pointer-events: auto; overflow: hidden; align-content: start; align-items: start; position: fixed; inset-block-end: auto; inset-block-start: 0px;"
     >
-        <!-- -->
-        <div id="background" class="container u2-container" data-alpha="0" style="background-color: transparent; content-visibility: visible;">
-            <canvas data-src="/assets/wallpaper/stock.webp" id="image" is="ui-canvas" width="1" height="1" style="inline-size: 100%; block-size: 100%; content-visibility: visible;"></canvas>
-        </div>
-        <div id="viewport" class="container u2-container" data-alpha="0" style="background-color: transparent;" data-print-pass>
-            <!--<div id="root"></div>-->
-            <!-- Web Application Slot -->
-        </div>
-        <div id="overlays"   class="container u2-container u2-toplayer" data-alpha="0" style="container-type: normal; background-color: transparent; block-size: min(100dvb, var(--view-height, 100dvb)) !important; position: fixed !important; transition: block-size 100ms step-end !important;">
-
-            <!-- -->
-            <ui-statusbar id="statusbar"></ui-statusbar>
-            <!--<ui-contextmenu id="contextmenu"></ui-contextmenu>-->
-            <ui-focustext
-                value=""
-                id="focustext"
-                class="ui-focus ui-mobile-input ui-dedicated"
-                data-chroma="0"
-                data-scheme="solid"
-                data-highlight="1">
-                <input type="text" label="test" placeholder="test-longtext" tabindex="-1" draggable="false" autocomplete="on" class="u2-input" value="" scroll="no"/>
-            </ui-focustext>
-            <ui-tooltip data-hidden id="tooltip"></ui-tooltip>
-        </div>
-
-        <div id="filter"></div>
+        <div id="app" class="c2-surface" style="pointer-events: auto; background-color: --c2-surface(0.15, var(--current, currentColor));"></div>
+        <script src="./load.mjs" type="module" async defer></script>
     </body>
 </html>
