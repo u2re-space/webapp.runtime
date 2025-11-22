@@ -143,7 +143,8 @@ export default async function (fastify, options = {}) {
         const links = [
             '</apps/cw/index.css>; rel=preload; as=style',
             '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin',
-            '</assets/logo.webp>; rel=preload; as=image'
+            '</favicon.svg>; rel=preload; as=image',
+            '</favicon.png>; rel=preload; as=image'
         ]//.join(', ');
         if (reply.raw.writeEarlyHints) {
             reply.raw.writeEarlyHints({ link: links });
@@ -155,7 +156,7 @@ export default async function (fastify, options = {}) {
     //await fastify.register(fastifyStatic, { prefix: "/", root: path.resolve(__dirname, "./"), decorateReply: true, list: true, });
     await fastify.register(async (instance) => {
         instance.addHook("onRequest", async (req, reply) => {
-            const timeout = 2000;
+            const timeout = 1000;
             if (req.raw.setTimeout) req.raw.setTimeout(timeout, () => {
                 req.raw.destroy(new Error("Timeout"));
             });
@@ -164,6 +165,7 @@ export default async function (fastify, options = {}) {
             });
         });
         await instance.register(fastifyStatic, {
+            decorateReply: true, list: true,
             root: path.resolve(__dirname, '../frontend/'),
             prefix: '/',
             setHeaders: (res, filePath) => {
