@@ -130,7 +130,7 @@ export default async function (fastify, options = {}) {
         },
         origin: "*",
         allowedHeaders:
-            "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Service-Worker-Allowed, X-Access-Secret, X-Access-Key",
+            "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Accept-Language, Service-Worker-Allowed, X-Access-Secret, X-Access-Key",
         cacheControl,
     });
 
