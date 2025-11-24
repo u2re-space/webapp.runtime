@@ -7,7 +7,7 @@ const SW_JS  = "./apps/cw/sw.js";
 if (placeCSSCompatWarning()) {
     (async()=>{
         if (typeof navigator != "undefined") {
-            await navigator?.serviceWorker?.register?.(new URL(SW_JS, import.meta.url).href, {scope: "/"})?.catch?.(console.warn.bind(console));
+            await navigator?.serviceWorker?.register?.(new URL(SW_JS, import.meta.url).href, {scope: "/", type: 'module'})?.catch?.(console.warn.bind(console));
         }
         import(`${APP_JS}`)?.then?.((m)=>m?.default?.(document?.querySelector?.("#app")))?.catch?.(console.error.bind(console));
     })();
