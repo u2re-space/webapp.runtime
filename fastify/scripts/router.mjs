@@ -156,7 +156,7 @@ export default async function (fastify, options = {}) {
     //await fastify.register(fastifyStatic, { prefix: "/", root: path.resolve(__dirname, "./"), decorateReply: true, list: true, });
     await fastify.register(async (instance) => {
         instance.addHook("onRequest", async (req, reply) => {
-            const timeout = 1000;
+            const timeout = 5000;
             if (req.raw.setTimeout) req.raw.setTimeout(timeout, () => {
                 req.raw.destroy(new Error("Timeout"));
             });
