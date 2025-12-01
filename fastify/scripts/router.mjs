@@ -40,13 +40,6 @@ export default async function (fastify, options = {}) {
     if (!fastify) throw Error("No Fastify...");
 
     //
-    /*await fastify.register(compress, {
-        global: true,
-        brotliOptions: { params: {} },
-        zlibOptions: { level: 6 },
-    });*/
-
-    //
     await fastify.register(fastifyCompress, {
         global: true,
         inflateIfDeflated: true,
@@ -66,14 +59,14 @@ export default async function (fastify, options = {}) {
     await fastify.register(Etag, { algorithm: "fnv1a" });
     await fastify.register(fastifyCaching, {
         cacheSegment: UUIDv4(),
-        expiresIn: 3600,
+        expiresIn: 1800,
         privacy: fastifyCaching.privacy.PUBLIC
     });
 
     //
     const cacheControl = [
         `public`,
-        `max-age=300`,
+        `max-age=1800`,
         `stale-while-revalidate=86400`,
         `stale-if-error=86400`,
     ].join(", ");
@@ -173,7 +166,7 @@ export default async function (fastify, options = {}) {
                     if (/\.(js|mjs)$/.test(filePath)) res.setHeader('Priority', 'u=1');
                     if (/\.(woff2)$/.test(filePath)) res.setHeader('Priority', 'u=2');
                 } else {
-                    res.setHeader('Cache-Control', 'public, max-age=300');
+                    res.setHeader('Cache-Control', 'public, max-age=1800');
                 }
             },
         });
