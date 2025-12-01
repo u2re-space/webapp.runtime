@@ -72,14 +72,10 @@ export default async function (fastify, options = {}) {
 
     //
     const cacheControl = [
-        `no-store`,
         `public`,
-        `proxy-revalidate`,
-        `must-revalidate`,
-        `max-age=10800`,
+        `max-age=300`,
         `stale-while-revalidate=86400`,
         `stale-if-error=86400`,
-        `max-stale=86400`,
     ].join(", ");
 
     //
@@ -141,11 +137,11 @@ export default async function (fastify, options = {}) {
     fastify.get('/health', async () => ({ ok: true }));
     fastify.get('/', async (req, reply) => {
         const links = [
-            '</apps/cw/index.css>; rel=preload; as=style',
-            '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin',
-            '</favicon.svg>; rel=preload; as=image',
-            '</favicon.png>; rel=preload; as=image'
-        ]//.join(', ');
+            '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin; fetchpriority=high',
+            '</init.mjs>; rel=modulepreload; as=script; crossorigin',
+            '</load.mjs>; rel=modulepreload; as=script; crossorigin',
+            '</vital.mjs>; rel=modulepreload; as=script; crossorigin',
+        ];
         if (reply.raw.writeEarlyHints) {
             reply.raw.writeEarlyHints({ link: links });
         }

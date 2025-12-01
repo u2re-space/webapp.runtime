@@ -7,6 +7,10 @@
     "scripts": {
         "build": "npm install --include=dev",
         "start": "node ./fastify/scripts/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm",
+        "dev": "npm run start",
+        "test": "npm run test:dev",
+        "test:dev": "vite dev --config vite.config.ts",
+        "test:test": "echo 'No tests configured for webapp-runtime' && exit 0",
         "tauri": "tauri"
     },
     "browserslist": [
