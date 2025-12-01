@@ -98,14 +98,16 @@ export default async function (fastify, options = {}) {
         reply.header(
             "Permissions-Policy",
             [
+                "clipboard-write=*",
+                "clipboard-read=*",
+                "microphone=*",
+                "geolocation=*",
                 "storage-access=*",
                 "fullscreen=*",
                 "gyroscope=*",
                 "window-management=*",
                 "picture-in-picture=*",
                 "magnetometer=*",
-                "execution-while-out-of-viewport=*",
-                "execution-while-not-rendered=*",
                 "accelerometer=*",
                 "display-capture=*",
                 "serial=*",
