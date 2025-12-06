@@ -1,0 +1,24 @@
+{
+    "name": "@unite-2/webapp-runtime",
+    "description": "Web App Runtime Loader",
+    "version": "1.0.0",
+    "private": false,
+    "type": "module",
+    "scripts": {
+        "build": "npm install --include=dev",
+        "start": "node ./fastify/scripts/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm",
+        "dev": "npm run start",
+        "test": "npm run test:dev",
+        "test:dev": "vite dev --config vite.config.ts",
+        "test:test": "echo 'No tests configured for webapp-runtime' && exit 0",
+        "tauri": "tauri"
+    },
+    "browserslist": [
+        "last 1 chrome version",
+        "last 1 edge version"
+    ],
+    "devDependencies": {
+        "@tauri-apps/api": "^2.1.1",
+        "@tauri-apps/cli": "^2.1.0"
+    }
+}
