@@ -22,6 +22,8 @@
     },
     "target": "web",
     "dependencies": {
+        "@fastify/caching": "^9.0.2",
+        "@fastify/etag": "^6.0.2",
         "@fastify/autoload": "^6.0.3",
         "@fastify/compress": "^8.0.1",
         "@fastify/cors": "^10.0.1",
@@ -33,9 +35,5 @@
     "browserslist": [
         "last 1 chrome version",
         "last 1 firefox version"
-    ],
-    "devDependencies": {
-        "@fastify/caching": "^9.0.2",
-        "@fastify/etag": "^6.0.2"
-    }
+    ]
 }
