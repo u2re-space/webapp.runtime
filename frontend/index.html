@@ -73,7 +73,7 @@
 
         <!-- critical styles -->
         <style data-owner="runtime" data-type="system">
-            @layer ui-system {
+           @layer ui-system {
                 @media screen {
                     :where(*):not(:defined) { opacity: 0; visibility: collapse; pointer-events: none; display: none; background-color: transparent; color: transparent; };
                     :where(link, head, script, style, meta) {
@@ -85,6 +85,32 @@
                     }
 
                     /* */
+                    :where(*) {
+                        box-sizing: border-box;
+                    }
+
+                    /* */
+                    html {
+                        padding: 0px;
+                        margin: 0px;
+                        box-sizing: border-box;
+                        border: none 0px transparent;
+                        outline: none 0px transparent;
+
+                        /* */
+                        container-type: size;
+                        contain: strict;
+
+                        /* */
+                        inline-size: min(100cqi, 100dvi);
+                        block-size: min(100cqb, 100dvb);
+
+                        /* */
+                        max-inline-size: min(100cqi, 100dvi);
+                        max-block-size: min(100cqb, 100dvb);
+                    }
+
+                    /* */
                     body {
                         display: grid;
                         grid-template-columns: minmax(0px, 1fr);
@@ -92,8 +118,6 @@
                         overflow: hidden;
                         flex-direction: column;
                         pointer-events: none;
-                        container-type: size;
-                        contain: strict;
                         padding: 0px;
                         margin: 0px;
                         place-content: center;
@@ -103,20 +127,24 @@
                         position: relative;
 
                         /* */
-                        max-inline-size: min(100%, min(100cqi, 100dvi));
-                        max-block-size: min(100%, min(100cqb, 100dvb));
+                        border: none 0px transparent;
+                        outline: none 0px transparent;
+
+                        /* */
+                        container-type: size;
+                        contain: strict;
+
+                        /* */
+                        max-inline-size: max(100%, min(100cqi, 100dvi));
+                        max-block-size: max(100%, min(100cqb, 100dvb));
 
                         /* */
                         inline-size: stretch;
                         block-size: stretch;
 
                         /* */
-                        min-inline-size: 0px;
-                        min-block-size: 0px;
-
-                        /* */
-                        border: none 0px transparent;
-                        outline: none 0px transparent;
+                        min-inline-size: stretch;
+                        min-block-size: max(100cqb, 100dvb);
                     }
 
                     /* */
