@@ -359,11 +359,160 @@ export default async function (fastify, options = {}) {
     });
 
     // ========================================================================
+    // PRINT ROUTE
+    // ========================================================================
+
+    // Print route - serves a clean markdown viewer for printing
+    // ========================================================================
+    // SIMPLIFIED ROUTING: All routes serve the main app
+    // ========================================================================
+
+    // Helper function to create the main app HTML
+    const createMainAppHTML = () => `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+            <title>CrossWord</title>
+            <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+            <link rel="icon" type="image/png" href="./favicon.png">
+
+            <!-- Critical initial styles to prevent FOUC and ensure proper rendering -->
+            <style data-owner="critical-init">
+                /* Hide undefined custom elements and problematic elements during load */
+                :where(*):not(:defined) {
+                    opacity: 0 !important;
+                    visibility: collapse !important;
+                    pointer-events: none !important;
+                    display: none !important;
+                }
+
+                /* Hide script, link, style elements to prevent visual glitches */
+                :where(link, script, style) {
+                    display: none !important;
+                    pointer-events: none !important;
+                    visibility: hidden !important;
+                }
+
+                /* Ensure html and body have no padding/margin and correct sizing */
+                html, body {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    box-sizing: border-box !important;
+                    border: none !important;
+                    outline: none !important;
+                    overflow: hidden !important;
+                }
+
+                /* Full viewport body sizing */
+                html {
+                    inline-size: 100% !important;
+                    block-size: 100% !important;
+                    max-inline-size: 100% !important;
+                    max-block-size: 100% !important;
+                    min-inline-size: 100% !important;
+                    min-block-size: 100% !important;
+                }
+
+                body {
+                    display: grid !important;
+                    grid-template-columns: 1fr !important;
+                    grid-template-rows: 1fr !important;
+                    place-content: stretch !important;
+                    place-items: stretch !important;
+                    position: relative !important;
+                    inline-size: 100% !important;
+                    block-size: 100% !important;
+                    max-inline-size: 100% !important;
+                    max-block-size: 100% !important;
+                    min-inline-size: 100% !important;
+                    min-block-size: 100% !important;
+                    container-type: size !important;
+                    contain: strict !important;
+                }
+
+                /* App container styling */
+                #app {
+                    display: grid !important;
+                    grid-template-columns: 1fr !important;
+                    grid-template-rows: 1fr !important;
+                    place-content: stretch !important;
+                    place-items: stretch !important;
+                    inline-size: 100% !important;
+                    block-size: 100% !important;
+                    max-inline-size: 100% !important;
+                    max-block-size: 100% !important;
+                    min-inline-size: 0 !important;
+                    min-block-size: 0 !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    border: none !important;
+                    outline: none !important;
+                    overflow: hidden !important;
+                    position: relative !important;
+                    container-type: size !important;
+                    contain: strict !important;
+                }
+
+                /* Loading state */
+                #app:empty::before {
+                    content: "Loading CrossWord..." !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    inline-size: 100% !important;
+                    block-size: 100% !important;
+                    font-family: system-ui, -apple-system, sans-serif !important;
+                    font-size: 1.2rem !important;
+                    color: #666 !important;
+                    background: #fff !important;
+                    position: absolute !important;
+                    inset: 0 !important;
+                    z-index: 9999 !important;
+                }
+            </style>
+        </head>
+        <body>
+            <div id="app"></div>
+            <script type="module" src="./index.js"></script>
+        </body>
+        </html>
+    `;
+
+    // All app routes serve the main app (client handles routing)
+    fastify.get('/basic', async (req, reply) => {
+        return reply
+            .code(200)
+            .header('Content-Type', 'text/html; charset=utf-8')
+            .send(createMainAppHTML());
+    });
+
+    fastify.get('/faint', async (req, reply) => {
+        return reply
+            .code(200)
+            .header('Content-Type', 'text/html; charset=utf-8')
+            .send(createMainAppHTML());
+    });
+
+    fastify.get('/print', async (req, reply) => {
+        return reply
+            .code(200)
+            .header('Content-Type', 'text/html; charset=utf-8')
+            .send(createMainAppHTML());
+    });
+
+    // ========================================================================
     // SPA ROUTES (serve index.html for client-side routing)
     // ========================================================================
 
-    // Root route
-    fastify.get('/', async (req, reply) => serveIndexHtml(req, reply));
+    // Root route - serves main app (client handles all routing)
+    fastify.get('/', async (req, reply) => {
+        return reply
+            .code(200)
+            .header('Content-Type', 'text/html; charset=utf-8')
+            .send(createMainAppHTML());
+    });
 
     // ========================================================================
     // STATIC FILE SERVING
