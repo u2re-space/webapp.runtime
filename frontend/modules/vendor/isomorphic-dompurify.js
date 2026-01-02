@@ -1,1 +1,0 @@
-import{r,g as o}from"./dompurify.js";var i,a;const f=/*@__PURE__*/o(a?i:(a=1,i=window.DOMPurify||(window.DOMPurify=r().default||r())));export{f as D};
