@@ -167,3 +167,9 @@ dist/*
 build
 build/
 build/*
+
+#
+frontend/modules
+frontend/modules/*
+./frontend/modules
+./frontend/modules/*
