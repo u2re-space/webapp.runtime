@@ -1,0 +1,1 @@
+import"./fest/dom.js";import"./fest/core.js";import"./fest/object.js";import"./fest/lure.js";const t=void 0;export{t as _};

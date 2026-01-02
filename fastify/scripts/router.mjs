@@ -282,7 +282,7 @@ export default async function (fastify, options = {}) {
         reply.header("Content-Security-Policy",
             "default-src https: 'self' blob: data:;" +
             "img-src 'self' * blob: data:;" +
-            "style-src 'self' 'unsafe-inline' blob: data:;" +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob: data:;" +
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" + //'strict-dynamic'
             "script-src-elem 'self' 'unsafe-inline' node: blob: data:;" +
             "worker-src 'self' blob:* data:*;");
