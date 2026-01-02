@@ -20,20 +20,30 @@ import { registerAIProxyRoutes } from "./ai-proxy.mjs"
  * Probe directories to find existing paths
  */
 const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.crt") => {
+    console.log(`[Probe] Looking for ${testFile} in directories:`);
+
     for (const dir of dirList) {
+        const fullPath = path.resolve(import.meta.dirname, dir + agr, testFile);
         let check = null;
         try {
             check = await fs
-                .stat(path.resolve(import.meta.dirname, dir + agr, testFile))
-                .catch(() => false);
+                .stat(fullPath)
+                .catch(() => null);
+
+            if (check && check.isFile()) {
+                console.log(`[Probe] ✓ Found ${testFile} in: ${path.resolve(import.meta.dirname, dir)}`);
+                return path.resolve(import.meta.dirname, dir);
+            } else {
+                console.log(`[Probe] ✗ Not found in: ${path.resolve(import.meta.dirname, dir)}`);
+            }
         } catch(e) {
-            console.warn(e);
-        }
-        if (check) {
-            return path.resolve(import.meta.dirname, dir);
+            console.log(`[Probe] ✗ Error checking: ${path.resolve(import.meta.dirname, dir)} - ${e.message}`);
         }
     }
-    return path.resolve(import.meta.dirname, dirList[0]);
+
+    const fallbackDir = path.resolve(import.meta.dirname, dirList[0]);
+    console.log(`[Probe] Using fallback directory: ${fallbackDir}`);
+    return fallbackDir;
 };
 
 /**
@@ -49,6 +59,37 @@ export const UUIDv4 = () => {
 const isStaticFilePath = (pathname) => {
     const ext = path.extname(pathname);
     return ext && ext.length > 1 && !pathname.endsWith('/');
+};
+
+/**
+ * Resolve asset paths with app and fallback lookup
+ */
+const resolveAssetPaths = (pathname) => {
+    const url = new URL(pathname, 'http://localhost');
+    const pathParts = url.pathname.split('/').filter(Boolean);
+
+    // Check if this is an app-specific request (e.g., /apps/cw/...)
+    if (pathParts[0] === 'apps' && pathParts.length > 1) {
+        const appName = pathParts[1];
+        const appRelativePath = pathParts.slice(2).join('/');
+
+        return {
+            isAppRequest: true,
+            appName,
+            appRelativePath,
+            appPath: path.resolve(APPS_DIR, appName, appRelativePath),
+            fallbackPath: path.resolve(__dirname, appRelativePath),
+            rootPath: path.resolve(__dirname, pathname.slice(1)) // For non-app requests
+        };
+    }
+
+    // Regular root-level request
+    return {
+        isAppRequest: false,
+        appPath: null,
+        fallbackPath: null,
+        rootPath: path.resolve(__dirname, pathname.slice(1))
+    };
 };
 
 /**
@@ -80,11 +121,50 @@ const isSpaRoute = (pathname) => {
 // ============================================================================
 
 const DIRNAME = "webapp.runtime";
-const __dirname = (await probeDirectory(["../../frontend", "../frontend", "./frontend", "../../"+DIRNAME+"/frontend", "../"+DIRNAME+"/frontend", "./"+DIRNAME+"/frontend"], "./", "index.html"));
-const LOADER = fs.readFile(path.resolve(__dirname, "index.html"), {encoding: 'utf-8'});
+// Probe for frontend directory and app directories
+const APP_NAME = "cw";
 
-// Apps directory resolution
-const APPS_DIR = path.resolve(__dirname, 'apps');
+// First, find the main frontend directory (for shared assets)
+const __frontendDir = (await probeDirectory([
+    "../../frontend",
+    "../frontend",
+    "./frontend",
+    "../../"+DIRNAME+"/frontend",
+    "../"+DIRNAME+"/frontend",
+    "./"+DIRNAME+"/frontend"
+], "./", "index.html"));
+
+console.log(`[Router] Main frontend directory: ${__frontendDir}`);
+
+// Then, try to find app-specific directory (relative to found frontend directory)
+const __appDir = (await probeDirectory([
+    // First try app directory relative to the found frontend directory
+    path.resolve(__frontendDir, "apps", APP_NAME),
+    // Also try absolute paths as fallback
+    "../../frontend/apps/" + APP_NAME,
+    "../frontend/apps/" + APP_NAME,
+    "./frontend/apps/" + APP_NAME,
+    "../../"+DIRNAME+"/frontend/apps/" + APP_NAME,
+    "../"+DIRNAME+"/frontend/apps/" + APP_NAME,
+    "./"+DIRNAME+"/frontend/apps/" + APP_NAME,
+    // Ultimate fallback to main frontend if no app directory found
+    "../../frontend",
+    "../frontend",
+    "./frontend",
+    "../../"+DIRNAME+"/frontend",
+    "../"+DIRNAME+"/frontend",
+    "./"+DIRNAME+"/frontend"
+], "./", "index.js"));
+
+console.log(`[Router] App directory resolved to: ${__appDir}`);
+
+// For backward compatibility, set __dirname to the app directory
+const __dirname = __appDir;
+// Load index.html from the main frontend directory, not the app directory
+const LOADER = fs.readFile(path.resolve(__frontendDir, "index.html"), {encoding: 'utf-8'});
+
+// Apps directory resolution (relative to frontend directory)
+const APPS_DIR = path.resolve(__frontendDir, 'apps');
 
 // ============================================================================
 // 404 ERROR PAGE GENERATION
@@ -255,10 +335,8 @@ export default async function (fastify, options = {}) {
     // Helper to serve index.html with early hints
     const serveIndexHtml = async (req, reply) => {
         const links = [
-            '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin; fetchpriority=high',
-            '</init.mjs>; rel=modulepreload; as=script; crossorigin',
-            '</load.mjs>; rel=modulepreload; as=script; crossorigin',
-            '</vital.mjs>; rel=modulepreload; as=script; crossorigin',
+            '</load.mjs>; rel=modulepreload; as=script; crossorigin; fetchpriority=high',
+            '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin',
         ];
         if (reply.raw.writeEarlyHints) {
             reply.raw.writeEarlyHints({ link: links });
@@ -375,8 +453,9 @@ export default async function (fastify, options = {}) {
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
             <title>CrossWord</title>
-            <link rel="icon" type="image/svg+xml" href="./favicon.svg">
-            <link rel="icon" type="image/png" href="./favicon.png">
+            <base href="/">
+            <link rel="icon" type="image/svg+xml" href="favicon.svg">
+            <link rel="icon" type="image/png" href="favicon.png">
 
             <!-- Critical initial styles to prevent FOUC and ensure proper rendering -->
             <style data-owner="critical-init">
@@ -475,7 +554,7 @@ export default async function (fastify, options = {}) {
         </head>
         <body>
             <div id="app"></div>
-            <script type="module" src="./index.js"></script>
+            <script type="module" src="./load.mjs"></script>
         </body>
         </html>
     `;
@@ -515,6 +594,54 @@ export default async function (fastify, options = {}) {
     });
 
     // ========================================================================
+    // CUSTOM ASSET LOOKUP WITH FALLBACK
+    // ========================================================================
+
+    /**
+     * Custom asset lookup with fallback mechanism
+     * Tries app directory first, then root frontend directory
+     */
+    const lookupAssetWithFallback = async (pathname, reply) => {
+        const paths = resolveAssetPaths(pathname);
+
+        // Only handle app-specific requests
+        if (!paths.isAppRequest) {
+            return null; // Let default static serving handle this
+        }
+
+        // Try app directory first
+        try {
+            const appStats = await fs.stat(paths.appPath);
+            if (appStats.isFile()) {
+                console.log(`[Asset] Serving from app directory: ${paths.appPath}`);
+                const fileStream = await fs.readFile(paths.appPath);
+                setStaticHeaders(reply.raw, paths.appPath);
+                return reply.send(fileStream);
+            }
+        } catch (error) {
+            // App file not found, continue to fallback
+            console.log(`[Asset] App file not found: ${paths.appPath}, trying fallback`);
+        }
+
+        // Try root frontend directory as fallback
+        try {
+            const fallbackStats = await fs.stat(paths.fallbackPath);
+            if (fallbackStats.isFile()) {
+                console.log(`[Asset] Serving from fallback directory: ${paths.fallbackPath}`);
+                const fileStream = await fs.readFile(paths.fallbackPath);
+                setStaticHeaders(reply.raw, paths.fallbackPath);
+                return reply.send(fileStream);
+            }
+        } catch (error) {
+            // Fallback also not found
+            console.log(`[Asset] Fallback file not found: ${paths.fallbackPath}`);
+        }
+
+        // Neither app nor fallback found
+        return null;
+    };
+
+    // ========================================================================
     // STATIC FILE SERVING
     // ========================================================================
 
@@ -534,8 +661,96 @@ export default async function (fastify, options = {}) {
             }
         });
 
+        // Custom asset lookup middleware (before static serving)
+        instance.addHook("preHandler", async (req, reply) => {
+            // Only intercept static file requests
+            if (!isStaticFilePath(req.url)) {
+                return; // Let other routes handle this
+            }
+
+            // For root-level requests, try multiple fallback locations
+            const pathname = req.url.split('?')[0]; // Remove query string
+            if (pathname.startsWith('/index.js') || pathname.startsWith('/assets/') || pathname.startsWith('/modules/')) {
+                const appRelativePath = pathname.slice(1); // Remove leading /
+
+                // Priority order for root-level assets:
+                // 1. App-specific directory (highest priority)
+                // 2. Shared frontend directory
+                // 3. Default static serving
+
+                // Try app directory first
+                const appPath = path.resolve(__appDir, appRelativePath);
+                try {
+                    const appStats = await fs.stat(appPath);
+                    if (appStats.isFile()) {
+                        console.log(`[Asset] Serving root request from app directory: ${appPath}`);
+                        const fileStream = await fs.readFile(appPath);
+                        setStaticHeaders(reply.raw, appPath);
+                        return reply.send(fileStream);
+                    }
+                } catch (error) {
+                    console.log(`[Asset] App asset not found: ${appPath}`);
+                }
+
+                // Try shared frontend directory
+                if (__appDir !== __frontendDir) {
+                    const sharedPath = path.resolve(__frontendDir, appRelativePath);
+                    try {
+                        const sharedStats = await fs.stat(sharedPath);
+                        if (sharedStats.isFile()) {
+                            console.log(`[Asset] Serving root request from shared frontend: ${sharedPath}`);
+                            const fileStream = await fs.readFile(sharedPath);
+                            setStaticHeaders(reply.raw, sharedPath);
+                            return reply.send(fileStream);
+                        }
+                    } catch (error) {
+                        console.log(`[Asset] Shared asset not found: ${sharedPath}`);
+                    }
+                }
+            }
+
+            // Try custom asset lookup with fallback for app-specific requests
+            const result = await lookupAssetWithFallback(req.url, reply);
+            if (result !== null) {
+                return result; // Asset was found and served
+            }
+
+            // Continue to normal static file serving if not handled
+        });
+
         // Static file headers helper
         const setStaticHeaders = (res, filePath) => {
+            const ext = filePath.split('.').pop()?.toLowerCase();
+
+            // Set explicit Content-Type for critical file types
+            if (ext === 'js' || ext === 'mjs') {
+                res.setHeader('Content-Type', 'application/javascript');
+                // Ensure CORS headers for ES modules
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+                res.setHeader('Access-Control-Allow-Headers', '*');
+            } else if (ext === 'css') {
+                res.setHeader('Content-Type', 'text/css');
+            } else if (ext === 'json') {
+                res.setHeader('Content-Type', 'application/json');
+            } else if (ext === 'html') {
+                res.setHeader('Content-Type', 'text/html');
+            } else if (ext === 'svg') {
+                res.setHeader('Content-Type', 'image/svg+xml');
+            } else if (ext === 'woff2') {
+                res.setHeader('Content-Type', 'font/woff2');
+            } else if (ext === 'png') {
+                res.setHeader('Content-Type', 'image/png');
+            } else if (ext === 'jpg' || ext === 'jpeg') {
+                res.setHeader('Content-Type', 'image/jpeg');
+            } else if (ext === 'webp') {
+                res.setHeader('Content-Type', 'image/webp');
+            } else if (ext === 'ico') {
+                res.setHeader('Content-Type', 'image/x-icon');
+            } else if (ext === 'webmanifest') {
+                res.setHeader('Content-Type', 'application/manifest+json');
+            }
+
             // Immutable cache for hashed assets
             if (/\.(?:[a-f0-9]{8,})\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/.test(filePath)) {
                 res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
@@ -557,25 +772,48 @@ export default async function (fastify, options = {}) {
             }
         };
 
-        // Main frontend static files (root level)
+        // Shared frontend static files (from main frontend directory)
         await instance.register(fastifyStatic, {
             decorateReply: true,
             list: false,
-            root: path.resolve(__dirname, './'),
+            root: path.resolve(__frontendDir, './'),
             prefix: '/',
-            setHeaders: setStaticHeaders,
+            setHeaders: (res, filePath) => {
+                console.log(`[Static] Serving shared asset from frontend: ${filePath}`);
+                setStaticHeaders(res, filePath);
+            },
             // Don't serve index.html as static - handled by route
             index: false,
             wildcard: false,
         });
 
-        // Apps directory (e.g., /apps/cw/*)
+        // App-specific static files (from resolved app directory) - higher priority
+        if (__appDir !== __frontendDir) {
+            await instance.register(fastifyStatic, {
+                decorateReply: false, // Don't decorate again, already done above
+                list: false,
+                root: path.resolve(__appDir, './'),
+                prefix: '/',
+                setHeaders: (res, filePath) => {
+                    console.log(`[Static] Serving app asset from ${__appDir}: ${filePath}`);
+                    setStaticHeaders(res, filePath);
+                },
+                // Don't serve index.html as static - handled by route
+                index: false,
+                wildcard: false,
+            });
+        }
+
+        // Apps directory (e.g., /apps/cw/*) - primary for app-specific assets
         await instance.register(fastifyStatic, {
             decorateReply: false,
             list: false,
             root: APPS_DIR,
             prefix: '/apps/',
-            setHeaders: setStaticHeaders,
+            setHeaders: (res, filePath) => {
+                console.log(`[Static] Serving from apps: ${filePath}`);
+                setStaticHeaders(res, filePath);
+            },
             index: false,
             wildcard: true,
         });
@@ -633,14 +871,46 @@ if (Array.from(process.argv).some((e) => e.endsWith("port"))) {
 }
 
 //
+// Load HTTPS certificate if not disabled
+let httpsConfig = {};
+if (!Array.from(process.argv).some((e) => e.endsWith("no-https"))) {
+    try {
+        console.log(`[Router] Looking for HTTPS certificates...`);
+
+        // Look for certificate directory
+        const certDir = await probeDirectory(["../../https/", "../https/", "./https/"], "./", "certificate.crt");
+        console.log(`[Router] Found certificate directory: ${certDir}`);
+
+        // Check for certificate.mjs file
+        const certPath = path.resolve(certDir, "certificate.mjs");
+        console.log(`[Router] Looking for certificate.mjs at: ${certPath}`);
+
+        // Check if certificate file actually exists before trying to import
+        await fs.access(certPath);
+        console.log(`[Router] Certificate file exists, loading...`);
+
+        httpsConfig = (await import("file://" + certPath)).default;
+        console.log(`[Router] HTTPS certificate loaded successfully from: ${certPath}`);
+    } catch (error) {
+        console.log(`[Router] HTTPS certificate setup failed:`);
+        console.log(`  Error: ${error.message}`);
+        console.log(`  Certificate directory probe failed or certificate.mjs not found`);
+        console.log(`  Starting server without HTTPS (add certificate.crt and certificate.mjs to https/ directory)`);
+        console.log(`  Or use --no-https to disable HTTPS completely`);
+        httpsConfig = {}; // Fallback to no HTTPS
+    }
+}
+
 export const options = {
     http2: true,
     esm: true,
     debug: true,
     logger: true,
-    ignoreTrailingSlash: true,
+    routerOptions: {
+        ignoreTrailingSlash: true,
+    },
     port: port || 443,
-    https: { allowHTTP1: true, ...(Array.from(process.argv).some((e) => e.endsWith("no-https")) ? {} : (await import("file://" + (await probeDirectory(["../../https/", "../https/", "./https/"]) + "/certificate.mjs"))).default)},
+    https: { allowHTTP1: true, ...httpsConfig },
     address: "0.0.0.0",
     host: "0.0.0.0",
 };
