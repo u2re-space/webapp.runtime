@@ -355,6 +355,72 @@ export default async function (fastify, options = {}) {
     // Health check endpoint
     fastify.get('/health', async () => ({ ok: true, timestamp: Date.now() }));
 
+    // Same-origin SVG proxy for icons (fixes CSS CORS issues with external CDNs).
+    // Example:
+    //   /api/icon-proxy?url=https%3A%2F%2Funpkg.com%2F%40phosphor-icons%2Fcore%402%2Fassets%2Fduotone%2Ffile-duotone.svg
+    fastify.get('/api/icon-proxy', async (req, reply) => {
+        const urlParam = req?.query?.url;
+        if (typeof urlParam !== 'string' || !urlParam) {
+            return reply.code(400).type('text/plain; charset=utf-8').send('Missing "url" query param');
+        }
+
+        let target;
+        try {
+            target = new URL(urlParam);
+        } catch {
+            return reply.code(400).type('text/plain; charset=utf-8').send('Invalid "url" query param');
+        }
+
+        // Restrict proxy to known icon CDNs + phosphor asset paths only.
+        const allowedHosts = new Set(['cdn.jsdelivr.net', 'unpkg.com']);
+        if (!allowedHosts.has(target.hostname)) {
+            return reply.code(403).type('text/plain; charset=utf-8').send('Forbidden host');
+        }
+
+        const allowedPrefixes = [
+            // jsDelivr npm assets
+            '/npm/@phosphor-icons/core@2/assets/',
+            // unpkg assets
+            '/@phosphor-icons/core@2/assets/',
+        ];
+        const allowed = allowedPrefixes.some((p) => target.pathname.startsWith(p));
+        if (!allowed || !target.pathname.endsWith('.svg')) {
+            return reply.code(403).type('text/plain; charset=utf-8').send('Forbidden path');
+        }
+
+        try {
+            const upstream = await fetch(target.href, {
+                redirect: 'follow',
+                headers: {
+                    'accept': 'image/svg+xml,*/*;q=0.8',
+                    'user-agent': 'u2re-icon-proxy/1.0',
+                },
+            });
+
+            if (!upstream.ok) {
+                return reply
+                    .code(502)
+                    .type('text/plain; charset=utf-8')
+                    .send(`Upstream error: ${upstream.status} ${upstream.statusText}`);
+            }
+
+            const arrayBuffer = await upstream.arrayBuffer();
+            const contentType = upstream.headers.get('content-type') || 'image/svg+xml; charset=utf-8';
+            const etag = upstream.headers.get('etag');
+
+            reply.header('Content-Type', contentType);
+            reply.header('Cache-Control', 'public, max-age=31536000, immutable');
+            reply.header('Vary', 'Accept-Encoding');
+            if (etag) {
+                reply.header('ETag', etag);
+            }
+
+            return reply.send(Buffer.from(arrayBuffer));
+        } catch (e) {
+            return reply.code(502).type('text/plain; charset=utf-8').send(`Proxy fetch failed: ${e?.message || e}`);
+        }
+    });
+
     // Register AI proxy routes (fallback for when service worker is unavailable)
     await registerAIProxyRoutes(fastify);
 
