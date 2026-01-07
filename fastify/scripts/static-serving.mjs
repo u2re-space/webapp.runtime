@@ -132,7 +132,7 @@ const setStaticHeaders = (res, filePath) => {
         res.setHeader('Content-Type', 'image/webp');
     } else if (ext === 'ico') {
         res.setHeader('Content-Type', 'image/x-icon');
-    } else if (ext === 'webmanifest') {
+    } else if (ext === 'webmanifest' || (ext === 'json' && filePath.includes('manifest'))) {
         res.setHeader('Content-Type', 'application/manifest+json');
     }
 
@@ -182,7 +182,7 @@ export async function registerStaticServing(fastify, options = {}) {
 
         // For root-level requests, try multiple fallback locations
         const pathname = req.url.split('?')[0]; // Remove query string
-        if (pathname.startsWith('/index.js') || pathname.startsWith('/assets/') || pathname.startsWith('/modules/')) {
+        if (pathname.startsWith('/index.js') || pathname.startsWith('/assets/') || pathname.startsWith('/modules/') || pathname.startsWith('/pwa/')) {
             const appRelativePath = pathname.slice(1); // Remove leading /
 
             // Priority order for root-level assets:

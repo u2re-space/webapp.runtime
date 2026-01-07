@@ -75,11 +75,16 @@ const createMainAppHTML = () => `
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=overlays-content">
         <title>CrossWord</title>
         <base href="/">
-        <link rel="icon" type="image/svg+xml" href="favicon.svg">
-        <link rel="icon" type="image/png" href="favicon.png">
+        <meta name="theme-color" content="#007acc" data-theme-color>
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="display-override" content="window-controls-overlay">
+        <link rel="manifest" href="/pwa/manifest.json">
+        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSIjMDA3YWNjIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjY0IiBmaWxsPSIjMDA3YWNjIi8+CiAgPHRleHQgeD0iMjU2IiB5PSIyODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMDAiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Q1c8L3RleHQ+Cjwvc3ZnPg==">
 
         <!-- Critical initial styles to prevent FOUC and ensure proper rendering -->
         <style data-owner="critical-init">
