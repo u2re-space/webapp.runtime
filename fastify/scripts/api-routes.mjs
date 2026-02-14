@@ -277,7 +277,7 @@ Keep the response concise but informative.
     // ========================================================================
 
     // Proxy Phosphor icons to avoid CORS issues during development
-    fastify.get('/api/phosphor-icons/*', async (req, reply) => {
+    fastify.get('/assets/icons/phosphor/*', async (req, reply) => {
         try {
             const iconPath = req.params['*']; // Get the wildcard path
 
