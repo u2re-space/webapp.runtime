@@ -55,8 +55,8 @@ const __appDir = (await probeDirectory([
 
 console.log(`[Router] App directory resolved to: ${__appDir}`);
 
-// Load index.html from the main frontend directory, not the app directory
-const LOADER = fs.readFile(path.resolve(__frontendDir, "index.html"), {encoding: 'utf-8'});
+// Keep index loader dynamic so runtime html updates do not require process restart.
+const LOADER = () => fs.readFile(path.resolve(__frontendDir, "index.html"), { encoding: "utf-8" });
 
 // Apps directory resolution (relative to frontend directory)
 const APPS_DIR = path.resolve(__frontendDir, 'apps');

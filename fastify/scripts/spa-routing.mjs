@@ -17,211 +17,195 @@ export function initializeSPARouting(frontendDir, loader) {
     LOADER = loader;
 }
 
-/**
- * SPA routes that should serve index.html
- */
-const SPA_ROUTES = [
-    '/share-target',
-    '/share_target',
-    '/settings',
-    '/about',
-    '/help',
-    '/privacy',
-    '/terms'
-];
+const INDEX_HTML_FILE = "index.html";
+const EARLY_HINT_REL_SET = new Set(["modulepreload", "preload", "prefetch"]);
+const SHELL_QUERY_ALIASES = new Map([
+    ["minimal", "minimal"],
+    ["faint", "minimal"],
+    ["base", "base"],
+    ["raw", "base"],
+    ["core", "base"],
+]);
+const RESERVED_ROOT_SEGMENTS = new Set([
+    "api",
+    "assets",
+    "apps",
+    "modules",
+    "pwa",
+    "admin",
+    "health",
+    "sw.js",
+    "favicon.ico",
+    "favicon.png",
+    "favicon.svg",
+]);
 
-/**
- * Check if path is an SPA route (should serve index.html)
- */
-const isSpaRoute = (pathname) => {
-    // Exact matches for known SPA routes
-    if (SPA_ROUTES.includes(pathname)) return true;
-    // Non-file paths that don't match static files
-    if (!isStaticFilePath(pathname) && pathname !== '/' && !pathname.startsWith('/api/')) return true;
-    return false;
+const toEarlyHintHref = (hrefRaw) => {
+    const href = (hrefRaw || "").trim();
+    if (!href) return "";
+    if (/^(https?:|wss?:|data:|blob:)/i.test(href)) return href;
+    if (href.startsWith("/")) return href;
+    if (href.startsWith("./")) return `/${href.slice(2)}`;
+    return `/${href}`;
 };
 
-/**
- * Check if path is a static file (has extension)
- */
-const isStaticFilePath = (pathname) => {
-    const ext = path.extname(pathname);
-    return ext && ext.length > 1 && !pathname.endsWith('/');
+const extractEarlyHintLinks = (htmlText) => {
+    const html = typeof htmlText === "string" ? htmlText : "";
+    const out = [];
+    const pattern = /<link\b[^>]*>/gi;
+    const tags = html.match(pattern) || [];
+
+    for (const tag of tags) {
+        const relMatch = tag.match(/\brel\s*=\s*["']?([^"'\s>]+)["']?/i);
+        if (!relMatch || !EARLY_HINT_REL_SET.has((relMatch[1] || "").toLowerCase())) continue;
+
+        const hrefMatch = tag.match(/\bhref\s*=\s*["']([^"']+)["']/i);
+        if (!hrefMatch) continue;
+
+        const href = toEarlyHintHref(hrefMatch[1]);
+        if (!href) continue;
+
+        const attrs = [];
+        const asMatch = tag.match(/\bas\s*=\s*["']?([^"'\s>]+)["']?/i);
+        const crossoriginMatch = tag.match(/\bcrossorigin(?:\s*=\s*["']?([^"'\s>]+)["']?)?/i);
+        const fetchPriorityMatch = tag.match(/\bfetchpriority\s*=\s*["']?([^"'\s>]+)["']?/i);
+
+        attrs.push(`rel=${relMatch[1].toLowerCase()}`);
+        if (asMatch?.[1]) attrs.push(`as=${asMatch[1]}`);
+        if (crossoriginMatch) attrs.push("crossorigin");
+        if (fetchPriorityMatch?.[1]) attrs.push(`fetchpriority=${fetchPriorityMatch[1]}`);
+
+        out.push(`<${href}>; ${attrs.join("; ")}`);
+    }
+
+    // De-duplicate while preserving order.
+    return Array.from(new Set(out));
+};
+
+const getIndexHtmlPath = () => {
+    if (!__frontendDir) throw new Error("SPA routing is not initialized");
+    return path.resolve(__frontendDir, INDEX_HTML_FILE);
+};
+
+const readIndexHtml = async () => {
+    const htmlPath = getIndexHtmlPath();
+
+    if (typeof LOADER === "function") {
+        const loaded = await LOADER();
+        const stats = await fs.stat(htmlPath);
+        return { htmlPath, content: loaded, stats };
+    }
+
+    if (LOADER && typeof LOADER.then === "function") {
+        const loaded = await LOADER;
+        const stats = await fs.stat(htmlPath);
+        return { htmlPath, content: loaded, stats };
+    }
+
+    const [content, stats] = await Promise.all([
+        fs.readFile(htmlPath, "utf-8"),
+        fs.stat(htmlPath)
+    ]);
+    return { htmlPath, content, stats };
+};
+
+const normalizeShellQueryValue = (value) => {
+    const normalized = (value || "").trim().toLowerCase();
+    return SHELL_QUERY_ALIASES.get(normalized) || null;
+};
+
+const buildCanonicalPathWithShellQuery = (requestUrl) => {
+    const current = requestUrl || "/";
+    const url = new URL(current, "http://localhost");
+    const rawShell = url.searchParams.get("shell");
+    if (rawShell === null) return null;
+
+    const mapped = normalizeShellQueryValue(rawShell);
+    const currentNormalized = rawShell.trim().toLowerCase();
+    if (!mapped) {
+        url.searchParams.delete("shell");
+    } else if (mapped !== currentNormalized) {
+        url.searchParams.set("shell", mapped);
+    } else {
+        return null;
+    }
+
+    const search = url.searchParams.toString();
+    return `${url.pathname}${search ? `?${search}` : ""}`;
 };
 
 /**
  * Helper to serve index.html with early hints
  */
 export const serveIndexHtml = async (req, reply) => {
-    const links = [
-        '</load.mjs>; rel=modulepreload; as=script; crossorigin; fetchpriority=high',
-        '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin',
-    ];
-    if (reply.raw.writeEarlyHints) {
+    const canonicalPath = buildCanonicalPathWithShellQuery(req?.raw?.url || req?.url || "/");
+    if (canonicalPath) {
+        return reply.redirect(302, canonicalPath);
+    }
+
+    const { content, stats } = await readIndexHtml();
+    const links = extractEarlyHintLinks(content);
+    const etag = `W/"${Number(stats.mtimeMs || Date.now()).toString(36)}-${stats.size.toString(36)}"`;
+    const lastModified = stats.mtime.toUTCString();
+
+    const ifNoneMatch = req?.headers?.["if-none-match"];
+    const ifModifiedSince = req?.headers?.["if-modified-since"];
+    const modifiedSinceMs = typeof ifModifiedSince === "string" ? Date.parse(ifModifiedSince) : NaN;
+    const notModifiedByEtag = typeof ifNoneMatch === "string" && ifNoneMatch === etag;
+    const notModifiedByDate = Number.isFinite(modifiedSinceMs) && stats.mtimeMs <= modifiedSinceMs;
+
+    if (reply.raw.writeEarlyHints && links.length > 0) {
         reply.raw.writeEarlyHints({ link: links });
     }
+
+    reply.header("ETag", etag);
+    reply.header("Last-Modified", lastModified);
+    reply.header("Vary", "Accept-Encoding");
+    // HTML should be quickly revalidated to keep runtime updates responsive.
+    reply.header("Cache-Control", "public, max-age=0, must-revalidate");
+
+    if (notModifiedByEtag || notModifiedByDate) {
+        return reply.code(304).send();
+    }
+
     return reply
         ?.code(200)
         ?.header?.('Content-Type', 'text/html; charset=utf-8')
         ?.type?.('text/html')
-        ?.send?.(await LOADER);
+        ?.send?.(content);
 };
-
-/**
- * Create the main app HTML (used for various app entry points)
- */
-const createMainAppHTML = () => `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=overlays-content">
-        <title>CrossWord</title>
-        <base href="/">
-        <meta name="theme-color" content="#007acc" data-theme-color>
-        <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-        <meta name="mobile-web-app-capable" content="yes">
-        <meta name="display-override" content="window-controls-overlay">
-        <link rel="manifest" href="/pwa/manifest.json">
-        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSIjMDA3YWNjIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjY0IiBmaWxsPSIjMDA3YWNjIi8+CiAgPHRleHQgeD0iMjU2IiB5PSIyODAiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMDAiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+Q1c8L3RleHQ+Cjwvc3ZnPg==">
-
-        <!-- Critical initial styles to prevent FOUC and ensure proper rendering -->
-        <style data-owner="critical-init">
-            /* Hide undefined custom elements and problematic elements during load */
-            :where(*):not(:defined) {
-                opacity: 0 !important;
-                visibility: collapse !important;
-                pointer-events: none !important;
-                display: none !important;
-            }
-
-            /* Hide script, link, style elements to prevent visual glitches */
-            :where(link, script, style) {
-                display: none !important;
-                pointer-events: none !important;
-                visibility: hidden !important;
-            }
-
-            /* Ensure html and body have no padding/margin and correct sizing */
-            html, body {
-                padding: 0 !important;
-                margin: 0 !important;
-                box-sizing: border-box !important;
-                border: none !important;
-                outline: none !important;
-                overflow: hidden !important;
-            }
-
-            /* Full viewport body sizing */
-            html {
-                inline-size: 100% !important;
-                block-size: 100% !important;
-                max-inline-size: 100% !important;
-                max-block-size: 100% !important;
-                min-inline-size: 100% !important;
-                min-block-size: 100% !important;
-            }
-
-            body {
-                display: grid !important;
-                grid-template-columns: 1fr !important;
-                grid-template-rows: 1fr !important;
-                place-content: stretch !important;
-                place-items: stretch !important;
-                position: relative !important;
-                inline-size: 100% !important;
-                block-size: 100% !important;
-                max-inline-size: 100% !important;
-                max-block-size: 100% !important;
-                min-inline-size: 0 !important;
-                min-block-size: 0 !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                border: none !important;
-                outline: none !important;
-                overflow: hidden !important;
-                position: relative !important;
-                container-type: size !important;
-                contain: strict !important;
-            }
-
-            /* App container styling */
-            #app {
-                display: grid !important;
-                grid-template-columns: 1fr !important;
-                grid-template-rows: 1fr !important;
-                place-content: stretch !important;
-                place-items: stretch !important;
-                inline-size: 100% !important;
-                block-size: 100% !important;
-                max-inline-size: 100% !important;
-                max-block-size: 100% !important;
-                min-inline-size: 0 !important;
-                min-block-size: 0 !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                border: none !important;
-                outline: none !important;
-                overflow: hidden !important;
-                position: relative !important;
-                container-type: size !important;
-                contain: strict !important;
-            }
-
-            /* Loading state */
-            #app:empty::before {
-                content: "Loading CrossWord..." !important;
-                display: flex !important;
-                align-items: center !important;
-                justify-content: center !important;
-                inline-size: 100% !important;
-                block-size: 100% !important;
-                font-family: system-ui, -apple-system, sans-serif !important;
-                font-size: 1.2rem !important;
-                color: #666 !important;
-                background: #fff !important;
-                position: absolute !important;
-                inset: 0 !important;
-                z-index: 9999 !important;
-            }
-        </style>
-    </head>
-    <body>
-        <div id="app"></div>
-        <script type="module" src="./load.mjs"></script>
-    </body>
-    </html>
-`;
 
 export async function registerSPARouting(fastify, options = {}) {
     // ========================================================================
     // APP ENTRY POINTS
     // ========================================================================
 
-    // Helper function to create the main app HTML
-    const createMainAppHTMLContent = createMainAppHTML;
+    // Dynamic shell/view routes:
+    // - /:view
+    // - /:view/*
+    // Reserved roots (api/assets/apps/...) are excluded.
+    const shouldHandleAsViewRoute = (view) => {
+        const normalized = (view || "").trim().toLowerCase();
+        if (!normalized) return false;
+        if (RESERVED_ROOT_SEGMENTS.has(normalized)) return false;
+        if (normalized.includes(".")) return false;
+        return true;
+    };
 
-    // All app routes serve the main app (client handles all routing)
-    fastify.get('/basic', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTMLContent());
+    fastify.get('/:view', async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewRoute(view)) {
+            return reply.callNotFound();
+        }
+        return serveIndexHtml(req, reply);
     });
 
-    fastify.get('/faint', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTMLContent());
-    });
-
-    fastify.get('/print', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTMLContent());
+    fastify.get('/:view/*', async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewRoute(view)) {
+            return reply.callNotFound();
+        }
+        return serveIndexHtml(req, reply);
     });
 
     // ========================================================================
@@ -230,9 +214,6 @@ export async function registerSPARouting(fastify, options = {}) {
 
     // Root route - serves main app (client handles all routing)
     fastify.get('/', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTMLContent());
+        return serveIndexHtml(req, reply);
     });
 }

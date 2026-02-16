@@ -60,6 +60,7 @@ export async function registerMiddleware(fastify, options = {}) {
         reply.header("Cross-Origin-Opener-Policy", "same-origin");
         reply.header("Content-Security-Policy",
             "default-src https: 'self' blob: data:;" +
+            "connect-src 'self' https: http: wss: ws: blob: data:;" +
             "img-src 'self' * blob: data:;" +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob: data:;" +
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" + //'strict-dynamic'
@@ -89,7 +90,9 @@ export async function registerMiddleware(fastify, options = {}) {
                 "serial=*",
             ].join(", ")
         );
-        reply.header("Cache-Control", cacheControl);
+        if (!reply.getHeader("Cache-Control")) {
+            reply.header("Cache-Control", cacheControl);
+        }
         reply.header("Service-Worker-Allowed", "/");
         reply.removeHeader("Clear-Site-Data");
         next();

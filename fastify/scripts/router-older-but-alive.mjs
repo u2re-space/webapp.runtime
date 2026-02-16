@@ -53,6 +53,39 @@ export const UUIDv4 = () => {
     return (crypto?.randomUUID ? crypto?.randomUUID() : ("10000000-1000-4000-8000-100000000000".replace(/[018]/g, c => (+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16))));
 };
 
+const SHELL_QUERY_ALIASES = new Map([
+    ["minimal", "minimal"],
+    ["faint", "minimal"],
+    ["base", "base"],
+    ["raw", "base"],
+    ["core", "base"],
+]);
+
+const normalizeShellQueryValue = (value) => {
+    const normalized = (value || "").trim().toLowerCase();
+    return SHELL_QUERY_ALIASES.get(normalized) || null;
+};
+
+const buildCanonicalPathWithShellQuery = (requestUrl) => {
+    const current = requestUrl || "/";
+    const url = new URL(current, "http://localhost");
+    const rawShell = url.searchParams.get("shell");
+    if (rawShell === null) return null;
+
+    const mapped = normalizeShellQueryValue(rawShell);
+    const currentNormalized = rawShell.trim().toLowerCase();
+    if (!mapped) {
+        url.searchParams.delete("shell");
+    } else if (mapped !== currentNormalized) {
+        url.searchParams.set("shell", mapped);
+    } else {
+        return null;
+    }
+
+    const search = url.searchParams.toString();
+    return `${url.pathname}${search ? `?${search}` : ""}`;
+};
+
 /**
  * Check if path is a static file (has extension)
  */
@@ -160,8 +193,8 @@ console.log(`[Router] App directory resolved to: ${__appDir}`);
 
 // For backward compatibility, set __dirname to the app directory
 const __dirname = __appDir;
-// Load index.html from the main frontend directory, not the app directory
-const LOADER = fs.readFile(path.resolve(__frontendDir, "index.html"), {encoding: 'utf-8'});
+// Keep index loader dynamic so runtime html updates do not require process restart.
+const LOADER = () => fs.readFile(path.resolve(__frontendDir, "index.html"), { encoding: "utf-8" });
 
 // Apps directory resolution (relative to frontend directory)
 const APPS_DIR = path.resolve(__frontendDir, 'apps');
@@ -281,6 +314,7 @@ export default async function (fastify, options = {}) {
         reply.header("Cross-Origin-Opener-Policy", "same-origin");
         reply.header("Content-Security-Policy",
             "default-src https: 'self' blob: data:;" +
+            "connect-src 'self' https: http: wss: ws: blob: data:;" +
             "img-src 'self' * blob: data:;" +
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob: data:;" +
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" + //'strict-dynamic'
@@ -310,7 +344,9 @@ export default async function (fastify, options = {}) {
                 "serial=*",
             ].join(", ")
         );
-        reply.header("Cache-Control", cacheControl);
+        if (!reply.getHeader("Cache-Control")) {
+            reply.header("Cache-Control", cacheControl);
+        }
         reply.header("Service-Worker-Allowed", "/");
         reply.removeHeader("Clear-Site-Data");
         next();
@@ -329,11 +365,14 @@ export default async function (fastify, options = {}) {
         cacheControl,
     });
 
-    // Load index.html template
-    const CODE = await LOADER;
-
     // Helper to serve index.html with early hints
     const serveIndexHtml = async (req, reply) => {
+        const canonicalPath = buildCanonicalPathWithShellQuery(req?.raw?.url || req?.url || "/");
+        if (canonicalPath) {
+            return reply.redirect(302, canonicalPath);
+        }
+
+        const CODE = await LOADER();
         const links = [
             '</load.mjs>; rel=modulepreload; as=script; crossorigin; fetchpriority=high',
             '</apps/cw/index.js>; rel=modulepreload; as=script; crossorigin',
@@ -579,161 +618,48 @@ export default async function (fastify, options = {}) {
     });
 
     // ========================================================================
-    // PRINT ROUTE
+    // APP ENTRY ROUTES
     // ========================================================================
+    // Dynamic shell/view model:
+    // - /:view
+    // - /:view/*
+    // Reserved roots are excluded.
+    const RESERVED_ROOT_SEGMENTS = new Set([
+        "api",
+        "assets",
+        "apps",
+        "modules",
+        "pwa",
+        "admin",
+        "health",
+        "sw.js",
+        "favicon.ico",
+        "favicon.png",
+        "favicon.svg",
+    ]);
 
-    // Print route - serves a clean markdown viewer for printing
-    // ========================================================================
-    // SIMPLIFIED ROUTING: All routes serve the main app
-    // ========================================================================
+    const shouldHandleAsViewRoute = (view) => {
+        const normalized = (view || "").trim().toLowerCase();
+        if (!normalized) return false;
+        if (RESERVED_ROOT_SEGMENTS.has(normalized)) return false;
+        if (normalized.includes(".")) return false;
+        return true;
+    };
 
-    // Helper function to create the main app HTML
-    const createMainAppHTML = () => `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-            <title>CrossWord</title>
-            <base href="/">
-            <link rel="icon" type="image/svg+xml" href="favicon.svg">
-            <link rel="icon" type="image/png" href="favicon.png">
-
-            <!-- Critical initial styles to prevent FOUC and ensure proper rendering -->
-            <style data-owner="critical-init">
-                /* Hide undefined custom elements and problematic elements during load */
-                :where(*):not(:defined) {
-                    opacity: 0 !important;
-                    visibility: collapse !important;
-                    pointer-events: none !important;
-                    display: none !important;
-                }
-
-                /* Hide script, link, style elements to prevent visual glitches */
-                :where(link, script, style) {
-                    display: none !important;
-                    pointer-events: none !important;
-                    visibility: hidden !important;
-                }
-
-                /* Ensure html and body have no padding/margin and correct sizing */
-                html, body {
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    box-sizing: border-box !important;
-                    border: none !important;
-                    outline: none !important;
-                    overflow: hidden !important;
-                }
-
-                /* Full viewport body sizing */
-                html {
-                    inline-size: 100% !important;
-                    block-size: 100% !important;
-                    max-inline-size: 100% !important;
-                    max-block-size: 100% !important;
-                    min-inline-size: 100% !important;
-                    min-block-size: 100% !important;
-                }
-
-                body {
-                    display: grid !important;
-                    grid-template-columns: 1fr !important;
-                    grid-template-rows: 1fr !important;
-                    place-content: stretch !important;
-                    place-items: stretch !important;
-                    position: relative !important;
-                    inline-size: 100% !important;
-                    block-size: 100% !important;
-                    max-inline-size: 100% !important;
-                    max-block-size: 100% !important;
-                    min-inline-size: 100% !important;
-                    min-block-size: 100% !important;
-                    container-type: size !important;
-                    contain: strict !important;
-                }
-
-                /* App container styling */
-                #app {
-                    display: grid !important;
-                    grid-template-columns: 1fr !important;
-                    grid-template-rows: 1fr !important;
-                    place-content: stretch !important;
-                    place-items: stretch !important;
-                    inline-size: 100% !important;
-                    block-size: 100% !important;
-                    max-inline-size: 100% !important;
-                    max-block-size: 100% !important;
-                    min-inline-size: 0 !important;
-                    min-block-size: 0 !important;
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    border: none !important;
-                    outline: none !important;
-                    overflow: hidden !important;
-                    position: relative !important;
-                    container-type: size !important;
-                    contain: strict !important;
-                }
-
-                /* Loading state */
-                #app:empty::before {
-                    content: "Loading CrossWord..." !important;
-                    display: flex !important;
-                    align-items: center !important;
-                    justify-content: center !important;
-                    inline-size: 100% !important;
-                    block-size: 100% !important;
-                    font-family: system-ui, -apple-system, sans-serif !important;
-                    font-size: 1.2rem !important;
-                    color: #666 !important;
-                    background: #fff !important;
-                    position: absolute !important;
-                    inset: 0 !important;
-                    z-index: 9999 !important;
-                }
-            </style>
-        </head>
-        <body>
-            <div id="app"></div>
-            <script type="module" src="./load.mjs"></script>
-        </body>
-        </html>
-    `;
-
-    // All app routes serve the main app (client handles routing)
-    fastify.get('/basic', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTML());
+    fastify.get('/:view', async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewRoute(view)) return reply.callNotFound();
+        return serveIndexHtml(req, reply);
     });
 
-    fastify.get('/faint', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTML());
+    fastify.get('/:view/*', async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewRoute(view)) return reply.callNotFound();
+        return serveIndexHtml(req, reply);
     });
 
-    fastify.get('/print', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTML());
-    });
-
-    // ========================================================================
-    // SPA ROUTES (serve index.html for client-side routing)
-    // ========================================================================
-
-    // Root route - serves main app (client handles all routing)
-    fastify.get('/', async (req, reply) => {
-        return reply
-            .code(200)
-            .header('Content-Type', 'text/html; charset=utf-8')
-            .send(createMainAppHTML());
-    });
+    // Root route - serves canonical index.html (client handles routing)
+    fastify.get('/', async (req, reply) => serveIndexHtml(req, reply));
 
     // ========================================================================
     // CUSTOM ASSET LOOKUP WITH FALLBACK
