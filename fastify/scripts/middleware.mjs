@@ -69,9 +69,6 @@ export async function registerMiddleware(fastify, options = {}) {
 
         reply.header("Content-Language", "*");
         reply.header("Access-Control-Request-Headers", "*");
-        reply.header("Access-Control-Allow-Methods", "*");
-        reply.header("Access-Control-Allow-Origin", "*");
-        reply.header("Access-Control-Allow-Headers", "*");
         reply.header(
             "Permissions-Policy",
             [
@@ -95,17 +92,32 @@ export async function registerMiddleware(fastify, options = {}) {
         }
         reply.header("Service-Worker-Allowed", "/");
         reply.removeHeader("Clear-Site-Data");
+
+        const allowPrivateNetwork = process.env.CORS_ALLOW_PRIVATE_NETWORK !== "false";
+        const pnaHeader = String(req?.headers?.["access-control-request-private-network"] || "").toLowerCase();
+        if (allowPrivateNetwork && pnaHeader === "true") {
+            reply.header("Access-Control-Allow-Private-Network", "true");
+            const existingVary = String(reply.getHeader("Vary") || "");
+            const varyParts = existingVary
+                .split(",")
+                .map((part) => part.trim())
+                .filter(Boolean);
+            if (!varyParts.includes("Access-Control-Request-Private-Network")) {
+                varyParts.push("Access-Control-Request-Private-Network");
+            }
+            if (varyParts.length > 0) {
+                reply.header("Vary", varyParts.join(", "));
+            }
+        }
         next();
     });
 
     //
     fastify.register(cors, {
         hook: "preHandler",
-        delegator: (req, callback) => {
-            const corsOptions = { origin: false };
-            callback(null, corsOptions);
-        },
-        origin: "*",
+        origin: true,
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders:
             "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Accept-Language, Service-Worker-Allowed, X-Access-Secret, X-Access-Key",
         cacheControl,

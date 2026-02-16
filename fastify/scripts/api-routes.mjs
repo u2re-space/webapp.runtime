@@ -31,6 +31,33 @@ export async function registerAPIRoutes(fastify, options = {}) {
     // Health check endpoint
     fastify.get('/health', async () => ({ ok: true, timestamp: Date.now() }));
 
+    // Local Network Access / Private Network Access probe endpoint.
+    // Useful for browser permission/preflight warm-up before local control channels.
+    fastify.options('/lna-probe', async (req, reply) => {
+        const origin = String(req?.headers?.origin || '');
+        if (origin) reply.header('Access-Control-Allow-Origin', origin);
+        reply.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        reply.header('Access-Control-Allow-Headers', 'Content-Type');
+        reply.header('Access-Control-Max-Age', '600');
+        if (String(req?.headers?.['access-control-request-private-network'] || '').toLowerCase() === 'true') {
+            reply.header('Access-Control-Allow-Private-Network', 'true');
+            reply.header('Vary', 'Origin, Access-Control-Request-Private-Network');
+        } else if (origin) {
+            reply.header('Vary', 'Origin');
+        }
+        return reply.code(204).send();
+    });
+
+    fastify.get('/lna-probe', async (req, reply) => {
+        const origin = String(req?.headers?.origin || '');
+        if (origin) {
+            reply.header('Access-Control-Allow-Origin', origin);
+            reply.header('Vary', 'Origin');
+        }
+        reply.header('Cache-Control', 'no-store');
+        return reply.code(204).send();
+    });
+
     // Test route to verify API routing
     fastify.get('/api/test', async (req, reply) => {
         console.log('[API Test] Backend is responding');
