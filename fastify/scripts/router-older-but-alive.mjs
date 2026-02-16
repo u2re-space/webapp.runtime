@@ -716,17 +716,19 @@ export default async function (fastify, options = {}) {
     await fastify.register(async (instance) => {
         // Request timeout hook
         instance.addHook("onRequest", async (req, reply) => {
-            const timeout = 10000; // 10s timeout
-            if (req.raw.setTimeout) {
-                req.raw.setTimeout(timeout, () => {
-                    req.raw.destroy(new Error("Request Timeout"));
+            const timeout = Number(options?.requestTimeoutMs ?? 30000);
+            if (!Number.isFinite(timeout) || timeout <= 0) return;
+            if (!reply?.raw?.setTimeout) return;
+
+            // Avoid forcefully destroying sockets/streams; those often surface
+            // as protocol-level errors in browsers (especially over HTTP/2).
+            reply.raw.setTimeout(timeout, () => {
+                if (reply.sent || reply.raw.headersSent) return;
+                reply.code(408).type("application/json").send({
+                    error: "Request Timeout",
+                    timeoutMs: timeout,
                 });
-            }
-            if (req.raw.stream?.setTimeout) {
-                req.raw.stream.setTimeout(timeout, () => {
-                    req.raw.stream.destroy(new Error("Stream Timeout"));
-                });
-            }
+            });
         });
 
         // Custom asset lookup middleware (before static serving)
@@ -799,6 +801,8 @@ export default async function (fastify, options = {}) {
                 res.setHeader('Access-Control-Allow-Headers', '*');
             } else if (ext === 'css') {
                 res.setHeader('Content-Type', 'text/css');
+            } else if (ext === 'webmanifest' || (ext === 'json' && filePath.includes('manifest'))) {
+                res.setHeader('Content-Type', 'application/manifest+json');
             } else if (ext === 'json') {
                 res.setHeader('Content-Type', 'application/json');
             } else if (ext === 'html') {
@@ -815,8 +819,6 @@ export default async function (fastify, options = {}) {
                 res.setHeader('Content-Type', 'image/webp');
             } else if (ext === 'ico') {
                 res.setHeader('Content-Type', 'image/x-icon');
-            } else if (ext === 'webmanifest') {
-                res.setHeader('Content-Type', 'application/manifest+json');
             }
 
             // Immutable cache for hashed assets
