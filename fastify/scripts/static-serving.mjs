@@ -106,6 +106,11 @@ const lookupAssetWithFallback = async (pathname, reply) => {
  */
 const setStaticHeaders = (res, filePath) => {
     const ext = filePath.split('.').pop()?.toLowerCase();
+    const fileName = path.basename(filePath).toLowerCase();
+    const isServiceWorkerRuntimeFile =
+        fileName === 'sw.js' ||
+        /^workbox-[\w.-]+\.js$/.test(fileName) ||
+        /^registersw\.js$/.test(fileName);
 
     // Set explicit Content-Type for critical file types
     if (ext === 'js' || ext === 'mjs') {
@@ -136,8 +141,14 @@ const setStaticHeaders = (res, filePath) => {
         res.setHeader('Content-Type', 'image/x-icon');
     }
 
+    // Service worker and Workbox runtime must bypass HTTP caches for fast update pickup.
+    if (isServiceWorkerRuntimeFile) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
     // Immutable cache for hashed assets
-    if (/\.(?:[a-f0-9]{8,})\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/.test(filePath)) {
+    else if (/\.(?:[a-f0-9]{8,})\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/.test(filePath)) {
         res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         // Priority hints for critical resources
         if (/\.(css)$/.test(filePath)) res.setHeader('Priority', 'u=0');
