@@ -7,6 +7,16 @@
 import fs from "fs/promises";
 import path from "node:path";
 
+const BOOT_AT_MS = Date.now();
+const SERVICE_NAME = "runtime-fastify";
+const SERVICE_VERSION = String(process.env.npm_package_version || "unknown");
+
+const applyNoStore = (reply) => {
+    reply.header('Cache-Control', 'no-store');
+    reply.header('Pragma', 'no-cache');
+    reply.header('Expires', '0');
+};
+
 // Import AI processing functions dynamically when needed
 const getRecognizeByInstructions = async () => {
     const { recognizeByInstructions } = await import('@rs-core/service/AI-ops/RecognizeData');
@@ -30,6 +40,50 @@ export async function registerAPIRoutes(fastify, options = {}) {
 
     // Health check endpoint
     fastify.get('/health', async () => ({ ok: true, timestamp: Date.now() }));
+
+    // Production/deploy probes
+    fastify.get('/healthz', async (_req, reply) => {
+        applyNoStore(reply);
+        return reply.code(200).send({
+            ok: true,
+            service: SERVICE_NAME,
+            status: 'healthy',
+            version: SERVICE_VERSION,
+            timestamp: new Date().toISOString(),
+        });
+    });
+
+    fastify.get('/readyz', async (_req, reply) => {
+        const diagnostics = {
+            hasFetch: typeof fetch === 'function',
+            hasBroadcastChannel: typeof BroadcastChannel !== 'undefined',
+            hasCacheApi: typeof caches !== 'undefined',
+        };
+        const ready = diagnostics.hasFetch;
+        applyNoStore(reply);
+        return reply.code(ready ? 200 : 503).send({
+            ok: ready,
+            service: SERVICE_NAME,
+            status: ready ? 'ready' : 'degraded',
+            version: SERVICE_VERSION,
+            diagnostics,
+            timestamp: new Date().toISOString(),
+        });
+    });
+
+    fastify.get('/api/system/status', async (_req, reply) => {
+        const now = Date.now();
+        applyNoStore(reply);
+        return reply.code(200).send({
+            ok: true,
+            service: SERVICE_NAME,
+            version: SERVICE_VERSION,
+            uptimeMs: now - BOOT_AT_MS,
+            pid: process.pid,
+            node: process.version,
+            timestamp: new Date(now).toISOString(),
+        });
+    });
 
     // Local Network Access / Private Network Access probe endpoint.
     // Useful for browser permission/preflight warm-up before local control channels.

@@ -83,6 +83,20 @@ export function registerErrorHandling(fastify, options = {}) {
     fastify.setNotFoundHandler(async (req, reply) => {
         const pathname = req.url?.split?.('?')?.[0] || req.url || '';
 
+        // /user/* must never be rewritten to SPA shell.
+        if (pathname === '/user' || pathname.startsWith('/user/')) {
+            reply.header('Cache-Control', 'no-store');
+            reply.header('Pragma', 'no-cache');
+            reply.header('Expires', '0');
+            reply.header('X-Source', 'runtime-fastify-user-miss');
+            return reply.code(404).send({
+                ok: false,
+                error: 'USER_ROUTE_NOT_INTERCEPTED',
+                path: pathname,
+                hint: 'Expected Service Worker /user handler to intercept this request.'
+            });
+        }
+
         // Check if this looks like a static file request
         if (isStaticFilePath(pathname)) {
             // Return styled 404 for missing static files
