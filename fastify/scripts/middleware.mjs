@@ -12,6 +12,55 @@ import formbody from "@fastify/formbody"
 import multipart from "@fastify/multipart"
 import zlib from "node:zlib"
 
+const parseCsv = (value) =>
+    String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+const createCorsOriginMatcher = () => {
+    const allowAll = String(process.env.CORS_ALLOW_ALL || "").toLowerCase() === "true";
+    const configuredOrigins = parseCsv(process.env.CORS_ALLOWED_ORIGINS);
+
+    const exactAllowed = new Set([
+        "https://u2re.space",
+        "https://www.u2re.space",
+        "https://192.168.0.200",
+        "http://192.168.0.200",
+        "https://localhost",
+        "http://localhost",
+        "https://127.0.0.1",
+        "http://127.0.0.1",
+        ...configuredOrigins
+    ]);
+
+    const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
+    const privateLanPattern =
+        /^https?:\/\/((10\.\d{1,3}\.\d{1,3}\.\d{1,3})|(192\.168\.\d{1,3}\.\d{1,3})|(172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}))(:\d+)?$/i;
+    const u2rePattern = /^https?:\/\/([a-z0-9-]+\.)*u2re\.space(:\d+)?$/i;
+    const extensionPattern = /^(chrome-extension|moz-extension):\/\//i;
+
+    return (origin, callback) => {
+        if (!origin || allowAll) {
+            callback(null, true);
+            return;
+        }
+
+        if (
+            exactAllowed.has(origin) ||
+            localhostPattern.test(origin) ||
+            privateLanPattern.test(origin) ||
+            u2rePattern.test(origin) ||
+            extensionPattern.test(origin)
+        ) {
+            callback(null, true);
+            return;
+        }
+
+        callback(null, false);
+    };
+};
+
 export async function registerMiddleware(fastify, options = {}) {
     // Register form body parser for POST requests
     await fastify.register(formbody);
@@ -113,13 +162,19 @@ export async function registerMiddleware(fastify, options = {}) {
     });
 
     //
-    fastify.register(cors, {
+    await fastify.register(cors, {
         hook: "preHandler",
-        origin: true,
+        strictPreflight: false,
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
+        origin: createCorsOriginMatcher(),
         credentials: true,
-        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allowedHeaders:
-            "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Accept-Language, Service-Worker-Allowed, X-Access-Secret, X-Access-Key",
+            "Cache-Control, Origin, X-Requested-With, Content-Type, Accept, Accept-Language, Service-Worker-Allowed, X-Access-Secret, X-Access-Key, Access-Control-Request-Private-Network",
+        exposedHeaders:
+            "ETag, Cache-Control, Content-Length, Content-Range, X-File-Name, X-File-Size, X-File-LastModified",
+        maxAge: 86400,
         cacheControl,
     });
 }
