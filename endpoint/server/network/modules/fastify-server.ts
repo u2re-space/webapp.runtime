@@ -1,4 +1,5 @@
 import net from "node:net";
+import { randomUUID } from "node:crypto";
 
 import Fastify, { type FastifyInstance } from "fastify";
 
@@ -17,7 +18,7 @@ import { registerRoutes } from "../../routing/routes.ts";
 import { registerApiFallback, registerCoreApp } from "../../routing/core-app.ts";
 import { createHttpClient } from "../stack/https.ts";
 import { setApp as setClipboardApp, setHttpClient, startClipboardPolling } from "../../io/clipboard.ts";
-import { startMouseFlushInterval } from "../../io/mouse.ts";
+import { getMouseControllerState, startMouseFlushInterval } from "../../io/mouse.ts";
 import { setApp as setPythonApp } from "../../gpt/python.ts";
 import { resolvePeerIdentity } from "../stack/peer-identity.ts";
 import { pickEnvBoolLegacy, pickEnvNumberLegacy, pickEnvStringLegacy } from "../../lib/env.ts";
@@ -244,6 +245,10 @@ const buildBridgeForwardPayload = (
     const payload = {
         ...(frame as Record<string, unknown>),
         type: String((frame as Record<string, unknown>).type || "dispatch"),
+        packetId: String((frame as Record<string, unknown>).packetId || (frame as Record<string, unknown>).requestId || randomUUID()),
+        sessionId: String((frame as Record<string, unknown>).sessionId || ""),
+        seq: Number((frame as Record<string, unknown>).seq || 0),
+        _airpadHop: Math.max(0, parsePortableInteger((frame as Record<string, unknown>)._airpadHop as any) ?? 0) + 1,
         data: (frame as Record<string, unknown>).payload ?? (frame as Record<string, unknown>).data,
         from: String(sourceForPolicy || (frame as Record<string, unknown>).from || frame?.source || userId || fallbackUserId || "unknown"),
         source: String(sourceForPolicy || (frame as Record<string, unknown>).source || (frame as Record<string, unknown>).from || userId || fallbackUserId || "unknown"),
@@ -260,6 +265,86 @@ const buildBridgeForwardPayload = (
         delete payload.from;
     }
     return payload;
+};
+
+const routeUnknownTargetFrame = (params: {
+    app: FastifyInstance;
+    userId: string;
+    deviceId: string;
+    frame: any;
+    fallbackUserId: string;
+    sendToSocketIo: (userId: string, deviceId: string, frame: any) => boolean;
+    sendToBridge?: (payload: any) => boolean;
+}): boolean => {
+    const { app, userId, deviceId, frame, fallbackUserId, sendToSocketIo, sendToBridge } = params;
+    const sourceForPolicy = frame?.from || fallbackUserId || "";
+    const endpointPolicyMap = normalizeEndpointPolicies((config as any)?.endpointIDs || {});
+    const targetSource = String((frame as Record<string, any>)?.targetSource || "").trim().toLowerCase() === "fallback" ? "fallback" : "explicit";
+    const resolvedDeviceId = resolveEndpointPolicyTarget(endpointPolicyMap, String(deviceId || ""));
+    const targetForRoute = resolvedDeviceId || deviceId;
+    const transportPref = resolveEndpointTransportPreference(sourceForPolicy, targetForRoute, endpointPolicyMap);
+    const canSocketIo = transportPref.transports.includes("socketio");
+    const sentViaSocketIo = canSocketIo ? sendToSocketIo(userId, targetForRoute, frame) : false;
+    if (sentViaSocketIo) {
+        console.log(
+            formatBridgeLog("[bridge] unknown ws target delivered via socketio", {
+                userId,
+                deviceId: targetForRoute,
+                type: frame?.type,
+                from: sourceForPolicy
+            })
+        );
+        return true;
+    }
+    const bridgePayload =
+        !sentViaSocketIo && targetSource !== "fallback" && sendToBridge
+            ? buildBridgeForwardPayload(app, userId, fallbackUserId, targetForRoute, frame, String(sourceForPolicy || ""), endpointPolicyMap)
+            : null;
+    const sentViaBridge = !sentViaSocketIo && bridgePayload ? sendToBridge?.(bridgePayload) === true : false;
+    if (sentViaBridge) {
+        console.log(
+            formatBridgeLog("[bridge] unknown ws target forwarded via bridge", {
+                userId,
+                deviceId: targetForRoute,
+                type: frame?.type,
+                from: bridgePayload?.from,
+                route: bridgePayload?.route,
+                targetSource: "fallback"
+            })
+        );
+        return true;
+    }
+    if (handleLocalAirpadPayload(app, frame)) {
+        console.log(
+            formatBridgeLog("[bridge] unknown ws target handled locally", {
+                userId,
+                deviceId: targetForRoute,
+                type: frame?.type,
+                from: frame?.from,
+                targetSource
+            })
+        );
+        return true;
+    }
+    console.warn(
+        formatBridgeLog("[bridge] unknown ws target not handled", {
+            userId,
+            deviceId: targetForRoute,
+            type: frame?.type,
+            from: frame?.from,
+            targetSource
+        })
+    );
+    return false;
+};
+
+const registerControllerDebugRoutes = (app: FastifyInstance): void => {
+    app.get("/core/airpad/controller", async () => {
+        return {
+            ok: true,
+            controller: getMouseControllerState()
+        };
+    });
 };
 
 const resolvePortableConfigBoolean = (value: string | undefined): boolean | undefined => {
@@ -875,65 +960,19 @@ export const buildCoreServer = async (opts: { logger?: boolean; httpsOptions?: a
             : undefined
     });
     wsHub.onUnknownTarget = (userId, deviceId, frame) => {
-        const sourceForPolicy = frame?.from || (config as any)?.bridge?.userId || "";
-        const endpointPolicyMap = normalizeEndpointPolicies((config as any)?.endpointIDs || {});
-        const targetSource = String((frame as Record<string, any>)?.targetSource || "").trim().toLowerCase() === "fallback" ? "fallback" : "explicit";
-        const resolvedDeviceId = resolveEndpointPolicyTarget(endpointPolicyMap, String(deviceId || ""));
-        const targetForRoute = resolvedDeviceId || deviceId;
-        const transportPref = resolveEndpointTransportPreference(sourceForPolicy, targetForRoute, endpointPolicyMap);
-        const canSocketIo = transportPref.transports.includes("socketio");
-        const sent = canSocketIo ? socketIoBridge.sendToDevice(userId, targetForRoute, frame) : false;
-        const bridgePayload = !sent && targetSource !== "fallback" && networkContext?.sendToBridge
-            ? buildBridgeForwardPayload(
-                app,
-                userId,
-                ((config as any)?.bridge?.userId || ""),
-                targetForRoute,
-                frame,
-                String(sourceForPolicy || ""),
-                endpointPolicyMap
-            )
-            : null;
-        const sentViaBridge = !sent && bridgePayload ? networkContext?.sendToBridge?.(bridgePayload) === true : false;
-        
-        if (!sent && handleLocalAirpadPayload(app, frame)) {
-            console.log(
-                formatBridgeLog("[bridge] unknown ws target handled locally", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: frame?.from,
-                    targetSource
-                })
-            );
-            return true;
-        }
-        if (!sent && !sentViaBridge && app.log) {
-            console.warn(
-                formatBridgeLog("[bridge] unknown ws target not handled", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: frame?.from,
-                    targetSource
-                })
-            );
-        } else if (!sent && sentViaBridge && app.log) {
-            console.log(
-                formatBridgeLog("[bridge] unknown ws target forwarded via bridge", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: bridgePayload?.from,
-                    route: bridgePayload?.route,
-                    targetSource: "fallback"
-                })
-            );
-        }
-        return sent || sentViaBridge;
+        return routeUnknownTargetFrame({
+            app,
+            userId,
+            deviceId,
+            frame,
+            fallbackUserId: String((config as any)?.bridge?.userId || ""),
+            sendToSocketIo: (uid, did, payload) => socketIoBridge.sendToDevice(uid, did, payload),
+            sendToBridge: networkContext?.sendToBridge
+        });
     };
     await registerOpsRoutes(app, wsHub, networkContext, socketIoBridge);
     registerApiFallback(app);
+    registerControllerDebugRoutes(app);
 
     return app;
 };
@@ -983,65 +1022,19 @@ export const buildCoreServers = async (opts: { logger?: boolean; httpsOptions?: 
             : undefined
     });
     httpWsHub.onUnknownTarget = (userId, deviceId, frame) => {
-        const sourceForPolicy = frame?.from || fallbackUserId;
-        const endpointPolicyMap = normalizeEndpointPolicies((config as any)?.endpointIDs || {});
-        const targetSource = String((frame as Record<string, any>)?.targetSource || "").trim().toLowerCase() === "fallback" ? "fallback" : "explicit";
-        const resolvedDeviceId = resolveEndpointPolicyTarget(endpointPolicyMap, String(deviceId || ""));
-        const targetForRoute = resolvedDeviceId || deviceId;
-        const transportPref = resolveEndpointTransportPreference(sourceForPolicy, targetForRoute, endpointPolicyMap);
-        const canSocketIo = transportPref.transports.includes("socketio");
-        const sent = canSocketIo ? httpSocketIoBridge.sendToDevice(userId, targetForRoute, frame) : false;
-        const bridgePayload = !sent && targetSource !== "fallback" && networkContext?.sendToBridge
-            ? buildBridgeForwardPayload(
-                http,
-                userId,
-                fallbackUserId,
-                targetForRoute,
-                frame,
-                String(sourceForPolicy || ""),
-                endpointPolicyMap
-            )
-            : null;
-        const sentViaBridge = !sent && bridgePayload ? networkContext?.sendToBridge?.(bridgePayload) === true : false;
-        
-        if (!sent && handleLocalAirpadPayload(http, frame)) {
-            console.log(
-                formatBridgeLog("[bridge] unknown ws target handled locally", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: frame?.from,
-                    targetSource
-                })
-            );
-            return true;
-        }
-        if (!sent && !sentViaBridge && http.log) {
-            console.warn(
-                formatBridgeLog("[bridge] unknown ws target not handled", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: frame?.from,
-                    targetSource
-                })
-            );
-        } else if (!sent && sentViaBridge && http.log) {
-            console.log(
-                formatBridgeLog("[bridge] unknown ws target forwarded via bridge", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: bridgePayload?.from,
-                    route: bridgePayload?.route,
-                    targetSource: "fallback"
-                })
-            );
-        }
-        return sent || sentViaBridge;
+        return routeUnknownTargetFrame({
+            app: http,
+            userId,
+            deviceId,
+            frame,
+            fallbackUserId,
+            sendToSocketIo: (uid, did, payload) => httpSocketIoBridge.sendToDevice(uid, did, payload),
+            sendToBridge: networkContext?.sendToBridge
+        });
     };
     await registerOpsRoutes(http, unifiedHub, networkContext, httpSocketIoBridge);
     registerApiFallback(http);
+    registerControllerDebugRoutes(http);
 
     if (!httpsOptions) return { http };
     const httpsWsHub = createWsServer(https);
@@ -1064,65 +1057,19 @@ export const buildCoreServers = async (opts: { logger?: boolean; httpsOptions?: 
             : undefined
     });
     httpsWsHub.onUnknownTarget = (userId, deviceId, frame) => {
-        const sourceForPolicy = frame?.from || fallbackUserId;
-        const endpointPolicyMap = normalizeEndpointPolicies((config as any)?.endpointIDs || {});
-        const targetSource = String((frame as Record<string, any>)?.targetSource || "").trim().toLowerCase() === "fallback" ? "fallback" : "explicit";
-        const resolvedDeviceId = resolveEndpointPolicyTarget(endpointPolicyMap, String(deviceId || ""));
-        const targetForRoute = resolvedDeviceId || deviceId;
-        const transportPref = resolveEndpointTransportPreference(sourceForPolicy, targetForRoute, endpointPolicyMap);
-        const canSocketIo = transportPref.transports.includes("socketio");
-        const sent = canSocketIo ? httpsSocketIoBridge.sendToDevice(userId, targetForRoute, frame) : false;
-        const bridgePayload = !sent && targetSource !== "fallback" && networkContext?.sendToBridge
-            ? buildBridgeForwardPayload(
-                https,
-                userId,
-                fallbackUserId,
-                targetForRoute,
-                frame,
-                String(sourceForPolicy || ""),
-                endpointPolicyMap
-            )
-            : null;
-        const sentViaBridge = !sent && bridgePayload ? networkContext?.sendToBridge?.(bridgePayload) === true : false;
-        
-        if (!sent && handleLocalAirpadPayload(https, frame)) {
-            console.log(
-                formatBridgeLog("[bridge] unknown ws target handled locally", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: frame?.from,
-                    targetSource
-                })
-            );
-            return true;
-        }
-        if (!sent && !sentViaBridge && https.log) {
-            console.warn(
-                formatBridgeLog("[bridge] unknown ws target not handled", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: frame?.from,
-                    targetSource
-                })
-            );
-        } else if (!sent && sentViaBridge && https.log) {
-            console.log(
-                formatBridgeLog("[bridge] unknown ws target forwarded via bridge", {
-                    userId,
-                    deviceId: targetForRoute,
-                    type: frame?.type,
-                    from: bridgePayload?.from,
-                    route: bridgePayload?.route,
-                    targetSource: "fallback"
-                })
-            );
-        }
-        return sent || sentViaBridge;
+        return routeUnknownTargetFrame({
+            app: https,
+            userId,
+            deviceId,
+            frame,
+            fallbackUserId,
+            sendToSocketIo: (uid, did, payload) => httpsSocketIoBridge.sendToDevice(uid, did, payload),
+            sendToBridge: networkContext?.sendToBridge
+        });
     };
     await registerOpsRoutes(https, unifiedHub, networkContext, httpsSocketIoBridge);
     registerApiFallback(https);
+    registerControllerDebugRoutes(https);
 
     return { http, https };
 };

@@ -99,6 +99,12 @@ type EnvelopePayload = {
 const isTunnelDebug = pickEnvBoolLegacy("CWS_TUNNEL_DEBUG") === true;
 const shouldRejectUnauthorized = pickEnvBoolLegacy("CWS_BRIDGE_REJECT_UNAUTHORIZED", true) !== false;
 const invalidCredentialsRetryMs = Math.max(1000, pickEnvNumberLegacy("CWS_BRIDGE_INVALID_CREDENTIALS_RETRY_MS", 30000) ?? 30000);
+const bridgeConnectTimeoutMs = (() => {
+    const raw = pickEnvNumberLegacy("CWS_BRIDGE_CONNECT_TIMEOUT_MS", 12000);
+    const normalized = Number(raw);
+    if (!Number.isFinite(normalized) || normalized <= 0) return 12000;
+    return Math.max(2000, Math.min(60000, Math.trunc(normalized)));
+})();
 const TLS_VERIFY_ERRORS = ["unable to verify the first certificate", "self signed certificate", "certificate has expired", "certificate is not yet valid", "self signed certificate in certificate chain", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE"];
 
 const isControlLikeRole = (roles: string[] | undefined): boolean => {
@@ -758,7 +764,7 @@ export const startBridgePeerClient = (rawConfig: EndpointConfig, options: Bridge
                 socket?.close(4000, "connect-timeout");
                 socket = null;
             }
-        }, 12_000);
+        }, bridgeConnectTimeoutMs);
 
         socket.on("open", () => {
             invalidCredentialBlockUntil = 0;

@@ -14,7 +14,8 @@ import {
     createAirpadObjectMessageHandler
 } from "../../airpad/index.ts";
 import { getAirPadTokenFromSocket } from "../../airpad/airpad.ts";
-import { pickEnvBoolLegacy, pickEnvNumberLegacy } from "../../lib/env.ts";
+import { createPacketEnvelope, createRecentPacketCache, createSessionSequencer, fingerprintPacket, type AirpadRouteAction } from "../../airpad/packet-envelope.ts";
+import { pickEnvBoolLegacy, pickEnvNumberLegacy, pickEnvStringLegacy } from "../../lib/env.ts";
 import { parsePortableInteger } from "../../lib/parsing.ts";
 import config from "../../config/config.ts";
 import { areConnectionTypesCompatible, describeDisplayConnectionType, inferExpectedRemoteConnectionType, parseWsConnectionType, supportsForwardServerConnectionType, toDisplayTopology } from "../stack/connection-types.ts";
@@ -169,6 +170,13 @@ const logMsg = (prefix: string, msg: any, targetSource = "explicit", sourceSocke
     console.log(formatBridgeSocketLog(`[bridge] ${prefix}`, summary));
 };
 const isTunnelDebug = pickEnvBoolLegacy("CWS_TUNNEL_DEBUG") === true;
+const forceAirpadBridge = pickEnvBoolLegacy("CWS_AIRPAD_FORCE_BRIDGE", false) === true;
+const airpadBridgeConnectionType = (() => {
+    const raw = String(pickEnvStringLegacy("CWS_AIRPAD_CONNECTION_TYPE") || pickEnvStringLegacy("CWS_BRIDGE_CONNECTION_TYPE") || "first-order").trim().toLowerCase();
+    if (!raw) return "first-order";
+    if (raw === "first-order" || raw === "firstorder" || raw === "fo") return "first-order";
+    return raw;
+})();
 const NETWORK_FETCH_TIMEOUT_MS = Math.max(
     500,
     (() => {
@@ -176,6 +184,9 @@ const NETWORK_FETCH_TIMEOUT_MS = Math.max(
         return parsePortableInteger(configured) ?? 15000;
     })()
 );
+const AIRPAD_MAX_HOPS = Math.max(1, parsePortableInteger(pickEnvNumberLegacy("CWS_AIRPAD_MAX_HOPS", 4)) ?? 4);
+const AIRPAD_PACKET_TTL_MS = Math.max(100, parsePortableInteger(pickEnvNumberLegacy("CWS_AIRPAD_PACKET_TTL_MS", 1200)) ?? 1200);
+const AIRPAD_PACKET_CACHE_MAX = Math.max(256, parsePortableInteger(pickEnvNumberLegacy("CWS_AIRPAD_PACKET_CACHE_MAX", 4096)) ?? 4096);
 
 const mapHookPayload = (hooks: SocketMessageHook[], msg: any, socket: Socket) => applyMessageHooks(hooks, msg, socket);
 
@@ -209,7 +220,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
     const airpadRouter = createAirpadRouter({
         logger: app.log,
         networkContext,
-        isTunnelDebug
+        isTunnelDebug,
+        preferBridgeTransport: forceAirpadBridge
     });
     const pendingFetchReplies = new Map<
         string,
@@ -398,6 +410,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
         targetSource: "explicit" | "fallback" = "explicit"
     ): Record<string, unknown> | null => {
         if (!frame || typeof frame !== "object") return null;
+        const currentHop = Math.max(0, parsePortableInteger((frame as any)?._airpadHop) ?? 0);
+        if (currentHop >= AIRPAD_MAX_HOPS) return null;
         const target = normalizeHint(explicitTarget || frame.target || frame.to || frame.deviceId || frame.targetId || frame.target_id || "");
         if (!target) return null;
         const sourceForPolicy = normalizeHint(String(frame.source || frame.from || (sourceSocket as any).airpadSourceId || sourceSocket.id));
@@ -406,16 +420,28 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
         if (!supportsBridge) return null;
         const sourceMeta = airpadRouter.getConnectionMeta(sourceSocket);
         const bridgeFrom = normalizeHint(
-            sourceMeta?.routeTarget ||
-                sourceMeta?.sourceId ||
-                (networkContext?.bridgeUserId as string | undefined) ||
+            sourceMeta?.sourceId ||
                 (sourceSocket as any).airpadSourceId ||
+                (sourceSocket as any).userId ||
+                (networkContext?.bridgeUserId as string | undefined) ||
+                sourceMeta?.routeTarget ||
                 sourceSocket.id
         );
-        const bridgeUser = normalizeHint(sourceMeta?.routeTarget) || normalizeHint(sourceMeta?.sourceId) || normalizeHint(networkContext?.bridgeUserId) || sourceSocket.id;
+        const bridgeUser =
+            normalizeHint(sourceMeta?.sourceId) ||
+            normalizeHint((sourceSocket as any).airpadSourceId) ||
+            normalizeHint((sourceSocket as any).userId) ||
+            normalizeHint(networkContext?.bridgeUserId) ||
+            normalizeHint(sourceMeta?.routeTarget) ||
+            sourceSocket.id;
         return {
             ...(frame as Record<string, unknown>),
             type: String((frame as Record<string, unknown>).type || "dispatch"),
+            packetId: String((frame as Record<string, unknown>).packetId || (frame as Record<string, unknown>).requestId || randomUUID()),
+            sessionId: String((frame as Record<string, unknown>).sessionId || ""),
+            seq: Number((frame as Record<string, unknown>).seq || 0),
+            connectionType: String((frame as Record<string, unknown>).connectionType || (frame as Record<string, unknown>).archetype || airpadBridgeConnectionType),
+            archetype: String((frame as Record<string, unknown>).archetype || (frame as Record<string, unknown>).connectionType || airpadBridgeConnectionType),
             data: (frame as Record<string, unknown>).payload ?? (frame as Record<string, unknown>).data,
             from: bridgeFrom || sourceForPolicy || sourceSocket.id,
             source: bridgeFrom || sourceForPolicy || sourceSocket.id,
@@ -426,7 +452,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
             route: "socketio-forward-fallback",
             routeSource: sourceForPolicy || sourceMeta?.sourceId || "",
             routeTarget: target,
-            targetSource
+            targetSource,
+            _airpadHop: currentHop + 1
         };
     };
 
@@ -514,9 +541,24 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
 
     // Message history for inspection mode
     const clipHistory: ClipHistoryEntry[] = [];
+    const packetSequencer = createSessionSequencer();
+    const recentPacketCache = createRecentPacketCache(AIRPAD_PACKET_TTL_MS, AIRPAD_PACKET_CACHE_MAX);
+    const routeCounters: Record<AirpadRouteAction, number> = {
+        local: 0,
+        socket: 0,
+        bridge: 0,
+        reverse: 0,
+        broadcast: 0,
+        drop: 0
+    };
 
     // Message hooks for translation/routing
     const messageHooks: SocketMessageHook[] = [];
+    const logRouteEvent = (name: string, payload: Record<string, unknown>): void => {
+        if (isTunnelDebug) {
+            console.log(formatBridgeSocketLog(`[airpad.route] ${name}`, payload));
+        }
+    };
 
     const routeMessage = (sourceSocket: Socket, msg: any): void => {
         const hasExplicitTarget = msg && typeof msg === "object" && ("to" in msg || "target" in msg || "targetId" in msg || "target_id" in msg || "deviceId" in msg);
@@ -538,6 +580,66 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
             console.log(formatBridgeSocketLog("[Router] Message skipped by hook", { socket: sourceSocket.id }));
             return;
         }
+        const fromHint = normalizeHint(processed?.from || processed?.source || (sourceSocket as any).airpadSourceId || sourceSocket.id);
+        const toHint = normalizeHint(processed?.to || processed?.target || processed?.targetId || "");
+        const envelope = createPacketEnvelope({
+            kind: "object",
+            sourceId: fromHint || sourceSocket.id,
+            targetId: toHint || "broadcast",
+            routeSource: normalizeHint(processed?.routeSource || fromHint),
+            routeTarget: normalizeHint(processed?.routeTarget || toHint),
+            targetSource: String(processed?.targetSource || "").trim().toLowerCase() === "fallback" ? "fallback" : "explicit",
+            packetId: String(processed?.packetId || processed?.requestId || ""),
+            hop: parsePortableInteger(processed?._airpadHop) ?? 0,
+            payload: processed?.payload ?? processed?.data ?? processed,
+            sequencer: packetSequencer
+        });
+        processed.packetId = envelope.packetId;
+        processed.sessionId = envelope.sessionId;
+        processed.seq = envelope.seq;
+        processed._airpadHop = envelope.hop;
+        processed.routeSource = processed.routeSource || envelope.routeSource;
+        processed.routeTarget = processed.routeTarget || envelope.routeTarget;
+        logRouteEvent("packet_ingress", {
+            kind: envelope.kind,
+            packetId: envelope.packetId,
+            sessionId: envelope.sessionId,
+            seq: envelope.seq,
+            from: envelope.from,
+            to: envelope.to,
+            hop: envelope.hop
+        });
+        const hop = envelope.hop;
+        if (hop > AIRPAD_MAX_HOPS) {
+            routeCounters.drop += 1;
+            if (isTunnelDebug) {
+                console.warn(formatBridgeSocketLog("[Router] Packet dropped by hop guard", { socket: sourceSocket.id, hop, max: AIRPAD_MAX_HOPS }));
+            }
+            return;
+        }
+        const localHint = normalizeHint((sourceSocket as any).airpadSourceId || (sourceSocket as any).userId || networkContext?.bridgeUserId || "");
+        if (fromHint && toHint && fromHint === toHint && (!localHint || fromHint === localHint)) {
+            routeCounters.drop += 1;
+            if (isTunnelDebug) {
+                console.warn(formatBridgeSocketLog("[Router] Self-target packet dropped", { socket: sourceSocket.id, from: fromHint, to: toHint }));
+            }
+            return;
+        }
+        const fp = fingerprintPacket({
+            packetId: envelope.packetId,
+            from: envelope.from,
+            to: envelope.to,
+            kind: envelope.kind,
+            payload: envelope.payload
+        });
+        if (fp && recentPacketCache.seen(fp)) {
+            routeCounters.drop += 1;
+            if (isTunnelDebug) {
+                console.warn(formatBridgeSocketLog("[Router] Duplicate packet dropped", { socket: sourceSocket.id, fingerprint: fp }));
+            }
+            return;
+        }
+        if (fp) recentPacketCache.remember(fp);
         const incomingTargetSource = String((processed as Record<string, any>)?.targetSource || "").trim().toLowerCase() === "fallback" ? "fallback" : "explicit";
         const targetSource = incomingTargetSource === "fallback" ? "fallback" : (hasExplicitTarget ? "explicit" : "fallback");
 
@@ -616,16 +718,21 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
 
         if (isBroadcast(processed)) {
             sourceSocket.broadcast.emit("message", processed);
+            routeCounters.broadcast += 1;
+            logRouteEvent("route_decision", { action: "broadcast", packetId: processed.packetId, to: "broadcast" });
             logMsg("OUT(broadcast)", processed, targetSource, sourceSocket);
-            
-            const userIdForReverse = (sourceSocket as any).userId || "";
-            networkContext?.sendToReverse?.(userIdForReverse, "broadcast", processed);
-            
             const bridgePayload = buildSocketIoBridgePayload(sourceSocket, processed, "broadcast", targetSource);
-            if (bridgePayload) {
-                networkContext?.sendToBridge?.(bridgePayload);
+            if (bridgePayload && networkContext?.sendToBridge?.(bridgePayload) === true) {
+                routeCounters.bridge += 1;
+                if (forceAirpadBridge) {
+                    return;
+                }
             }
-            
+
+            const userIdForReverse = (sourceSocket as any).userId || "";
+            if (!forceAirpadBridge && networkContext?.sendToReverse?.(userIdForReverse, "broadcast", processed)) {
+                routeCounters.reverse += 1;
+            }
             return;
         }
 
@@ -636,6 +743,7 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
             for (const candidate of candidateTargets) {
                 candidate.socket.emit("message", processed);
                 sent += 1;
+                routeCounters.socket += 1;
                 logMsg(`OUT(to=${processed.to})`, processed, targetSource, sourceSocket, candidate.socket);
                 if (isTunnelDebug) {
                     console.log(
@@ -661,20 +769,17 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
             if (policyCandidates.length > 0) {
                 for (const candidate of policyCandidates) {
                     candidate.socket.emit("message", { ...processed, to: policyTarget, target: policyTarget, targetId: policyTarget });
+                    routeCounters.socket += 1;
                     logMsg(`OUT(to=${policyTarget})`, { ...processed, to: policyTarget }, targetSource, sourceSocket, candidate.socket);
                 }
                 return;
             }
         }
         
-        const userIdForReverse = (sourceSocket as any).userId || "";
-        if (networkContext?.sendToReverse?.(userIdForReverse, String(processed.to || ""), processed) === true) {
-            logMsg(`OUT(wsHub to=${processed.to})`, processed, targetSource, sourceSocket);
-            return;
-        }
-
         const bridgePayload = buildSocketIoBridgePayload(sourceSocket, processed, String(processed.to || ""), targetSource);
         if (bridgePayload && networkContext?.sendToBridge?.(bridgePayload) === true) {
+            routeCounters.bridge += 1;
+            logRouteEvent("route_decision", { action: "bridge", packetId: processed.packetId, to: processed.to });
             logMsg(`OUT(socketio-bridge to=${processed.to})`, processed, targetSource, sourceSocket);
             if (isTunnelDebug) {
                 console.log(
@@ -685,6 +790,14 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                     })
                 );
             }
+            return;
+        }
+
+        const userIdForReverse = (sourceSocket as any).userId || "";
+        if (!forceAirpadBridge && networkContext?.sendToReverse?.(userIdForReverse, String(processed.to || ""), processed) === true) {
+            routeCounters.reverse += 1;
+            logRouteEvent("route_decision", { action: "reverse", packetId: processed.packetId, to: processed.to });
+            logMsg(`OUT(wsHub to=${processed.to})`, processed, targetSource, sourceSocket);
             return;
         }
         if (!bridgePayload && isTunnelDebug) {
@@ -704,6 +817,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                 targetSource
             })
         );
+        routeCounters.drop += 1;
+        logRouteEvent("packet_drop_reason", { reason: "no-target-client", packetId: processed.packetId, to: processed.to });
     };
 
     const multicastMessage = (sourceSocket: Socket, msg: any, deviceIds?: string[]): void => {
@@ -718,14 +833,18 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
 
         if (!deviceIds || deviceIds.length === 0) {
             sourceSocket.broadcast.emit("message", processed);
+            routeCounters.broadcast += 1;
             logMsg("OUT(multicast-all)", processed, "explicit", sourceSocket);
-            
-            const userIdForReverse = (sourceSocket as any).userId || "";
-            networkContext?.sendToReverse?.(userIdForReverse, "broadcast", processed);
-            
             const bridgePayload = buildSocketIoBridgePayload(sourceSocket, processed, "broadcast", "explicit");
-            if (bridgePayload) {
-                networkContext?.sendToBridge?.(bridgePayload);
+            if (bridgePayload && networkContext?.sendToBridge?.(bridgePayload) === true) {
+                routeCounters.bridge += 1;
+                if (forceAirpadBridge) {
+                    return;
+                }
+            }
+            const userIdForReverse = (sourceSocket as any).userId || "";
+            if (!forceAirpadBridge && networkContext?.sendToReverse?.(userIdForReverse, "broadcast", processed)) {
+                routeCounters.reverse += 1;
             }
             return;
         }
@@ -778,7 +897,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
         
         let activeConnectionType = remoteConnectionType.parsed || expectedRemoteConnectionType;
         if (activeConnectionType === "first-order") {
-            activeConnectionType = localConnectionType === "requestor-initiated" ? "responser-initiator" : "requestor-initiator";
+            // Socket.IO bridge acts as responser-initiated server endpoint.
+            activeConnectionType = "requestor-initiator";
             console.log(`[Server] AirPad socket accepted first-order connection, acting as ${activeConnectionType}`);
         }
         const resolvedLocalConnectionType = localConnectionType;
@@ -848,10 +968,17 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
 
         registerAirpadSocketHandlers(socket, {
             logger: app.log,
-            allowLocalInput: isEndpoint,
+            // Recovery mode: always allow local input path.
+            // Routed packets still skip local execution when skipLocalWhenRouted=true.
+            allowLocalInput: true,
             onObjectMessage,
             onBinaryMessage: async (raw: any, sourceSocket) => {
-                const isEndpoint = airpadRouter.isEndpoint(sourceSocket);
+                const routeHint = normalizeHint(airpadRouter.getRouteHint(sourceSocket));
+                const shouldRouteBinary = routeHint === "tunnel" || routeHint === "remote";
+                if (!shouldRouteBinary) {
+                    // Direct endpoint input: keep binary local execution path authoritative.
+                    return false;
+                }
                 if (!(raw instanceof Uint8Array) && !Buffer.isBuffer(raw) && !(raw instanceof ArrayBuffer)) {
                     if (isTunnelDebug) {
                     console.log(
@@ -863,19 +990,38 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                     }
                     return false;
                 }
+                const sourceId = normalizeHint((sourceSocket as any).airpadSourceId || (sourceSocket as any).userId || sourceSocket.id);
+                const basePacket = createPacketEnvelope({
+                    kind: "binary",
+                    sourceId,
+                    targetId: "broadcast",
+                    routeSource: sourceId,
+                    routeTarget: "broadcast",
+                    payload: raw,
+                    sequencer: packetSequencer
+                });
+                const baseFp = fingerprintPacket({
+                    packetId: basePacket.packetId,
+                    from: basePacket.from,
+                    to: basePacket.to,
+                    kind: basePacket.kind,
+                    payload: basePacket.payload
+                });
+                if (baseFp && recentPacketCache.seen(baseFp)) {
+                    routeCounters.drop += 1;
+                    logRouteEvent("packet_drop_reason", { reason: "duplicate-binary-ingress", packetId: basePacket.packetId, socket: sourceSocket.id });
+                    return false;
+                }
+                if (baseFp) recentPacketCache.remember(baseFp);
+                logRouteEvent("packet_ingress", {
+                    kind: "binary",
+                    packetId: basePacket.packetId,
+                    sessionId: basePacket.sessionId,
+                    seq: basePacket.seq,
+                    from: basePacket.from
+                });
                 const tunnelTargets = airpadRouter.resolveTunnelTargets(sourceSocket, { to: "broadcast" });
                 if (!tunnelTargets.length) {
-                    if (!isEndpoint) {
-                        if (isTunnelDebug) {
-                        console.log(
-                            formatBridgeSocketLog("[Router] Binary local handling skipped for non-endpoint socket", {
-                                socket: sourceSocket.id,
-                                via: airpadRouter.getRouteHint(sourceSocket) || "?"
-                            })
-                        );
-                        }
-                        return false;
-                    }
                     if (isTunnelDebug) {
                     console.log(
                         formatBridgeSocketLog("[Router] Binary tunnel target unavailable", {
@@ -887,8 +1033,36 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                     return false;
                 }
                 for (const target of tunnelTargets) {
-                    const targetDelivered = airpadRouter.forwardToAirpadTargets(sourceSocket, raw, { to: target, type: "binary" });
+                    const targetEnvelope = createPacketEnvelope({
+                        kind: "binary",
+                        sourceId,
+                        targetId: target,
+                        routeSource: sourceId,
+                        routeTarget: target,
+                        packetId: basePacket.packetId,
+                        hop: basePacket.hop + 1,
+                        payload: raw,
+                        sequencer: packetSequencer
+                    });
+                    if (targetEnvelope.hop > AIRPAD_MAX_HOPS) {
+                        routeCounters.drop += 1;
+                        logRouteEvent("packet_drop_reason", { reason: "hop-overflow-binary", packetId: targetEnvelope.packetId, target });
+                        continue;
+                    }
+                    if (targetEnvelope.from && targetEnvelope.to && targetEnvelope.from === targetEnvelope.to) {
+                        routeCounters.drop += 1;
+                        logRouteEvent("packet_drop_reason", { reason: "self-target-binary", packetId: targetEnvelope.packetId, target });
+                        continue;
+                    }
+                    const targetDelivered = airpadRouter.forwardToAirpadTargets(sourceSocket, raw, {
+                        to: target,
+                        type: "binary",
+                        packetId: targetEnvelope.packetId,
+                        _airpadHop: targetEnvelope.hop
+                    });
                     if (targetDelivered) {
+                        routeCounters.socket += 1;
+                        logRouteEvent("route_decision", { action: "socket", packetId: targetEnvelope.packetId, to: target });
                         if (isTunnelDebug) {
                         console.log(
                             formatBridgeSocketLog("[Router] OUT(tunnel-binary)", {
@@ -901,6 +1075,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                         return true;
                     }
                     if (airpadRouter.forwardBinaryToBridge(sourceSocket, raw, target)) {
+                        routeCounters.bridge += 1;
+                        logRouteEvent("route_decision", { action: "bridge", packetId: targetEnvelope.packetId, to: target });
                         if (isTunnelDebug) {
                         console.log(
                             formatBridgeSocketLog("[Router] OUT(tunnel-bridge-binary)", {
@@ -910,18 +1086,6 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                             })
                         );
                         }
-                        return true;
-                    }
-                    if (airpadRouter.forwardBinaryToBridge(sourceSocket, raw, target)) {
-                    if (isTunnelDebug) {
-                        console.log(
-                            formatBridgeSocketLog("[Router] OUT(tunnel-binary-bridge)", {
-                                socket: sourceSocket.id,
-                                target,
-                                targetSource: "explicit"
-                            })
-                        );
-                    }
                         return true;
                     }
                 }
@@ -959,6 +1123,8 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
                 if (!isTunnelDebug) {
                     console.warn(formatBridgeSocketLog("[Router] Binary tunnel target not found", { socket: sourceSocket.id, targetSource: "explicit" }));
                 }
+                routeCounters.drop += 1;
+                logRouteEvent("packet_drop_reason", { reason: "binary-target-not-found", packetId: basePacket.packetId, targets: tunnelTargets.join("|") });
                 return false;
             },
             onDisconnect: (reason) => {
@@ -1106,7 +1272,19 @@ export const createSocketIoBridge = (app: FastifyInstance, opts: SocketIoBridgeO
             bridgeUserId: networkContext?.bridgeUserId,
             connectedCount: devices.length,
             devices,
-            tunnelTargets
+            tunnelTargets,
+            routeCounters
+        };
+    });
+    app.get("/core/airpad/controller-state", async () => {
+        return {
+            ok: true,
+            routeCounters,
+            dedupe: {
+                ttlMs: AIRPAD_PACKET_TTL_MS,
+                maxEntries: AIRPAD_PACKET_CACHE_MAX,
+                maxHops: AIRPAD_MAX_HOPS
+            }
         };
     });
     app.get("/core/bridge/history", async (req: any) => {

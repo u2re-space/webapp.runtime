@@ -9,6 +9,7 @@ import { isBroadcast, normalizeSocketFrame } from "../stack/messages.ts";
 import { inferNetworkSurface } from "../stack/topology.ts";
 import { pickEnvBoolLegacy, pickEnvStringLegacy } from "../../lib/env.ts";
 import { parsePortableInteger, safeJsonParse } from "../../lib/parsing.ts";
+import { createRecentPacketCache, fingerprintPacket } from "../../airpad/packet-envelope.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../stack/endpoint-policy.ts";
 import {
     type WsConnectionType,
@@ -81,6 +82,9 @@ const isIpAddress = (value: string): boolean => {
 const isWebSocketTunnelDebug = (): boolean => {
     return pickEnvBoolLegacy("CWS_TUNNEL_DEBUG") === true;
 };
+const AIRPAD_MAX_HOPS = Math.max(1, parsePortableInteger(pickEnvStringLegacy("CWS_AIRPAD_MAX_HOPS")) ?? 4);
+const AIRPAD_PACKET_TTL_MS = Math.max(100, parsePortableInteger(pickEnvStringLegacy("CWS_AIRPAD_PACKET_TTL_MS")) ?? 1200);
+const AIRPAD_PACKET_CACHE_MAX = Math.max(256, parsePortableInteger(pickEnvStringLegacy("CWS_AIRPAD_PACKET_CACHE_MAX")) ?? 4096);
 
 const getWebSocketProtocol = (req: any): "ws" | "wss" => {
     return req?.socket?.encrypted === true ? "wss" : "ws";
@@ -566,6 +570,7 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
         }
     >();
     const tcpSessions = new Map<WebSocket, Map<string, TcpSession>>();
+    const recentPacketCache = createRecentPacketCache(AIRPAD_PACKET_TTL_MS, AIRPAD_PACKET_CACHE_MAX);
     const endpointPolicyMap = normalizeEndpointPolicies((config as any)?.endpointIDs || {});
     const resolvePolicyOriginIps = (target: string): string[] => {
         const normalizedTarget = normalizeSocketPeer(stripFramePort(target));
@@ -1133,6 +1138,35 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
                 gatewayId: info.reverse ? "reverse-gateway" : undefined,
                 surface: info.reverse ? "external" : inferNetworkSurface(req.socket?.remoteAddress)
             });
+            const hop = Math.max(0, parsePortableInteger((frame as any)?._airpadHop) ?? 0);
+            if (hop > AIRPAD_MAX_HOPS) {
+                if (isWebSocketTunnelDebug()) {
+                    console.warn(`[ws] DROP hop overflow hop=${hop} max=${AIRPAD_MAX_HOPS} from=${String(frame?.from || frameSource)}`);
+                }
+                return;
+            }
+            const fromHint = normalizeSocketPeer(String(frame?.from || frameSource));
+            const toHint = normalizeSocketPeer(String(frame?.to || frame?.target || frame?.targetId || ""));
+            if (fromHint && toHint && fromHint === toHint) {
+                if (isWebSocketTunnelDebug()) {
+                    console.warn(`[ws] DROP self-target from=${fromHint} to=${toHint}`);
+                }
+                return;
+            }
+            const packetFingerprint = fingerprintPacket({
+                packetId: String((frame as any)?.packetId || (frame as any)?.requestId || ""),
+                from: fromHint || frameSource,
+                to: toHint || "broadcast",
+                kind: "object",
+                payload: (frame as any)?.payload ?? (frame as any)?.data ?? frame
+            });
+            if (packetFingerprint && recentPacketCache.seen(packetFingerprint)) {
+                if (isWebSocketTunnelDebug()) {
+                    console.warn(`[ws] DROP duplicate packet=${packetFingerprint}`);
+                }
+                return;
+            }
+            if (packetFingerprint) recentPacketCache.remember(packetFingerprint);
             const type = frame.type;
             const payload = frame.payload;
             const shouldBroadcast = isBroadcast(frame);
@@ -1153,6 +1187,10 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
                         const frameTo = target?.deviceId || target?.peerId || frame.to;
                         const envelope = {
                             type,
+                            packetId: String((frame as any)?.packetId || (frame as any)?.requestId || randomUUID()),
+                            sessionId: String((frame as any)?.sessionId || ""),
+                            seq: Number((frame as any)?.seq || 0),
+                            _airpadHop: hop + 1,
                             payload,
                             data: payload,
                             from: frameFrom,
@@ -1188,7 +1226,21 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
             } else {
                 // broadcast to same userId
                 const frameFrom = frame.from || frameSource;
-                multicast(info.userIdKey, { type, payload, from: frameFrom, via: "ws" }, normalizeSocketUser(frame.namespace || info.namespace), info.id);
+                multicast(
+                    info.userIdKey,
+                    {
+                        type,
+                        packetId: String((frame as any)?.packetId || (frame as any)?.requestId || randomUUID()),
+                        sessionId: String((frame as any)?.sessionId || ""),
+                        seq: Number((frame as any)?.seq || 0),
+                        _airpadHop: hop + 1,
+                        payload,
+                        from: frameFrom,
+                        via: "ws"
+                    },
+                    normalizeSocketUser(frame.namespace || info.namespace),
+                    info.id
+                );
                 if (isWebSocketTunnelDebug()) {
                     console.log(
                         formatWsFrameLog("BROADCAST", req, info, { ...frame, from: frameFrom, to: "broadcast" }, clients, "broadcast", undefined, info, true)

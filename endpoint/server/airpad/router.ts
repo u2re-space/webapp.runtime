@@ -1,4 +1,6 @@
 import type { Socket } from "socket.io";
+import { randomUUID } from "node:crypto";
+import { pickEnvStringLegacy } from "../lib/env.ts";
 
 import type { AirpadConnectionMeta } from "./airpad.ts";
 
@@ -32,6 +34,7 @@ type AirpadRouterOptions = {
     networkContext?: NetworkContext;
     isTunnelDebug?: boolean;
     logger?: Logger;
+    preferBridgeTransport?: boolean;
 };
 
 export interface AirpadSocketRouter {
@@ -56,11 +59,18 @@ export interface AirpadSocketRouter {
 }
 
 const isBroadcastTarget = (value: string): boolean => value === "broadcast" || value === "all" || value === "*";
+const airpadBridgeConnectionType = (() => {
+    const raw = String(pickEnvStringLegacy("CWS_AIRPAD_CONNECTION_TYPE") || pickEnvStringLegacy("CWS_BRIDGE_CONNECTION_TYPE") || "first-order").trim().toLowerCase();
+    if (!raw) return "first-order";
+    if (raw === "first-order" || raw === "firstorder" || raw === "fo") return "first-order";
+    return raw;
+})();
 
 export const createAirpadRouter = (options: AirpadRouterOptions = {}): AirpadSocketRouter => {
     const networkContext = options.networkContext;
     const isTunnelDebug = options.isTunnelDebug === true;
     const logger = options.logger;
+    const preferBridgeTransport = options.preferBridgeTransport === true;
 
     const clients = new Map<string, Set<Socket>>();
     const airpadConnectionMeta = new Map<Socket, AirpadConnectionMeta>();
@@ -231,15 +241,28 @@ export const createAirpadRouter = (options: AirpadRouterOptions = {}): AirpadSoc
                     delivered = true;
                 }
             }
-            if (!delivered && networkContext?.sendToReverse) {
-                const bridgeUser = normalizeHint(airpadConnectionMeta.get(sourceSocket)?.routeTarget) || normalizeHint(networkContext.bridgeUserId);
+            if (!delivered && networkContext?.sendToReverse && !preferBridgeTransport) {
+                const bridgeUser =
+                    normalizeHint(airpadConnectionMeta.get(sourceSocket)?.sourceId) ||
+                    normalizeHint((sourceSocket as any)?.userId) ||
+                    normalizeHint(networkContext.bridgeUserId) ||
+                    normalizeHint(airpadConnectionMeta.get(sourceSocket)?.routeTarget);
                 
                 let reversePayload = payload;
                 if (Buffer.isBuffer(payload) || payload instanceof Uint8Array || payload instanceof ArrayBuffer) {
                     const meta = airpadConnectionMeta.get(sourceSocket);
-                    const bridgeFrom = normalizeHint(meta?.routeTarget) || normalizeHint(meta?.sourceId) || normalizeHint(networkContext.bridgeUserId) || sourceSocket.id;
+                    const bridgeFrom =
+                        normalizeHint(meta?.sourceId) ||
+                        normalizeHint((sourceSocket as any)?.userId) ||
+                        normalizeHint(networkContext.bridgeUserId) ||
+                        normalizeHint(meta?.routeTarget) ||
+                        sourceSocket.id;
                     reversePayload = {
                         type: "dispatch",
+                        packetId: String((frame as any)?.packetId || (frame as any)?.requestId || ""),
+                        connectionType: airpadBridgeConnectionType,
+                        archetype: airpadBridgeConnectionType,
+                        _airpadHop: Math.max(0, Number((frame as any)?._airpadHop || 0)) + 1,
                         from: bridgeFrom,
                         to: rawTarget,
                         target: rawTarget,
@@ -285,10 +308,26 @@ export const createAirpadRouter = (options: AirpadRouterOptions = {}): AirpadSoc
         const rawTarget = normalizeHint(frame.to);
         if (!rawTarget || isBroadcastTarget(rawTarget)) return false;
         const bridgeUserId = normalizeHint(networkContext.bridgeUserId);
-        const bridgeFrom = normalizeHint(meta?.routeTarget) || normalizeHint(meta?.sourceId) || bridgeUserId || normalizeHint((sourceSocket as any).userId) || sourceSocket.id;
-        const bridgeUser = normalizeHint(meta?.routeTarget) || bridgeUserId || normalizeHint(meta?.targetHost) || normalizeHint(meta?.hostHint);
+        const bridgeFrom =
+            normalizeHint(meta?.sourceId) ||
+            normalizeHint((sourceSocket as any).userId) ||
+            bridgeUserId ||
+            normalizeHint(meta?.routeTarget) ||
+            sourceSocket.id;
+        if (bridgeFrom && rawTarget && bridgeFrom === rawTarget) return false;
+        const bridgeUser =
+            normalizeHint(meta?.sourceId) ||
+            normalizeHint((sourceSocket as any).userId) ||
+            bridgeUserId ||
+            normalizeHint(meta?.routeTarget) ||
+            normalizeHint(meta?.targetHost) ||
+            normalizeHint(meta?.hostHint);
         const accepted = networkContext.sendToBridge({
             ...frame,
+            packetId: String((frame as any)?.packetId || (frame as any)?.requestId || ""),
+            _airpadHop: Math.max(0, Number((frame as any)?._airpadHop || 0)) + 1,
+            connectionType: airpadBridgeConnectionType,
+            archetype: airpadBridgeConnectionType,
             from: bridgeFrom,
             userId: bridgeUser,
             target: rawTarget,
@@ -324,10 +363,26 @@ export const createAirpadRouter = (options: AirpadRouterOptions = {}): AirpadSoc
         if (!bridgeTarget || isBroadcastTarget(bridgeTarget)) return false;
 
         const bridgeUserId = normalizeHint(networkContext.bridgeUserId);
-        const bridgeFrom = normalizeHint(meta?.routeTarget) || normalizeHint(meta?.sourceId) || bridgeUserId || normalizeHint((sourceSocket as any).userId) || sourceSocket.id;
-        const bridgeUser = normalizeHint(meta?.routeTarget) || bridgeUserId || normalizeHint(meta?.targetHost) || normalizeHint(meta?.hostHint);
+        const bridgeFrom =
+            normalizeHint(meta?.sourceId) ||
+            normalizeHint((sourceSocket as any).userId) ||
+            bridgeUserId ||
+            normalizeHint(meta?.routeTarget) ||
+            sourceSocket.id;
+        if (bridgeFrom && bridgeTarget && bridgeFrom === bridgeTarget) return false;
+        const bridgeUser =
+            normalizeHint(meta?.sourceId) ||
+            normalizeHint((sourceSocket as any).userId) ||
+            bridgeUserId ||
+            normalizeHint(meta?.routeTarget) ||
+            normalizeHint(meta?.targetHost) ||
+            normalizeHint(meta?.hostHint);
         const bridgePayload = {
             type: "dispatch",
+            packetId: randomUUID(),
+            connectionType: airpadBridgeConnectionType,
+            archetype: airpadBridgeConnectionType,
+            _airpadHop: 1,
             from: bridgeFrom,
             to: bridgeTarget,
             target: bridgeTarget,

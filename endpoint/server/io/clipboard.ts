@@ -272,21 +272,24 @@ export function onClipboardChange(listener: ClipboardListener): () => void {
 }
 
 async function broadcastClipboard(text: string) {
-    if (!text) return;
+    const payloadText = String(text ?? "");
+    if (!payloadText) return;
+    // /clipboard normalizes with trim; skip whitespace-only values to avoid 400/fallback noise.
+    if (!payloadText.trim()) return;
     if (!peers || peers.length === 0) return;
 
     const sourceId = String(process.env.CWS_ASSOCIATED_ID || process.env.CWS_BRIDGE_USER_ID || process.env.CWS_BRIDGE_CLIENT_ID || "").trim();
     const sourceToken = String(process.env.CWS_ASSOCIATED_TOKEN || process.env.CWS_BRIDGE_USER_KEY || "").trim();
     const body: string | Record<string, any> = sourceId || sourceToken
         ? {
-            text,
+            text: payloadText,
             from: sourceId,
             source: sourceId,
             userId: sourceId,
             clientId: sourceId,
             ...(sourceToken ? { token: sourceToken } : {})
         }
-        : text;
+        : payloadText;
     const headers: any = typeof body === "string"
         ? { "Content-Type": "text/plain; charset=utf-8" }
         : { "Content-Type": "application/json; charset=utf-8" };
@@ -299,7 +302,7 @@ async function broadcastClipboard(text: string) {
         traceId,
         from: clipboardNodeLabel,
         peers,
-        text: summarizeClipboardText(text)
+        text: summarizeClipboardText(payloadText)
     });
 
     // Prefer local dispatch pipeline first to keep behavior identical to external /clipboard calls.
@@ -317,7 +320,7 @@ async function broadcastClipboard(text: string) {
                 injectHeaders["x-auth-token"] = sourceToken;
             }
             const relayBody: Record<string, any> = {
-                text,
+                text: payloadText,
                 from: sourceId,
                 source: sourceId,
                 userId: sourceId,

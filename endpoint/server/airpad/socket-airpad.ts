@@ -4,6 +4,7 @@ import { parseBinaryMessage } from "../io/message.ts";
 import { executeCopyHotkey, executeCutHotkey, executePasteHotkey } from "../io/actions.ts";
 import { sendVoiceToPython, removePythonSubscriber } from "../gpt/python.ts";
 import { safeJsonParse } from "../lib/parsing.ts";
+import { pickEnvBoolLegacy } from "../lib/env.ts";
 import { handleKeyboardBinaryAction } from "./input/keyboard.ts";
 import { handleMouseBinaryAction } from "./input/mouse.ts";
 import { emitClipboardUpdateToSockets, readAirpadClipboard, writeAirpadClipboard } from "./input/clipboard.ts";
@@ -26,22 +27,33 @@ function sleep(ms: number) {
 }
 
 const airpadSockets = new Set<Socket>();
+const skipLocalWhenRouted = pickEnvBoolLegacy("CWS_AIRPAD_SKIP_LOCAL_WHEN_ROUTED", true) !== false;
 
 function emitClipboardUpdate(text: string, source: AirpadClipboardSource): void {
     emitClipboardUpdateToSockets(airpadSockets, text, source);
 }
 
-function handleAirpadBinaryMessage(logger: any, buffer: Buffer | Uint8Array | ArrayBuffer): boolean {
+function handleAirpadBinaryMessage(
+    logger: any,
+    buffer: Buffer | Uint8Array | ArrayBuffer,
+    meta: { sourceId?: string; packetId?: string; seq?: number } = {}
+): boolean {
     const msg = parseBinaryMessage(buffer);
     if (!msg) {
         logger?.warn?.("Invalid binary message format");
         return false;
     }
+    const enrichedMsg = {
+        ...(msg as Record<string, unknown>),
+        sourceId: meta.sourceId || "",
+        packetId: meta.packetId || "",
+        seq: Number(meta.seq || 0)
+    };
 
-    const handledByMouse = handleMouseBinaryAction(logger, msg);
-    const handledByKeyboard = handleKeyboardBinaryAction(logger, msg);
-    if (!handledByMouse && !handledByKeyboard && msg?.type) {
-        logger?.info?.({ type: msg.type }, "Unknown binary message type");
+    const handledByMouse = handleMouseBinaryAction(logger, enrichedMsg as any);
+    const handledByKeyboard = handleKeyboardBinaryAction(logger, enrichedMsg as any);
+    if (!handledByMouse && !handledByKeyboard && enrichedMsg?.type) {
+        logger?.info?.({ type: enrichedMsg.type }, "Unknown binary message type");
         return false;
     }
     return handledByMouse || handledByKeyboard;
@@ -57,8 +69,19 @@ export function registerAirpadSocketHandlers(socket: Socket, options: AirpadSock
 
     socket.on("message", async (data: any) => {
         if (Buffer.isBuffer(data) || data instanceof Uint8Array || data instanceof ArrayBuffer) {
-            const localHandled = allowLocalInput ? handleAirpadBinaryMessage(logger, data) : false;
             const routed = await onBinaryMessage?.(data as any, socket);
+            if (skipLocalWhenRouted && routed) {
+                return;
+            }
+            const packetId = String((data as any)?.packetId || (data as any)?.requestId || "").trim();
+            const seq = Number((data as any)?.seq || 0);
+            const localHandled = allowLocalInput
+                ? handleAirpadBinaryMessage(logger, data, {
+                    sourceId: String((socket as any).airpadSourceId || (socket as any).userId || socket.id),
+                    packetId,
+                    seq
+                })
+                : false;
             if (routed && localHandled) {
                 logger?.debug?.(
                     { socketId: socket.id, localHandled, routed },
