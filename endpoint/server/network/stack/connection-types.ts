@@ -86,9 +86,11 @@ const DIRECT_MODE = "responser-initiated";
 const resolveClientRole = (input: string): WsConnectionIntent | undefined => {
     const value = (input || "").trim().toLowerCase();
     if (!value) return undefined;
-    if (value === "first-order" || value === "firstorder" || value === "fo" || value === "exchanger-initiator" || value === "exchanger-initiated") {
+    if (value === "first-order" || value === "firstorder" || value === "fo") {
         return "first-order";
     }
+    if (value === "exchanger-initiator") return "exchanger-initiator";
+    if (value === "exchanger-initiated") return "exchanger-initiated";
     if (value === "requestor-initiator" || value === "requestor" || value === "forward-client" || value === "client-forward" || value === "client-upstream") {
         return "requestor-initiator";
     }
@@ -138,10 +140,20 @@ export const toCanonicalConnectionType = (value: string | undefined): WsConnecti
 export const toCanonicalFromDisplayConnectionType = (value: string | undefined): WsConnectionIntent | undefined => {
     const normalized = String(value || "").trim().toLowerCase();
     if (!normalized) return undefined;
-    if (normalized === "first-order" || normalized === "firstorder" || normalized === "fo" || normalized === "exchanger-initiator" || normalized === "exchanger-initiated") {
+    if (normalized === "first-order" || normalized === "firstorder" || normalized === "fo") {
         return "first-order";
     }
+    if (normalized === "exchanger-initiator") return "exchanger-initiator";
+    if (normalized === "exchanger-initiated") return "exchanger-initiated";
     return DISPLAY_TO_CANONICAL_TYPE[normalized] || LEGACY_TO_CANONICAL_TYPE[normalized];
+};
+
+export const isFirstOrderFamily = (connectionType: WsConnectionIntent | undefined): boolean => {
+    return (
+        connectionType === "first-order" ||
+        connectionType === "exchanger-initiator" ||
+        connectionType === "exchanger-initiated"
+    );
 };
 
 export const inferServerSideConnectionType = (isReverse: boolean): WsConnectionType => {
@@ -194,7 +206,7 @@ export const areConnectionTypesCompatible = (
     remoteConnectionType: WsConnectionIntent | undefined
 ): boolean => {
     if (remoteConnectionType == null) return true;
-    if (remoteConnectionType === "first-order") return true;
+    if (isFirstOrderFamily(remoteConnectionType)) return true;
     const compatibility: Record<WsConnectionType, WsConnectionType> = {
         "responser-initiator": "requestor-initiated",
         "requestor-initiated": "responser-initiator",

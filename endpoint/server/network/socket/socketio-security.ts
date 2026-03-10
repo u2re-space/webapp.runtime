@@ -91,7 +91,7 @@ const parseAirPadRequestContext = (rawUrl: string | undefined) => {
 const isLikelyAirPadRequest = (req?: IncomingMessage): boolean => {
     const context = parseAirPadRequestContext(req?.url);
     const connectionType = String(context.connectionType || "").toLowerCase();
-    const hasAirPadConnectionType = connectionType.includes("forward-client") || connectionType.includes("reverse-client") || connectionType.includes("initiator");
+    const hasAirPadConnectionType = connectionType.includes("forward-client") || connectionType.includes("reverse-client") || connectionType.includes("initiator") || connectionType.includes("initiated") || connectionType.includes("first-order") || connectionType.includes("exchanger");
     const hasSourceOrHostHint =
         typeof context.source === "string" && !!context.source.trim() ||
         typeof context.client === "string" && !!context.client.trim() ||

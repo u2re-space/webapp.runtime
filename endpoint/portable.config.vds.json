@@ -32,7 +32,7 @@
         "CWS_BRIDGE_DEVICE_ID": "L-45.150.9.153",
         "CWS_BRIDGE_ENABLED": true,
         "CWS_BRIDGE_MODE": "active",
-        "CWS_BRIDGE_CONNECTION_TYPE": "first-order",
+        "CWS_BRIDGE_CONNECTION_TYPE": "exchanger-initiator",
         "CWS_BRIDGE_ENDPOINT_URL": "https://45.147.121.152:8443/",
         "CWS_BRIDGE_ENDPOINTS": ["https://45.147.121.152:8443/"],
         "CWS_ROLES": ["responser-initiated", "requestor-initiated", "responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],

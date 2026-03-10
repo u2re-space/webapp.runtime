@@ -8,6 +8,7 @@ import { parsePortableInteger, resolvePortableTextValue, safeJsonParse } from ".
 import {
     type WsConnectionIntent,
     type WsConnectionType,
+    isFirstOrderFamily,
     supportsConnectorRole,
     parseWsConnectionType,
     describeConnectionType,
@@ -99,12 +100,6 @@ type EnvelopePayload = {
 const isTunnelDebug = pickEnvBoolLegacy("CWS_TUNNEL_DEBUG") === true;
 const shouldRejectUnauthorized = pickEnvBoolLegacy("CWS_BRIDGE_REJECT_UNAUTHORIZED", true) !== false;
 const invalidCredentialsRetryMs = Math.max(1000, pickEnvNumberLegacy("CWS_BRIDGE_INVALID_CREDENTIALS_RETRY_MS", 30000) ?? 30000);
-const bridgeConnectTimeoutMs = (() => {
-    const raw = pickEnvNumberLegacy("CWS_BRIDGE_CONNECT_TIMEOUT_MS", 12000);
-    const normalized = Number(raw);
-    if (!Number.isFinite(normalized) || normalized <= 0) return 12000;
-    return Math.max(2000, Math.min(60000, Math.trunc(normalized)));
-})();
 const TLS_VERIFY_ERRORS = ["unable to verify the first certificate", "self signed certificate", "certificate has expired", "certificate is not yet valid", "self signed certificate in certificate chain", "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE"];
 
 const isControlLikeRole = (roles: string[] | undefined): boolean => {
@@ -121,12 +116,19 @@ const isControlLikeRole = (roles: string[] | undefined): boolean => {
     return normalized.some((role) => controlHints.has(role));
 };
 
-const inferConnectorConnectionTypeFromRoles = (roles: string[] | undefined): "responser-initiator" | "requestor-initiator" | "first-order" | undefined => {
+const inferConnectorConnectionTypeFromRoles = (roles: string[] | undefined): "responser-initiator" | "requestor-initiator" | "first-order" | "exchanger-initiator" | undefined => {
     if (!Array.isArray(roles)) return undefined;
+    let hasExchanger = false;
     let hasReverse = false;
     let hasForward = false;
     for (const role of roles) {
         const parsed = parseWsConnectionType(role);
+        if (parsed === "exchanger-initiator" || parsed === "exchanger-initiated") {
+            hasExchanger = true;
+            hasForward = true;
+            hasReverse = true;
+            continue;
+        }
         if (parsed === "requestor-initiated" || parsed === "responser-initiator") {
             hasReverse = true;
             continue;
@@ -144,19 +146,21 @@ const inferConnectorConnectionTypeFromRoles = (roles: string[] | undefined): "re
         if (!normalized) continue;
         if (normalized.includes("requestor")) hasReverse = true;
         if (normalized.includes("responser")) hasForward = true;
+        if (normalized.includes("exchanger")) hasExchanger = true;
     }
+    if (hasExchanger) return "exchanger-initiator";
     if (hasReverse) return "responser-initiator";
     if (hasForward) return "requestor-initiator";
     return undefined;
 };
 
-const canonicalConnectorConnectionType = (value: string | undefined, roles: string[] | undefined): "responser-initiator" | "requestor-initiator" | "first-order" => {
+const canonicalConnectorConnectionType = (value: string | undefined, roles: string[] | undefined): "responser-initiator" | "requestor-initiator" | "first-order" | "exchanger-initiator" | "exchanger-initiated" => {
     const parsed = parseWsConnectionType(value);
     if (parsed === "responser-initiated") return "requestor-initiator";
     if (parsed === "requestor-initiated") return "responser-initiator";
     if (parsed === "responser-initiator") return "responser-initiator";
     if (parsed === "requestor-initiator") return "requestor-initiator";
-    if (parsed === "exchanger-initiator" || parsed === "exchanger-initiated") return "first-order";
+    if (parsed === "exchanger-initiator" || parsed === "exchanger-initiated") return parsed;
     if (parsed === "first-order") return "first-order";
 
     const raw = (value || "").trim();
@@ -197,24 +201,24 @@ const normalizeHost = (value: string): string => {
 };
 
 const inferDisplayConnectorTopology = (cfg: Required<BridgeConnectorConfig>): string => {
-    const parseClientConnectionType = (value: unknown): "requestor-initiator" | "responser-initiator" | "first-order" | undefined => {
+    const parseClientConnectionType = (value: unknown): WsConnectionIntent | undefined => {
         const parsed = parseWsConnectionType(value);
-        if (parsed === "requestor-initiated" || parsed === "responser-initiated" || parsed === "exchanger-initiator" || parsed === "exchanger-initiated") {
-            return "first-order";
-        }
-        if (parsed === "requestor-initiator" || parsed === "responser-initiator" || parsed === "first-order") return parsed;
-        return undefined;
+        if (!parsed) return undefined;
+        if (parsed === "requestor-initiated" || parsed === "responser-initiated") return "first-order";
+        return parsed;
     };
     const configuredRoles = Array.isArray(cfg.roles) ? cfg.roles : [];
     const localClientConnectionType =
         configuredRoles.map((entry) => parseClientConnectionType(entry)).find((entry) => entry === "requestor-initiator") ||
         parseClientConnectionType(cfg.connectionType) ||
         "responser-initiator";
-    if (localClientConnectionType === "first-order") {
+    if (isFirstOrderFamily(localClientConnectionType)) {
         return toDisplayTopology("exchanger-initiator", "first-order");
     }
+    const localDisplayConnectionType: WsConnectionType =
+        localClientConnectionType === "first-order" ? "exchanger-initiator" : localClientConnectionType;
     const remoteConnectionType: WsConnectionType = localClientConnectionType === "requestor-initiator" ? "responser-initiated" : "requestor-initiated";
-    return toDisplayTopology(localClientConnectionType, remoteConnectionType);
+    return toDisplayTopology(localDisplayConnectionType, remoteConnectionType);
 };
 
 const normalizeInterfaceAddress = (value: string): string => {
@@ -507,7 +511,11 @@ const normalizeBridgeConfig = (config: EndpointConfig): Required<BridgeConnector
     };
 };
 
-const buildWsUrl = (endpointUrl: string, cfg: Required<BridgeConnectorConfig>): string | null => {
+const buildWsUrl = (
+    endpointUrl: string,
+    cfg: Required<BridgeConnectorConfig>,
+    modeOverride?: "reverse" | "push"
+): string | null => {
     try {
         const rawEndpoint = endpointUrl.trim().replace(/\/+$/, "");
         if (!rawEndpoint) return null;
@@ -527,34 +535,47 @@ const buildWsUrl = (endpointUrl: string, cfg: Required<BridgeConnectorConfig>): 
             url.pathname = `${normalizedPath}ws`;
         }
         
-        const rawConnectionType = String(cfg.connectionType || "responser-initiator");
+        const rawConnectionType = String(cfg.connectionType || "exchanger-initiator");
         const normalizedConnectionType = rawConnectionType.toLowerCase();
-        const parsedConnectionType = parseWsConnectionType(rawConnectionType);
+        const parsedConnectionType = parseWsConnectionType(rawConnectionType.replace(/-fallback$/i, ""));
         const isFirstOrder = normalizedConnectionType.includes("first-order") || normalizedConnectionType.includes("firstorder");
-        let connectionType: WsConnectionIntent = isFirstOrder ? "first-order" : "responser-initiator";
+        const isExchanger = normalizedConnectionType.includes("exchanger");
+        let connectionType: WsConnectionIntent = isFirstOrder ? "first-order" : (isExchanger ? "exchanger-initiator" : "responser-initiator");
         if (!isFirstOrder && parsedConnectionType) {
             connectionType = parsedConnectionType === "responser-initiated" || parsedConnectionType === "requestor-initiator" || parsedConnectionType === "requestor-initiated" || parsedConnectionType === "responser-initiator"
                 ? (parsedConnectionType === "responser-initiated" ? "requestor-initiator" : parsedConnectionType === "requestor-initiator" ? "requestor-initiator" : "responser-initiator")
-                : inferConnectorConnectionTypeFromRoles(Array.isArray(cfg.roles) ? cfg.roles : []) || "responser-initiator";
+                : (parsedConnectionType === "exchanger-initiator" || parsedConnectionType === "exchanger-initiated")
+                    ? parsedConnectionType
+                    : inferConnectorConnectionTypeFromRoles(Array.isArray(cfg.roles) ? cfg.roles : []) || "exchanger-initiator";
         } else if (!isFirstOrder) {
             connectionType = normalizedConnectionType.includes("requestor-initiator") || normalizedConnectionType.includes("requestor") || normalizedConnectionType.includes("forward")
                 ? "requestor-initiator"
-                : "responser-initiator";
+                : (isExchanger ? "exchanger-initiator" : "responser-initiator");
         }
         const localDisplay = describeDisplayConnectionType(connectionType);
-        const remoteDisplay = connectionType === "first-order"
+        const remoteDisplay = isFirstOrderFamily(connectionType)
             ? describeDisplayConnectionType("exchanger-initiator")
             : connectionType === "requestor-initiator"
                 ? describeDisplayConnectionType("responser-initiated")
                 : describeDisplayConnectionType("requestor-initiated");
+        const identityConnectionType: WsConnectionIntent = connectionType;
+        const wireConnectionType = (connectionType === "exchanger-initiator" || connectionType === "exchanger-initiated")
+            ? "first-order"
+            : connectionType;
         // If we hit a fallback condition on reconnect, swap the requested mode temporarily
         const isFirstOrderFallback = isFirstOrder && rawConnectionType.includes("fallback");
-        const mode = isFirstOrder
-            ? (isFirstOrderFallback ? "push" : "reverse")
-            : (connectionType === "requestor-initiator" ? "push" : "reverse");
+        const isExchangerMode = connectionType === "exchanger-initiator" || connectionType === "exchanger-initiated";
+        const mode = modeOverride
+            ? modeOverride
+            : isFirstOrder
+                ? (isFirstOrderFallback ? "push" : "reverse")
+                : (connectionType === "requestor-initiator" ? "push" : (isExchangerMode ? "reverse" : "reverse"));
         
         url.searchParams.set("mode", mode);
-        url.searchParams.set("connectionType", connectionType);
+        // Wire compatibility: old peers understand first-order; exchanger identity travels in archetype/connectionRole.
+        url.searchParams.set("connectionType", wireConnectionType);
+        url.searchParams.set("archetype", identityConnectionType);
+        url.searchParams.set("connectionRole", identityConnectionType);
         url.searchParams.set("userId", cfg.userId);
         url.searchParams.set("userKey", cfg.userKey);
         url.searchParams.set("namespace", cfg.namespace);
@@ -680,6 +701,19 @@ export const startBridgePeerClient = (rawConfig: EndpointConfig, options: Bridge
     let heartbeatHandle: ReturnType<typeof setInterval> | null = null;
     let connectTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
     let lastSendWarnAt = 0;
+    let bidirectionalModeCursor: "reverse" | "push" = "reverse";
+    const isBidirectionalFamily = (): boolean => {
+        const normalized = String(cfg.connectionType || "").toLowerCase();
+        return normalized.includes("first-order") || normalized.includes("firstorder") || normalized.includes("exchanger");
+    };
+    const getModeOverride = (): "reverse" | "push" | undefined => {
+        if (!isBidirectionalFamily()) return undefined;
+        return bidirectionalModeCursor;
+    };
+    const rotateBidirectionalMode = () => {
+        if (!isBidirectionalFamily()) return;
+        bidirectionalModeCursor = bidirectionalModeCursor === "reverse" ? "push" : "reverse";
+    };
 
     const clearHeartbeat = () => {
         if (heartbeatHandle) {
@@ -732,7 +766,8 @@ export const startBridgePeerClient = (rawConfig: EndpointConfig, options: Bridge
         }
         try {
             const endpoint = bridgeCandidates[candidateIndex] || cfg.endpointUrl;
-            wsUrl = buildWsUrl(endpoint, cfg);
+            const modeOverride = getModeOverride();
+            wsUrl = buildWsUrl(endpoint, cfg, modeOverride);
             if (!wsUrl) {
                 if (isTunnelDebug) {
                     console.warn("[bridge.connector] cannot build ws url", `candidate=${endpoint}`);
@@ -744,7 +779,9 @@ export const startBridgePeerClient = (rawConfig: EndpointConfig, options: Bridge
             activeEndpoint = endpoint;
             if (isTunnelDebug) {
                 const readableWsUrl = formatBridgeUrl(wsUrl);
-                console.info(`[bridge.connector] connecting\n  endpoint=${endpoint}\n  url=${readableWsUrl}\n  topology=${inferDisplayConnectorTopology(cfg)}`);
+                console.info(
+                    `[bridge.connector] connecting\n  endpoint=${endpoint}\n  url=${readableWsUrl}\n  topology=${inferDisplayConnectorTopology(cfg)}\n  modeOverride=${modeOverride || "auto"}`
+                );
             }
             socket = new WebSocket(wsUrl, {
                 rejectUnauthorized: shouldRejectUnauthorized
@@ -764,7 +801,7 @@ export const startBridgePeerClient = (rawConfig: EndpointConfig, options: Bridge
                 socket?.close(4000, "connect-timeout");
                 socket = null;
             }
-        }, bridgeConnectTimeoutMs);
+        }, 12_000);
 
         socket.on("open", () => {
             invalidCredentialBlockUntil = 0;
@@ -813,16 +850,22 @@ export const startBridgePeerClient = (rawConfig: EndpointConfig, options: Bridge
                     console.error("[bridge.connector] rejected by gateway", formatHintForInvalidCredentials(cfg.userId, cfg.deviceId, active));
                 }
                 if (code === 4003 || code === 4004 || code === 4005) {
-                    if (String(cfg.connectionType).toLowerCase().includes("first-order") || String(cfg.connectionType).toLowerCase().includes("exchanger")) {
-                        console.warn("[bridge.connector] First-order connectionType mode conflict. Forcing candidate rotation and alternative connectionType interpretation on next retry.");
-                        // Force a random connectionType retry switch when standard mode failed
-                        cfg.connectionType = cfg.connectionType === "first-order" ? "first-order-fallback" : "first-order";
+                    const normalizedConnection = String(cfg.connectionType || "").toLowerCase();
+                    if (normalizedConnection.includes("first-order") || normalizedConnection.includes("exchanger")) {
+                        console.warn("[bridge.connector] First-order/exchanger connectionType mode conflict. Forcing candidate rotation and alternative connectionType interpretation on next retry.");
+                        if (normalizedConnection.includes("exchanger")) {
+                            cfg.connectionType = normalizedConnection.includes("initiated") ? "exchanger-initiator" : "exchanger-initiated";
+                        } else {
+                            cfg.connectionType = cfg.connectionType === "first-order" ? "first-order-fallback" : "first-order";
+                        }
                     }
                 }
             }
             clearConnectTimeout();
             clearHeartbeat();
             socket = null;
+            // Keep both directions practically available after restarts/NAT flips.
+            rotateBidirectionalMode();
             setNextEndpoint();
             const delay = invalidCredentialBlockUntil > Date.now() ? invalidCredentialsRetryMs : cfg.reconnectMs;
             scheduleReconnect(delay);

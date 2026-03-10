@@ -2,31 +2,21 @@ import { addMouseDelta } from "../../io/mouse.ts";
 import { executeMouseClick, executeMouseToggle, executeScroll } from "../../io/actions.ts";
 import { MSG_TYPE_CLICK, MSG_TYPE_MOUSE_DOWN, MSG_TYPE_MOUSE_UP, MSG_TYPE_MOVE, MSG_TYPE_SCROLL, FLAG_DOUBLE, SERVER_JITTER_EPS } from "../../config/constants.ts";
 import { buttonFromFlags } from "../../io/message.ts";
-import { pickEnvBoolLegacy } from "../../lib/env.ts";
 
 type MouseAction = {
     type: number;
     dx?: number;
     dy?: number;
     flags?: number;
-    sourceId?: string;
-    packetId?: string;
-    seq?: number;
 };
 
 export const handleMouseBinaryAction = (logger: any, msg: MouseAction): boolean => {
-    const moveDisabled = pickEnvBoolLegacy("CWS_AIRPAD_DISABLE_MOVE", false) === true;
     switch (msg.type) {
         case MSG_TYPE_MOVE: {
-            if (moveDisabled) return true;
             if (!("dx" in msg) || !("dy" in msg)) break;
             const { dx = 0, dy = 0 } = msg;
             if (Math.abs(dx) < SERVER_JITTER_EPS && Math.abs(dy) < SERVER_JITTER_EPS) break;
-            addMouseDelta(dx, dy, {
-                sourceId: msg.sourceId,
-                packetId: msg.packetId,
-                seq: msg.seq
-            });
+            addMouseDelta(dx, dy);
             return true;
         }
         case MSG_TYPE_CLICK: {
