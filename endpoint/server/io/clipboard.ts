@@ -186,19 +186,19 @@ const buildClipboardPeerUrlCandidates = (raw: string): string[] => {
     return normalized;
 };
 
-async function sendClipboardToPeer(candidate: string, body: string, headers: Record<string, string>): Promise<void> {
+async function sendClipboardToPeer(candidate: string, body: string | Record<string, any>, headers: Record<string, string>): Promise<void> {
     const client = httpClient || axios;
     await client.post(candidate, body, { headers });
     logClipboard("info", "[ClipboardTx] Sent clipboard payload to peer", {
         from: clipboardNodeLabel,
         candidate,
-        text: summarizeClipboardText(body)
+        text: summarizeClipboardText(typeof body === "string" ? body : String(body?.text || ""))
     });
 }
 
 const formatBroadcastError = (err: unknown): string => [err instanceof Error ? err.message : String(err), (err as any)?.code ? `code=${(err as any).code}` : "", (err as any)?.response?.status ? `status=${(err as any).response.status}` : ""].filter(Boolean).join(" ");
 
-async function sendClipboardToPeerCandidates(rawPeer: string, body: string, headers: Record<string, string>): Promise<ClipboardBroadcastResult> {
+async function sendClipboardToPeerCandidates(rawPeer: string, body: string | Record<string, any>, headers: Record<string, string>): Promise<ClipboardBroadcastResult> {
     const candidates = buildClipboardPeerUrlCandidates(rawPeer);
     if (!candidates.length) {
         return { target: rawPeer, ok: false, error: `[Broadcast] No valid peer URL: ${rawPeer}` };
@@ -275,10 +275,21 @@ async function broadcastClipboard(text: string) {
     if (!text) return;
     if (!peers || peers.length === 0) return;
 
-    const body = text;
-    const headers: any = {
-        "Content-Type": "text/plain; charset=utf-8"
-    };
+    const sourceId = String(process.env.CWS_ASSOCIATED_ID || process.env.CWS_BRIDGE_USER_ID || process.env.CWS_BRIDGE_CLIENT_ID || "").trim();
+    const sourceToken = String(process.env.CWS_ASSOCIATED_TOKEN || process.env.CWS_BRIDGE_USER_KEY || "").trim();
+    const body: string | Record<string, any> = sourceId || sourceToken
+        ? {
+            text,
+            from: sourceId,
+            source: sourceId,
+            userId: sourceId,
+            clientId: sourceId,
+            ...(sourceToken ? { token: sourceToken } : {})
+        }
+        : text;
+    const headers: any = typeof body === "string"
+        ? { "Content-Type": "text/plain; charset=utf-8" }
+        : { "Content-Type": "application/json; charset=utf-8" };
     if (secret) {
         headers["x-auth-token"] = secret;
     }
@@ -290,6 +301,58 @@ async function broadcastClipboard(text: string) {
         peers,
         text: summarizeClipboardText(text)
     });
+
+    // Prefer local dispatch pipeline first to keep behavior identical to external /clipboard calls.
+    // This path uses policy-aware routing (reverse/ws/bridge) and avoids protocol drift between
+    // manual API tests and real OS clipboard polling.
+    const localDispatcher = (app as any)?.inject;
+    if (typeof localDispatcher === "function" && sourceId) {
+        try {
+            const injectHeaders: Record<string, string> = {
+                "content-type": "application/json"
+            };
+            if (secret) {
+                injectHeaders["x-auth-token"] = secret;
+            } else if (sourceToken) {
+                injectHeaders["x-auth-token"] = sourceToken;
+            }
+            const relayBody: Record<string, any> = {
+                text,
+                from: sourceId,
+                source: sourceId,
+                userId: sourceId,
+                clientId: sourceId,
+                ...(sourceToken ? { token: sourceToken } : {})
+            };
+            const relayResponse = await localDispatcher({
+                method: "POST",
+                url: "/clipboard",
+                headers: injectHeaders,
+                payload: relayBody
+            });
+            const relayStatus = Number((relayResponse as any)?.statusCode || 0);
+            if (relayStatus >= 200 && relayStatus < 300) {
+                logClipboard("info", "[ClipboardTx] Local dispatch relay completed", {
+                    traceId,
+                    from: sourceId,
+                    status: relayStatus
+                });
+                return;
+            }
+            logClipboard("warn", "[ClipboardTx] Local dispatch relay returned non-success status", {
+                traceId,
+                from: sourceId,
+                status: relayStatus
+            });
+        } catch (err: any) {
+            logClipboard("warn", "[ClipboardTx] Local dispatch relay failed; fallback to peer broadcast", {
+                traceId,
+                from: sourceId,
+                error: formatBroadcastError(err)
+            });
+        }
+    }
+
     isBroadcasting = true;
     const results = await Promise.all(peers.map((rawUrl) => sendClipboardToPeerCandidates(rawUrl, body, headers)));
 

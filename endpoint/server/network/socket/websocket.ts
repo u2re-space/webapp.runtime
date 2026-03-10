@@ -354,6 +354,7 @@ type ClientInfo = {
     id: string;
     namespace: string;
     remoteAddress?: string;
+    direction: "forward" | "reverse";
     reverse: boolean;
     localConnectionType: WsConnectionType;
     remoteConnectionType?: WsConnectionIntent;
@@ -555,7 +556,6 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
     const wss = new WebSocketServer({ noServer: true });
     const clients = new Map<WebSocket, ClientInfo>();
     const namespaces = new Map<string, Map<string, ClientInfo>>();
-    const reverseClients = new Map<string, ClientInfo>();
     const reversePeerProfiles = new Map<string, Map<string, { label: string; peerId: string }>>();
     const pendingFetchReplies = new Map<
         string,
@@ -669,25 +669,39 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
         }
         return Array.from(deduped.values());
     };
-    const reverseClientKey = (userId: string, deviceId: string) => `${userId}:${deviceId}`;
+    const getConnections = (userId?: string): ClientInfo[] => {
+        const normalizedUser = userId ? normalizeSocketUser(userId) : "";
+        if (!normalizedUser) return Array.from(clients.values());
+        return Array.from(clients.values()).filter((entry) => entry.userIdKey === normalizedUser);
+    };
+    const getReverseConnections = (userId?: string): ClientInfo[] => {
+        return getConnections(userId).filter((entry) => entry.direction === "reverse" && !!entry.deviceId);
+    };
     const requestKey = (userId: string, deviceId: string, requestId: string) => `${userId}:${deviceId}:${requestId}`;
+    const hasReverseTargetMatch = (entry: ClientInfo, normalizedTargets: string[]): boolean => {
+        const candidateDevices = resolveTargetAlias(entry.deviceId || "");
+        const candidatePeers = resolveTargetAlias(entry.peerId || "");
+        return (
+            candidateDevices.some((device) => normalizedTargets.includes(device)) ||
+            candidatePeers.some((peer) => normalizedTargets.includes(peer)) ||
+            normalizedTargets.some((targetAlias) => targetAlias === (entry.deviceId || "").toLowerCase() || targetAlias === (entry.peerId || "").toLowerCase())
+        );
+    };
     const resolveReverseClientByTarget = (userId: string, target: string): ClientInfo | undefined => {
         const normalizedUser = normalizeSocketUser(userId);
         const normalizedTargets = resolveTargetAlias(target);
-        for (const candidate of normalizedTargets) {
-            const direct = reverseClients.get(reverseClientKey(normalizedUser, candidate));
-            if (direct) return direct;
-        }
-        for (const entry of reverseClients.values()) {
+        if (normalizedTargets.length === 0) return undefined;
+
+        // First try strict same-user routing.
+        for (const entry of getReverseConnections(normalizedUser)) {
             if (!entry.userId) continue;
             if (normalizeSocketUser(entry.userId) !== normalizedUser) continue;
-            const candidateDevices = resolveTargetAlias(entry.deviceId || "");
-            const candidatePeers = resolveTargetAlias(entry.peerId || "");
-            const hasMatch =
-                candidateDevices.some((device) => normalizedTargets.includes(device)) ||
-                candidatePeers.some((peer) => normalizedTargets.includes(peer)) ||
-                normalizedTargets.some((targetAlias) => targetAlias === (entry.deviceId || "").toLowerCase() || targetAlias === (entry.peerId || "").toLowerCase());
-            if (hasMatch) return entry;
+            if (hasReverseTargetMatch(entry, normalizedTargets)) return entry;
+        }
+
+        // Fallback for pooled reverse connectors that use per-device userId.
+        for (const entry of getReverseConnections()) {
+            if (hasReverseTargetMatch(entry, normalizedTargets)) return entry;
         }
         return undefined;
     };
@@ -1014,6 +1028,7 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
             id: randomUUID(),
             namespace: normalizeSocketUser(namespace || userId),
             remoteAddress: req.socket?.remoteAddress,
+            direction: isReverse ? "reverse" : "forward",
             reverse: isReverse,
             localConnectionType,
             remoteConnectionType: activeConnectionType,
@@ -1047,10 +1062,6 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
         if (!namespaces.has(info.userIdKey)) namespaces.set(info.userIdKey, new Map());
         namespaces.get(info.userIdKey)!.set(info.id, info);
         if (isReverse && normalizedDeviceId) {
-            reverseClients.set(reverseClientKey(info.userIdKey, normalizedDeviceId), info);
-            if (requestedPeerId && requestedPeerId !== normalizedDeviceId) {
-                reverseClients.set(reverseClientKey(info.userIdKey, requestedPeerId), info);
-            }
             const labels = reversePeerProfiles.get(info.userIdKey) ?? new Map<string, { label: string; peerId: string }>();
             labels.set(normalizedDeviceId, {
                 label: peerLabel || deviceId,
@@ -1202,9 +1213,6 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
                 }
             }
             if (info.reverse && info.deviceId) {
-                reverseClients.delete(reverseClientKey(info.userIdKey, info.deviceId));
-                const peerAwareKey = reverseClientKey(info.userIdKey, normalizeSocketPeer(info.peerId));
-                reverseClients.delete(peerAwareKey);
                 const labels = reversePeerProfiles.get(info.userIdKey);
                 if (labels) {
                     labels.delete(info.deviceId);
@@ -1285,11 +1293,8 @@ export const createWsServer = (app: FastifyInstance): WsHub => {
     };
 
     const getConnectedDevices = (userId?: string): string[] => {
-        const keys = Array.from(reverseClients.keys());
-        const asDevice = (key: string) => key.split(":")[1];
-        if (!userId) return Array.from(new Set(keys.map(asDevice)));
-        const prefix = `${normalizeSocketUser(userId)}:`;
-        return Array.from(new Set(keys.filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length))));
+        const devices = getReverseConnections(userId).flatMap((entry) => [entry.deviceId || "", entry.peerId || ""]).filter(Boolean).map((entry) => normalizeSocketPeer(entry));
+        return Array.from(new Set(devices));
     };
 
     const getConnectedPeerProfiles = (userId?: string): Array<{ id: string; label: string; peerId?: string }> => {

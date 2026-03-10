@@ -19,6 +19,7 @@ export type EndpointIdPolicy = {
     tokens: string[];
     forward: string;
     ports?: Record<string, unknown>;
+    modules?: Record<string, unknown>;
     flags: EndpointIdFlags;
     relations?: Record<string, EndpointTransportHint>;
     allowedIncoming: string[];
@@ -238,6 +239,7 @@ export const normalizeEndpointPolicy = (id: string, raw: unknown): EndpointIdPol
         tokens: normalizePolicyList(source.tokens, false),
         forward: normalizePolicyForward(source.forward),
         ports: normalizePolicyPorts(source.ports),
+        modules: source.modules && typeof source.modules === "object" ? (source.modules as Record<string, unknown>) : undefined,
         flags: normalizePolicyFlags(source.flags),
         relations: normalizePolicyRelations(source.relations),
         allowedIncoming: normalizePolicyList(source.allowedIncoming, true),

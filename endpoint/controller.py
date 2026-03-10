@@ -51,7 +51,7 @@ def main():
 
   try:
     llm = ChatOpenAI(
-      model='gpt-5.2',
+      model='gpt-5.4',
       base_url=os.getenv("GPT_ENDPOINT"),
       api_key=os.getenv("GPT_API_KEY")
     )

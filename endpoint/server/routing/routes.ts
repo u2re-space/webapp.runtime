@@ -5,8 +5,10 @@
 import { writeClipboard, setBroadcasting } from "../io/clipboard.ts";
 import config from "../config/config.ts";
 import { pickEnvBoolLegacy } from "../lib/env.ts";
+import { CONFIG_DIR } from "../lib/paths.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../network/stack/endpoint-policy.ts";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 
 function setUtf8Plain(reply: any) {
     reply.header("Content-Type", "text/plain; charset=utf-8");
@@ -87,7 +89,7 @@ const summarizeClipboardText = (text: string): { len: number; preview: string } 
 const normalizeClipboardId = (value: any): string => String(value || "").trim().toLowerCase();
 const rawClientsPolicyFallback = (() => {
     try {
-        const clientsPath = new URL("../config/clients.json", import.meta.url);
+        const clientsPath = path.resolve(CONFIG_DIR, "clients.json");
         const text = readFileSync(clientsPath, "utf8");
         const parsed = JSON.parse(text);
         return parsed && typeof parsed === "object" ? (parsed as Record<string, any>) : {};
@@ -178,6 +180,10 @@ const extractClipboardAcceptFromTargets = (policy: any): string[] => {
     return Array.from(out);
 };
 
+const hasClipboardShareConfig = (policy: any): boolean => {
+    return extractClipboardShareTargets(policy).length > 0;
+};
+
 const getRawEndpointPolicy = (rawPolicyMap: Record<string, any>, normalizedId: string): any | undefined => {
     if (!normalizedId) return undefined;
     const visited = new Set<string>();
@@ -188,7 +194,15 @@ const getRawEndpointPolicy = (rawPolicyMap: Record<string, any>, normalizedId: s
         const matchingKeys = Object.keys(rawPolicyMap).filter((key) => normalizeClipboardId(key) === current);
         if (!matchingKeys.length) return undefined;
 
-        // Prefer real object policy over alias-string entry when both keys normalize to same id.
+        // Prefer real object policy with clipboard share config when available.
+        for (const key of matchingKeys) {
+            const candidate = rawPolicyMap[key];
+            if (candidate && typeof candidate === "object" && hasClipboardShareConfig(candidate)) {
+                return candidate;
+            }
+        }
+
+        // Then fallback to any real object policy.
         for (const key of matchingKeys) {
             const candidate = rawPolicyMap[key];
             if (candidate && typeof candidate === "object") {
@@ -220,7 +234,52 @@ const getRawEndpointPolicy = (rawPolicyMap: Record<string, any>, normalizedId: s
     return undefined;
 };
 
-const resolveSourceEndpointPolicy = (requestBody: any, request: any): { sourceId: string; targets: string[] } | null => {
+const resolveSourceEndpointPolicyFromActiveReversePeers = (app: any, rawPolicyMap: Record<string, any>, requestBody: any, request: any): { sourceId: string; targets: string[] } | null => {
+    const requestIps = extractRequestIps(request);
+    if (!requestIps.length) return null;
+
+    const wsHub = (app as any)?.wsHub;
+    const getRegistry = wsHub && typeof wsHub.getConnectionRegistry === "function" ? wsHub.getConnectionRegistry.bind(wsHub) : null;
+    if (!getRegistry) return null;
+
+    const sourceHints = [
+        requestBody?.from,
+        requestBody?.source,
+        requestBody?.sourceId,
+        requestBody?.src,
+        requestBody?.userId,
+        requestBody?.clientId
+    ]
+        .map((value) => normalizeClipboardId(value))
+        .filter(Boolean);
+
+    const rows = Array.isArray(getRegistry()) ? getRegistry() : [];
+    const candidates = rows
+        .filter((entry: any) => entry && entry.reverse === true)
+        .filter((entry: any) => {
+            const remoteIp = normalizeIpForMatch(String(entry.remoteAddress || ""));
+            return remoteIp && requestIps.includes(remoteIp);
+        });
+    if (!candidates.length) return null;
+
+    const scoreCandidate = (entry: any): number => {
+        const candidateIds = [entry.deviceId, entry.peerId, entry.userId, entry.id].map((value) => normalizeClipboardId(value)).filter(Boolean);
+        const hasHintMatch = sourceHints.some((hint) => candidateIds.includes(hint));
+        return (hasHintMatch ? 1000 : 0) + Number(entry.connectedAt || 0);
+    };
+    candidates.sort((a: any, b: any) => scoreCandidate(b) - scoreCandidate(a));
+    const picked = candidates[0];
+    if (!picked) return null;
+
+    const sourceId = normalizeClipboardId(picked.deviceId || picked.peerId || picked.userId || picked.id);
+    if (!sourceId) return null;
+    const sourcePolicyRaw = getRawEndpointPolicy(rawPolicyMap, sourceId);
+    const targets = extractClipboardShareTargets(sourcePolicyRaw);
+    if (!targets.length) return null;
+    return { sourceId, targets };
+};
+
+const resolveSourceEndpointPolicy = (app: any, requestBody: any, request: any): { sourceId: string; targets: string[] } | null => {
     const runtimeRaw = (((config as any)?.endpointIDs || {}) as Record<string, any>);
     const rawPolicyMap = Object.keys(rawClientsPolicyFallback).length ? { ...runtimeRaw, ...rawClientsPolicyFallback } : runtimeRaw;
     const policyMap = normalizeEndpointPolicies(rawPolicyMap);
@@ -266,6 +325,11 @@ const resolveSourceEndpointPolicy = (requestBody: any, request: any): { sourceId
         }
     }
 
+    const reversePeerResolved = resolveSourceEndpointPolicyFromActiveReversePeers(app, rawPolicyMap, requestBody, request);
+    if (reversePeerResolved) {
+        return reversePeerResolved;
+    }
+
     // Fallback: if shareTo is missing in runtime policy, route to peers that explicitly accept clipboard from this source.
     for (const [policyId, rawPolicy] of Object.entries(rawPolicyMap)) {
         const normalizedTargetId = normalizeClipboardId(policyId);
@@ -283,9 +347,12 @@ const resolveSourceEndpointPolicy = (requestBody: any, request: any): { sourceId
     }
 
     // Final deterministic safety net for this lab topology:
-    // route plain clipboard from 192.168.0.110 toward Android endpoint id if unresolved.
-    if (requestIps.includes("192.168.0.110")) {
-        return { sourceId: "l-192.168.0.110", targets: ["l-192.168.0.196"] };
+    // if unresolved, keep Android clipboard fanout available for known sender identities.
+    const lowerSourceHints = sourceHints.map((entry) => normalizeClipboardId(entry));
+    const looksLikeLaptop110 = requestIps.includes("192.168.0.110") || lowerSourceHints.includes("l-192.168.0.110");
+    const looksLikeVds45 = requestIps.includes("45.150.9.153") || lowerSourceHints.includes("l-45.150.9.153");
+    if (looksLikeLaptop110 || looksLikeVds45) {
+        return { sourceId: looksLikeVds45 ? "l-45.150.9.153" : "l-192.168.0.110", targets: ["l-192.168.0.196", "l-192.168.0.208"] };
     }
 
     return null;
@@ -313,11 +380,11 @@ const collectClipboardTargets = (requestBody: any): string[] => {
     return Array.from(out);
 };
 
-const buildClipboardBroadcastPayload = (requestBody: any, text: string, request: any) => {
+const buildClipboardBroadcastPayload = (app: any, requestBody: any, text: string, request: any) => {
     let targets = collectClipboardTargets(requestBody);
     let sourceId = "";
     if (!targets.length) {
-        const resolvedSource = resolveSourceEndpointPolicy(requestBody, request);
+        const resolvedSource = resolveSourceEndpointPolicy(app, requestBody, request);
         if (resolvedSource) {
             targets = resolvedSource.targets;
             sourceId = resolvedSource.sourceId;
@@ -357,7 +424,7 @@ export function registerRoutes(app: any) {
 
         try {
             const text = normalizeClipboardText(request.body);
-            const relayPayload = buildClipboardBroadcastPayload(request.body, text, request);
+            const relayPayload = buildClipboardBroadcastPayload(app, request.body, text, request);
             const source = String(
                 request?.headers?.["x-forwarded-for"] ||
                 request?.ip ||

@@ -51,7 +51,7 @@ type RecognitionResult = {
 };
 
 const DEFAULT_API_URL = "https://api.proxyapi.ru/openai/v1";
-const DEFAULT_MODEL = "gpt-5.2";
+const DEFAULT_MODEL = "gpt-5.4";
 
 const resolveMcpTools = (mcp: Array<any> | undefined) => {
     if (!Array.isArray(mcp)) return [];

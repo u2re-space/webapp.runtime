@@ -42,26 +42,19 @@
     },
     "launcherEnv": {
         "CWS_AIRPAD_VERBOSE": 1,
-        "CWS_TUNNEL_DEBUG": true,
         "CWS_BRIDGE_ENABLED": true,
         "CWS_BRIDGE_MODE": "active",
         "CWS_BRIDGE_CONNECTION_TYPE": "first-order",
-        "CWS_BRIDGE_ENDPOINT_URL": "https://45.147.121.152:8443/",
-        "CWS_PORTABLE_CONFIG_PATH": "./portable.config.json",
-        "CWS_PORTABLE_DATA_PATH": "./.data",
-        "CWS_ASSOCIATED_TOKEN": "n3v3rm1nd",
-        "CWS_AIRPAD_NATIVE_ACTIONS": "true",
-        "CWS_AIRPAD_ROBOTJS_ENABLED": "true",
-        "CWS_BRIDGE_REJECT_UNAUTHORIZED": "false",
-        "CWS_HTTPS_ENABLED": true,
-        "CWS_HTTPS_KEY": "fs:./https/local/multi.key",
-        "CWS_HTTPS_CERT": "fs:./https/local/multi.crt",
-        "CWS_HTTPS_CA": "fs:./https/local/rootCA.crt",
-        "CWS_CLIPBOARD_LOGGING": "true",
-        "CWS_ASSOCIATED_ID": "L-192.168.0.200",
+        "CWS_BRIDGE_ENDPOINT_URL": "https://192.168.0.200:8443/",
         "CWS_BRIDGE_ENDPOINTS": [
+            "https://192.168.0.200:8443/",
             "https://45.147.121.152:8443/"
         ],
+        "CWS_BRIDGE_RECONNECT_MS": 3000,
+        "CWS_BRIDGE_REJECT_UNAUTHORIZED": "false",
+        "CWS_PORTABLE_DATA_PATH": "./.data",
+        "CWS_PORTABLE_CONFIG_PATH": "./portable.config.json",
+        "CWS_HTTPS_ENABLED": true,
         "CWS_ROLES": [
             "responser-initiated",
             "requestor-initiated",
@@ -70,7 +63,19 @@
             "exchanger-initiator",
             "exchanger-initiated"
         ],
+        "CWS_ASSOCIATED_TOKEN": "n3v3rm1nd",
+        "CWS_BRIDGE_USER_ID": "L-192.168.0.110",
+        "CWS_BRIDGE_USER_KEY": "n3v3rm1nd",
+        "CWS_BRIDGE_DEVICE_ID": "L-192.168.0.110",
+        "CWS_CLIPBOARD_LOG_PREVIEW": 64,
+        "CWS_AIRPAD_NATIVE_ACTIONS": "true",
+        "CWS_HTTPS_CERT": "fs:./https/local/multi.crt",
+        "CWS_ASSOCIATED_ID": "L-192.168.0.110",
+        "CWS_HTTPS_CA": "fs:./https/local/rootCA.crt",
+        "CWS_CLIPBOARD_LOGGING": "true",
+        "CWS_TUNNEL_DEBUG": true,
         "CWS_CLIPBOARD_LOG_HASH": "true",
-        "CWS_CLIPBOARD_LOG_PREVIEW": 64
+        "CWS_HTTPS_KEY": "fs:./https/local/multi.key",
+        "CWS_AIRPAD_ROBOTJS_ENABLED": "true"
     }
 }

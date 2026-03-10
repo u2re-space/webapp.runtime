@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { cp, mkdir, rm, writeFile, chmod, stat, readdir, readFile } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile, chmod, stat, lstat, readdir, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, "..");
 const PORTABLE_DIR = path.resolve(ROOT_DIR, "portable");
 const BUNDLE_DIR = path.resolve(PORTABLE_DIR, "endpoint-portable");
+const CROSSWORD_AIRPAD_DIR = path.resolve(ROOT_DIR, "../../apps/CrossWord/src/frontend/views/airpad");
 
 const normalizePortList = (raw, fallback = []) => {
     const list = typeof raw === "string" ? raw.split(",") : Array.isArray(raw) ? raw : [];
@@ -32,6 +33,14 @@ const boolValue = (value, fallback = false) => {
         return value.trim().toLowerCase() === "true";
     }
     return fallback;
+};
+
+const normalizeHostList = (raw, fallback = []) => {
+    const list = typeof raw === "string" ? raw.split(/[;,]/) : Array.isArray(raw) ? raw : [];
+    const normalized = list
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+    return normalized.length ? [...new Set(normalized)] : fallback;
 };
 
 const stringifyLauncherValue = (value) => {
@@ -112,6 +121,10 @@ const PORTABLE_OUTPUT_DIR = String(
 const PORTABLE_COPY_MODE = String(process.env.PORTABLE_COPY_MODE || PORTABLE_CONFIG.build?.copyMode || "auto").toLowerCase();
 const ENABLE_PORTABLE_OUTPUT_COPY = String(process.env.PORTABLE_SKIP_OUTPUT_COPY || "").toLowerCase() !== "true" && !boolValue(PORTABLE_CONFIG.build?.skipOutputCopy, false);
 const PORTABLE_REMOTE_HOST = String(process.env.PORTABLE_REMOTE_HOST || PORTABLE_CONFIG.remote?.host || "192.168.0.110").trim();
+const PORTABLE_REMOTE_HOSTS = normalizeHostList(
+    process.env.PORTABLE_REMOTE_HOSTS || PORTABLE_CONFIG.remote?.hosts || [],
+    PORTABLE_REMOTE_HOST ? [PORTABLE_REMOTE_HOST] : []
+);
 const PORTABLE_REMOTE_USER = String(process.env.PORTABLE_REMOTE_USER || PORTABLE_CONFIG.remote?.user || "").trim();
 const PORTABLE_REMOTE_PORT = toInt(process.env.PORTABLE_REMOTE_PORT || process.env.PORTABLE_SSH_PORT, toInt(PORTABLE_CONFIG.remote?.port, 22));
 const PORTABLE_REMOTE_PATH = String(process.env.PORTABLE_REMOTE_PATH || PORTABLE_CONFIG.remote?.path || "C:\\Users\\U2RE\\").trim();
@@ -158,6 +171,28 @@ const copyEntry = async (name) => {
     if (EXCLUDED_TOP_LEVEL.has(name)) return;
     const src = path.resolve(ROOT_DIR, name);
     const dst = path.resolve(BUNDLE_DIR, name);
+    if (name === "airpad") {
+        try {
+            const sourceInfo = await lstat(src);
+            if (sourceInfo.isSymbolicLink()) {
+                const resolvedAirpad = await realpath(src);
+                await cp(resolvedAirpad, dst, { recursive: true });
+                return;
+            }
+        } catch {
+            try {
+                const fallbackInfo = await stat(CROSSWORD_AIRPAD_DIR);
+                if (fallbackInfo.isDirectory()) {
+                    console.warn(`[portable] airpad symlink is broken. Falling back to ${CROSSWORD_AIRPAD_DIR}`);
+                    await cp(CROSSWORD_AIRPAD_DIR, dst, { recursive: true });
+                    return;
+                }
+            } catch {
+                console.warn("[portable] airpad source is unavailable. Skipping top-level airpad copy.");
+                return;
+            }
+        }
+    }
     await cp(src, dst, { recursive: true });
 };
 
@@ -386,9 +421,10 @@ const resolveLocalMirrorDir = () => {
     return "";
 };
 
-const getRemoteTarget = () => {
-    if (!PORTABLE_REMOTE_HOST) return "";
-    return PORTABLE_REMOTE_USER ? `${PORTABLE_REMOTE_USER}@${PORTABLE_REMOTE_HOST}` : PORTABLE_REMOTE_HOST;
+const getRemoteTarget = (host) => {
+    const targetHost = String(host || "").trim();
+    if (!targetHost) return "";
+    return PORTABLE_REMOTE_USER ? `${PORTABLE_REMOTE_USER}@${targetHost}` : targetHost;
 };
 
 const isWindowsDrivePath = (value) => /^[A-Za-z]:[\\/]/.test(value || "");
@@ -486,8 +522,7 @@ Remove-Item -Recurse -Force -LiteralPath $stageUploadTarget;`;
 };
 
 const copyRemote = async () => {
-    const remoteTarget = getRemoteTarget();
-    if (!remoteTarget) {
+    if (!PORTABLE_REMOTE_HOSTS.length) {
         console.log("[portable] Remote mirror skipped: PORTABLE_REMOTE_HOST is not set.");
         return false;
     }
@@ -498,44 +533,60 @@ const copyRemote = async () => {
 
     const isWindowsDestination = isWindowsDrivePath(PORTABLE_REMOTE_PATH);
     const remoteDestination = normalizeSshWindowsPath(PORTABLE_REMOTE_PATH);
-
-    if (isWindowsDestination) {
-        return copyRemoteToWindows(remoteTarget);
-    }
-
     const remoteDestinationPosix = remoteDestination.replace(/\\/g, "/");
-    const remoteArchivePath = `${remoteDestinationPosix}/${path.basename(archivePath)}`;
     const scpPortArgs = Number.isFinite(PORTABLE_REMOTE_PORT) ? ["-P", String(PORTABLE_REMOTE_PORT)] : [];
+    let lastError = "";
 
-    try {
-        console.log(`[portable] Ensure remote folder exists: ${remoteTarget}:${remoteDestinationPosix}`);
-        runRemoteCommand(remoteTarget, `mkdir -p "${remoteDestinationPosix}"`);
-        console.log(`[portable] Remote mirroring bundle to ${remoteTarget}:${remoteDestination} via SCP ...`);
-        runOrThrow("scp", [
-            ...scpPortArgs,
-            "-r",
-            BUNDLE_DIR,
-            `${remoteTarget}:${remoteDestination}`
-        ]);
-        console.log(`[portable] Remote bundle mirror complete: ${remoteTarget}:${remoteDestination}`);
-        return true;
-    } catch (error) {
-        console.warn(`[portable] SCP folder copy failed: ${error?.message || error}`);
+    for (const host of PORTABLE_REMOTE_HOSTS) {
+        const remoteTarget = getRemoteTarget(host);
+        if (!remoteTarget) continue;
+        if (PORTABLE_REMOTE_HOSTS.length > 1) {
+            console.log(`[portable] Remote mirror attempt: ${remoteTarget}`);
+        }
+        if (isWindowsDestination) {
+            const copied = await copyRemoteToWindows(remoteTarget);
+            if (copied) return true;
+            lastError = `Windows staging copy failed for ${remoteTarget}`;
+            continue;
+        }
+
+        const remoteArchivePath = `${remoteDestinationPosix}/${path.basename(archivePath)}`;
+        try {
+            console.log(`[portable] Ensure remote folder exists: ${remoteTarget}:${remoteDestinationPosix}`);
+            runRemoteCommand(remoteTarget, `mkdir -p "${remoteDestinationPosix}"`);
+            console.log(`[portable] Remote mirroring bundle to ${remoteTarget}:${remoteDestination} via SCP ...`);
+            runOrThrow("scp", [
+                ...scpPortArgs,
+                "-r",
+                BUNDLE_DIR,
+                `${remoteTarget}:${remoteDestination}`
+            ]);
+            console.log(`[portable] Remote bundle mirror complete: ${remoteTarget}:${remoteDestination}`);
+            return true;
+        } catch (error) {
+            lastError = String(error?.message || error);
+            console.warn(`[portable] SCP folder copy failed for ${remoteTarget}: ${lastError}`);
+        }
+
+        try {
+            console.log(`[portable] Remote archive mirror to ${remoteTarget}:${remoteArchivePath} ...`);
+            runOrThrow("scp", [
+                ...scpPortArgs,
+                archivePath,
+                `${remoteTarget}:${remoteArchivePath}`
+            ]);
+            console.log(`[portable] Archive mirrored to ${remoteTarget}:${remoteArchivePath}`);
+            return true;
+        } catch (error) {
+            lastError = String(error?.message || error);
+            console.warn(`[portable] Remote archive copy failed for ${remoteTarget}: ${lastError}`);
+        }
     }
 
-    try {
-        console.log(`[portable] Remote archive mirror to ${remoteTarget}:${remoteArchivePath} ...`);
-        runOrThrow("scp", [
-            ...scpPortArgs,
-            archivePath,
-            `${remoteTarget}:${remoteArchivePath}`
-        ]);
-        console.log(`[portable] Archive mirrored to ${remoteTarget}:${remoteArchivePath}`);
-        return true;
-    } catch (error) {
-        console.warn(`[portable] Remote archive copy failed: ${error?.message || error}`);
-        return false;
+    if (lastError) {
+        console.warn(`[portable] Remote mirror failed for all hosts: ${PORTABLE_REMOTE_HOSTS.join(", ")} (${lastError})`);
     }
+    return false;
 };
 
 const copyToConfiguredOutput = async () => {
@@ -637,6 +688,7 @@ const main = async () => {
                 includeNodeModules,
                 portableConfigPath: process.env.PORTABLE_CONFIG_PATH || null,
                 remoteHost: PORTABLE_REMOTE_HOST || null,
+                remoteHosts: PORTABLE_REMOTE_HOSTS,
                 remoteUser: PORTABLE_REMOTE_USER || null
             },
             null,

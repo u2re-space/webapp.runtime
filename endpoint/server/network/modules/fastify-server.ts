@@ -852,6 +852,7 @@ export const buildCoreServer = async (opts: { logger?: boolean; httpsOptions?: a
     registerRoutes(app);
     await registerCoreApp(app);
     const wsHub = createWsServer(app);
+    (app as any).wsHub = wsHub;
     // Bridge connector: this node opens reverse sessions to an origin/gateway.
     const bridgeConnector = startBridgePeerClient(config as any, {
         onMessage: buildBridgeRouter(app, wsHub, (config as any)?.bridge?.userId || "")
@@ -959,6 +960,7 @@ export const buildCoreServers = async (opts: { logger?: boolean; httpsOptions?: 
     const httpWsHub = createWsServer(http);
     const httpWsHubs: WsHub[] = [httpWsHub];
     const unifiedHub = makeUnifiedWsHub(httpWsHubs);
+    (http as any).wsHub = unifiedHub;
     // Bridge connector: HTTP-side bootstrap also reuses outbound reverse transport.
     const bridgeConnector = startBridgePeerClient(config as any, {
         onMessage: buildBridgeRouter(http, unifiedHub, fallbackUserId)
@@ -1044,6 +1046,7 @@ export const buildCoreServers = async (opts: { logger?: boolean; httpsOptions?: 
     if (!httpsOptions) return { http };
     const httpsWsHub = createWsServer(https);
     httpWsHubs.push(httpsWsHub);
+    (https as any).wsHub = unifiedHub;
     await registerCoreApp(https);
     registerRoutes(https);
     if (bridgeConnector) {

@@ -25,7 +25,7 @@ export type GptProviderConfig = {
 
 const DEFAULT_BASE_URL = "https://api.proxyapi.ru/openai/v1";
 const DEFAULT_PROXY_PATH = "/responses";
-const DEFAULT_MODEL = "gpt-5.2";
+const DEFAULT_MODEL = "gpt-5.4";
 let dotenvLoaded = false;
 
 export const loadEndpointDotenv = (): void => {

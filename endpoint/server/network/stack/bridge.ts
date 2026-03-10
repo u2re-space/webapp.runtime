@@ -7,6 +7,7 @@ import { pickEnvBoolLegacy, pickEnvListLegacy, pickEnvNumberLegacy, pickEnvStrin
 import { parsePortableInteger, resolvePortableTextValue, safeJsonParse } from "../../lib/parsing.ts";
 import {
     type WsConnectionIntent,
+    type WsConnectionType,
     supportsConnectorRole,
     parseWsConnectionType,
     describeConnectionType,
@@ -148,8 +149,9 @@ const canonicalConnectorConnectionType = (value: string | undefined, roles: stri
     if (parsed === "responser-initiated") return "requestor-initiator";
     if (parsed === "requestor-initiated") return "responser-initiator";
     if (parsed === "responser-initiator") return "responser-initiator";
+    if (parsed === "requestor-initiator") return "requestor-initiator";
+    if (parsed === "exchanger-initiator" || parsed === "exchanger-initiated") return "first-order";
     if (parsed === "first-order") return "first-order";
-    if (parsed) return parsed;
 
     const raw = (value || "").trim();
     const normalizedRaw = raw.toLowerCase();
@@ -189,8 +191,11 @@ const normalizeHost = (value: string): string => {
 };
 
 const inferDisplayConnectorTopology = (cfg: Required<BridgeConnectorConfig>): string => {
-    const parseClientConnectionType = (value: unknown): WsConnectionIntent | undefined => {
+    const parseClientConnectionType = (value: unknown): "requestor-initiator" | "responser-initiator" | "first-order" | undefined => {
         const parsed = parseWsConnectionType(value);
+        if (parsed === "requestor-initiated" || parsed === "responser-initiated" || parsed === "exchanger-initiator" || parsed === "exchanger-initiated") {
+            return "first-order";
+        }
         if (parsed === "requestor-initiator" || parsed === "responser-initiator" || parsed === "first-order") return parsed;
         return undefined;
     };
@@ -199,7 +204,10 @@ const inferDisplayConnectorTopology = (cfg: Required<BridgeConnectorConfig>): st
         configuredRoles.map((entry) => parseClientConnectionType(entry)).find((entry) => entry === "requestor-initiator") ||
         parseClientConnectionType(cfg.connectionType) ||
         "responser-initiator";
-    const remoteConnectionType = localClientConnectionType === "requestor-initiator" ? "responser-initiated" : "requestor-initiated";
+    if (localClientConnectionType === "first-order") {
+        return toDisplayTopology("exchanger-initiator", "first-order");
+    }
+    const remoteConnectionType: WsConnectionType = localClientConnectionType === "requestor-initiator" ? "responser-initiated" : "requestor-initiated";
     return toDisplayTopology(localClientConnectionType, remoteConnectionType);
 };
 
@@ -417,8 +425,8 @@ const normalizeBridgeConfig = (config: EndpointConfig): Required<BridgeConnector
     const envBridgeClientId = pickEnvStringLegacy("CWS_ASSOCIATED_ID") || pickEnvStringLegacy("CWS_BRIDGE_CLIENT_ID") || pickEnvStringLegacy("CWS_UPSTREAM_CLIENT_ID") || "";
     const envEndpointUrl = pickEnvStringLegacy("CWS_BRIDGE_ENDPOINT_URL") || pickEnvStringLegacy("CWS_UPSTREAM_ENDPOINT_URL") || "";
     const envEndpoints = pickEnvListLegacy("CWS_BRIDGE_ENDPOINTS") || pickEnvListLegacy("CWS_UPSTREAM_ENDPOINTS") || [];
-    const envUserId = pickEnvStringLegacy("CWS_ASSOCIATED_ID") || pickEnvStringLegacy("CWS_BRIDGE_USER_ID") || pickEnvStringLegacy("CWS_UPSTREAM_USER_ID") || pickEnvStringLegacy("CWS_BRIDGE_CLIENT_ID") || pickEnvStringLegacy("CWS_UPSTREAM_CLIENT_ID") || "";
-    const envUserKey = pickEnvStringLegacy("CWS_ASSOCIATED_TOKEN") || pickEnvStringLegacy("CWS_BRIDGE_USER_KEY") || pickEnvStringLegacy("CWS_UPSTREAM_USER_KEY") || "";
+    const envUserId = pickEnvStringLegacy("CWS_BRIDGE_USER_ID") || pickEnvStringLegacy("CWS_UPSTREAM_USER_ID") || pickEnvStringLegacy("CWS_ASSOCIATED_ID") || pickEnvStringLegacy("CWS_BRIDGE_CLIENT_ID") || pickEnvStringLegacy("CWS_UPSTREAM_CLIENT_ID") || "";
+    const envUserKey = pickEnvStringLegacy("CWS_BRIDGE_USER_KEY") || pickEnvStringLegacy("CWS_UPSTREAM_USER_KEY") || pickEnvStringLegacy("CWS_ASSOCIATED_TOKEN") || "";
     const envDeviceId = pickEnvStringLegacy("CWS_ASSOCIATED_ID") || pickEnvStringLegacy("CWS_BRIDGE_DEVICE_ID") || pickEnvStringLegacy("CWS_UPSTREAM_DEVICE_ID") || "";
     const envNamespace = pickEnvStringLegacy("CWS_BRIDGE_NAMESPACE") || pickEnvStringLegacy("CWS_UPSTREAM_NAMESPACE") || "";
     const envConnectionType = pickEnvStringLegacy("CWS_BRIDGE_CONNECTION_TYPE") || pickEnvStringLegacy("CWS_UPSTREAM_CONNECTION_TYPE") || pickEnvStringLegacy("CWS_BRIDGE_ARCHETYPE") || pickEnvStringLegacy("CWS_UPSTREAM_ARCHETYPE") || "";
