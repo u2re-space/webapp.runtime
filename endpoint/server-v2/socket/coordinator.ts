@@ -1,5 +1,5 @@
-import { Server, Socket as SocketConnect } from "socket.io";
-import { io, Socket as SocketClient } from "socket.io-client";
+import { Socket as SocketClient } from "socket.io";
+import { Socket as SocketConnect, io } from "socket.io-client";
 
 //
 export const SELF_DATA = {
@@ -21,24 +21,43 @@ export const UUIDv4 = () => {
 }
 
 //
+export const socketWrapper = new WeakMap<SocketConnect | SocketClient, SocketWrapper>();
 export const internalNodeMap = new Map<string, SocketConnect | SocketClient>();
 export const knownClients = new Map<string, any>();
 export const nodeMap = new Map<string, SocketWrapper>();
 
 //
-export const populateToOthers = (nodes, packet, selfId) => { 
+export const populateToOthers = (nodes: string[], packet: Packet, selfId: string) => { 
+    const promisedArray = [];
     for (const nodeId of nodes) { 
         const promise = findOrInitiateConnection(nodeId, selfId);
-        promise?.then?.((socket) => {
+        promisedArray.push(promise?.then?.((socket) => {
             packet.nodes = excludeSelf(packet.nodes, selfId);
-            socket?.translate?.("op", packet);
-        });
+            socket?.translate?.("op", packet as Packet);
+        })?.catch?.((err) => { 
+            console.error(err);
+        }));
     }
+    return promisedArray;
 }
 
 //
-export const excludeSelf = (lists, self) => { 
-    return lists;
+export interface Packet { 
+    op?: "ask" | "act" | "resolve" | "result" | "error";
+    what?: string;
+    payload?: any;
+    nodes?: string[];
+    uuid?: string;
+    result?: any;
+    error?: any;
+    byId?: string;
+    from?: string;
+    [key: string]: unknown;
+}
+
+//
+export const excludeSelf = (lists: string[], self: string) => { 
+    return lists.filter((node) => node !== self);
 }
 
 //
@@ -53,7 +72,7 @@ export class SocketWrapper {
         reject: (result: any) => void
     }>();
 
-    encodeAnswer(result, packet) { 
+    encodeAnswer(result: any, packet: Packet) { 
         return {
             op: "resolve",
             byId: this.selfId,
@@ -62,7 +81,7 @@ export class SocketWrapper {
         }
     }
 
-    encodeReport(result, packet) { 
+    encodeReport(result, packet: Packet) { 
         return {
             op: "result",
             byId: this.selfId,
@@ -71,47 +90,51 @@ export class SocketWrapper {
         }
     }
 
-    handleAsk(what, payload, packet) { 
+    handleAsk(what: string, payload: any, packet: Packet) { 
 
     }
 
-    handleAct(what, payload, packet) { 
+    handleAct(what: string, payload: any, packet: Packet) { 
         
     }
 
-    translate(op, packet) { 
-        this.socket.emit(op, packet);
+    translate(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet) { 
+        const uuid = packet.uuid ?? UUIDv4();
+        this.socket?.emit?.(op, packet as Packet);
+        // @ts-ignore
+        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return Promise.withResolvers() })?.promise;
     }
 
-    doAsk(what, payload, nodes) { 
+    doAsk(what: string, payload: any, nodes: string[]) { 
         const uuid = UUIDv4();
         this.resolvers.set(uuid, Promise.withResolvers());
-        this.socket.emit("op", {
+        this.socket.emit("data", {
             uuid, nodes, op: "act", what, payload
-        });
+        } as Packet);
         return this.resolvers.get(uuid).promise;
     }
 
-    doAct(what, payload, nodes) { 
+    doAct(what: string, payload: any, nodes: string[]) { 
         const uuid = UUIDv4();
         this.resolvers.set(uuid, Promise.withResolvers());
-        this.socket.emit("op", {
+        this.socket.emit("data", {
             uuid, nodes, op: "act", what, payload
-        });
+        } as Packet);
         return this.resolvers.get(uuid).promise;
     }
     
-    constructor(socket, selfId) { 
+    constructor(socket: SocketConnect | SocketClient, selfId: string) { 
         this.selfId = selfId;
         this.socket = socket;
+        socketWrapper.set(socket, this);
 
-        socket.on("hello", (packet) => { 
-            this.socketId = identifyNodeIdFromIncomingConnection(socket, packet);
+        socket.on("hello", async (packet: Packet) => { 
+            this.socketId = await identifyNodeIdFromIncomingConnection(socket, packet) as string;
             internalNodeMap.set(this.socketId, this.socket);
         });
 
-        socket.on("op", (packet) => {
-            if (packet.nodes.includes(this.selfId)) {
+        socket.on("data", (packet: Packet) => {
+            if (packet.nodes?.includes(this.selfId)) {
                 if (packet.op == "ask") {
                     const result = this.handleAsk(packet.what, packet.payload, packet);
                     socket.emit("resolve", this.encodeAnswer(result, packet));
@@ -126,6 +149,7 @@ export class SocketWrapper {
                     } else {
                         this.resolvers?.get(packet.uuid)?.reject?.(packet.error ?? {});
                     }
+                    this.resolvers?.delete?.(packet.uuid);
                 }
             }
 
@@ -135,38 +159,43 @@ export class SocketWrapper {
 }
 
 //
-export const loadFromClientsConfig = (clientsData) => { 
-
-}
-
-//
-export const identifyNodeIdFromIncomingConnection = (socket, packet) => { 
-    if (packet?.nodeId) { 
-        return packet?.nodeId;
-    }
-    const possibleNodeId = [...knownClients?.entries?.()].find(([nodeId, { origins, tokens }]) => {
-        return origins.some((ip)=>ip==socket.address) || tokens.some((token)=>token==packet.token);
-    });
-    if (possibleNodeId) {
-        return possibleNodeId;
+export const loadFromClientsConfig = (clientsData: Record<string, any>[]) => { 
+    for (const clientId of Object.keys(clientsData)) {
+        const isAlias = clientsData[clientId]?.startsWith?.("alias:");
+        const fromId = isAlias ? clientsData[clientId]?.replace?.("alias:", "") : clientId;
+        knownClients.set(clientId, clientsData[fromId]);
     }
 }
 
+//socket.emit("data", { op: "ask", what: "token"})
+
 //
-export const validateSocketNode = (socket, packet) => { 
+export const identifyNodeIdFromIncomingConnection = async (socket: SocketConnect | SocketClient, packet?: Packet): Promise<string | null> => { 
+    if (packet?.byId) { return packet?.byId as string; }
+    const gotToken = packet?.token ?? (await socketWrapper.get(socket)?.doAsk?.("token", {}, []));
+    const possibleNodeId = [...knownClients?.entries?.()].find(([byId, { origins, tokens }]) => {
+        return origins.some((ip)=>ip==(socket as any)?.address) || tokens.some((token)=>token==(packet?.token ?? gotToken));
+    })?.[0];
+    if (possibleNodeId) { return possibleNodeId; }
+    return null;
+}
+
+//
+export const validateSocketNode = (socket: SocketConnect | SocketClient, packet: Packet) => { 
     if (identifyNodeIdFromIncomingConnection(socket, packet)) return socket;
     return null;
 }
 
 //
-export const formalizeOrigin = () => { 
-    
-}
+export const formalizeOrigin = (origin: string) => { 
+    const parsed = new URL(origin);
+    return `${parsed.protocol}://${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+};
 
 //
-export const initiateConnection = async (forId, fromId) => { 
+export const initiateConnection = async (forId: string, fromId: string) => { 
     for (const origin of knownClients.get(forId)?.origins) {
-        const rawSocket = io(origin);
+        const rawSocket = io(formalizeOrigin(origin));
         const promised = Promise.try(() => {
             return new Promise((resolve, reject) => {
                 rawSocket.on("error", reject);
@@ -196,7 +225,7 @@ export const initiateConnection = async (forId, fromId) => {
 }
 
 //
-export const findOrInitiateConnection = async (id, fromId) => { // @ts-ignore
+export const findOrInitiateConnection = async (id: string, fromId: string) => { // @ts-ignore
     return nodeMap?.getOrInsertComputed?.(id, () => { 
         return initiateConnection(id, fromId);
     })
