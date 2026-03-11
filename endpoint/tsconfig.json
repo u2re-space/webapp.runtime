@@ -28,11 +28,11 @@
             ]
         },
         "outDir": "./dist/",
-        "target": "ES2022",
+        "target": "ES2025",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "lib": [
-            "ES2022",
+            "ES2025",
             "DOM"
         ],
         "esModuleInterop": true,
