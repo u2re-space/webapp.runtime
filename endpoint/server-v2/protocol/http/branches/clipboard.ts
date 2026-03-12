@@ -1,4 +1,4 @@
-import { registerClipboardHttpRouter } from "@protocol/http/routers/clipboard/index.ts";
+import { registerTransportHttpHandlers } from "@protocol/http/handlers/transport.ts";
 
 import type { ServerV2HttpBranch } from "../types.ts";
 
@@ -8,7 +8,10 @@ export const clipboardHttpBranch: ServerV2HttpBranch = {
     routes: [
         { method: "POST", path: "/clipboard" }
     ],
-    register: async ({ app }) => {
-        registerClipboardHttpRouter(app);
+    register: async ({ app, wsHub }) => {
+        if (!wsHub) {
+            throw new Error("[server-v2/http] clipboard branch requires runtime context");
+        }
+        await registerTransportHttpHandlers(app, wsHub);
     }
 };

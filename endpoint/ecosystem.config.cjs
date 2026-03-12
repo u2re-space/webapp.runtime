@@ -82,7 +82,7 @@ module.exports = {
             cwd: __dirname,
             // Use Node.js absolute binary directly to prevent npm/cmd invocation drift.
             script: NODE_BIN,
-            args: ["./node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/index.ts", "--config", "./portable.config.json", "--data", "./.data"],
             interpreter: "none",
             exec_mode: "fork",
             instances: 1,

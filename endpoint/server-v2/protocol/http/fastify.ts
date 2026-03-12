@@ -19,7 +19,7 @@ export const registerServerV2Http = async (
     const http = createServerV2Http();
 
     if (options.routerIds?.length) {
-        await registerServerV2HttpRouters(app, options.routerIds);
+        await registerServerV2HttpRouters(app, options.routerIds, options.wsHub);
         return;
     }
 

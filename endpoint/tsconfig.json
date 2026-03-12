@@ -1,7 +1,9 @@
 {
     "include": [
         "**/*.ts",
-        "**/*.js"
+        "**/*.js",
+        "./server-v2/**/*.ts",
+        "./server-v2/**/*.js"
     ],
     "exclude": [
         "./node_modules/**/*",

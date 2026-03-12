@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 
-import { createServerV2Http } from "../../index.ts";
+import { registerTransportHttpHandlers } from "../../handlers/transport.ts";
 
-export const registerClipboardHttpRouter = async (app: FastifyInstance): Promise<void> => {
-    await createServerV2Http().register(app, {
-        branchIds: ["clipboard"]
-    });
+export const registerClipboardHttpRouter = async (app: FastifyInstance, runtimeContext?: any): Promise<void> => {
+    if (!runtimeContext) {
+        throw new Error("[server-v2/http] clipboard router requires runtime context");
+    }
+    await registerTransportHttpHandlers(app, runtimeContext);
 };

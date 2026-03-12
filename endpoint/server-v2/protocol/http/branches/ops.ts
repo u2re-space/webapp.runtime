@@ -1,11 +1,11 @@
-import { registerOpsHttpRouter } from "@protocol/http/routers/ops/ops.ts";
+import { registerTransportHttpHandlers } from "@protocol/http/handlers/transport.ts";
 
 import type { ServerV2HttpBranch } from "../types.ts";
 
 export const opsHttpBranch: ServerV2HttpBranch = {
     id: "ops",
     label: "Ops",
-    notes: "Operational feature endpoints. Legacy registrar still mounts request, dispatch, reverse, and network sub-branches together.",
+    notes: "Operational feature endpoints served directly by server-v2 transport runtime.",
     routes: [
         { method: "POST", path: "/core/ops/devices" },
         { method: "POST", path: "/api/devices" },
@@ -20,10 +20,10 @@ export const opsHttpBranch: ServerV2HttpBranch = {
         { method: "POST", path: "/core/ops/notify" },
         { method: "POST", path: "/api/action" }
     ],
-    register: async ({ app, networkContext, socketIoBridge, wsHub }) => {
+    register: async ({ app, wsHub }) => {
         if (!wsHub) {
-            throw new Error("[server-v2/http] ops branch requires wsHub");
+            throw new Error("[server-v2/http] ops branch requires runtime context");
         }
-        await registerOpsHttpRouter(app, wsHub, networkContext, socketIoBridge);
+        await registerTransportHttpHandlers(app, wsHub);
     }
 };

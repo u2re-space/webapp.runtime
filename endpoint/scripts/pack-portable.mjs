@@ -360,7 +360,7 @@ This bundle is generated from apps/CrossWord/src/endpoint.
 - Node modules mode: ${nodeModulesMode}
 ${installNote}
 - Slim mode auto-installs dependencies on first run via npm.
-- Launcher starts \`npm run start\` (\`server/index.ts\`) to preserve full legacy WS/Socket.IO control stack.
+- Launcher starts \`npm run start\` (\`server-v2/index.ts\`) so the portable bundle boots the standalone server-v2 runtime by default.
 - Default launcher environment:
 ${launcherEnvNotes}
 - Set \`CWS_START_MODE=watch\` to run auto-restart on file changes from the launcher (\`start:watch\`).

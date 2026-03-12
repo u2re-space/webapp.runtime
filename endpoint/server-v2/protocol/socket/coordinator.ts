@@ -3,6 +3,37 @@ import { Socket as SocketConnect, io } from "socket.io-client";
 import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
 import type { Packet } from "./types.ts";
 
+const inferWhatFromLegacyType = (value: unknown): string | undefined => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return undefined;
+    if (normalized.includes(":")) return normalized;
+    if (normalized === "clipboard") return "clipboard:update";
+    if (normalized === "sms") return "sms:send";
+    if (normalized === "notifications" || normalized === "notify") return "notification:speak";
+    if (normalized === "dispatch") return "network:dispatch";
+    return normalized;
+};
+
+const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
+    try {
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!parsed || typeof parsed !== "object") return undefined;
+        const packet = parsed as Packet;
+        if (!packet.what) {
+            packet.what = inferWhatFromLegacyType((packet as any)?.type);
+        }
+        if (packet.payload === undefined && (packet as any)?.data !== undefined) {
+            packet.payload = (packet as any).data;
+        }
+        if (!packet.op) {
+            packet.op = packet.result !== undefined ? "result" : packet.error !== undefined ? "error" : "act";
+        }
+        return packet;
+    } catch {
+        return undefined;
+    }
+};
+
 //
 export const SELF_DATA = {
     ASSOCIATED_ID: "",
@@ -181,6 +212,11 @@ export class SocketWrapper {
     public acceptedUUIDs: Set<string> = new Set();
 
     //
+    populate(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet) {
+        return populateToOthers(op || packet?.op || "ask", packet, uniqueNodeIds(excludeSelf(packet?.nodes, this.selfId)), this.selfId);
+    }
+
+    //
     async hello(directly: boolean = false) {
         const packet = {
             op: "ask",
@@ -197,13 +233,14 @@ export class SocketWrapper {
             populateToOthers("ask", packet, excludeSelf(packet?.nodes, this.selfId), this.selfId);
         }
         this.token = packet?.result?.token ?? "";
-        this.origin = origin;
+        this.origin = formalizeOrigin((this.socket as any)?.address || (this.socket as any)?.origin || this.origin || "");
         return this.token;
     }
 
     encodeAnswer(result: any, packet: Packet): Packet { 
         return {
             op: "resolve",
+            what: packet.what,
             byId: this.selfId,
             uuid: packet.uuid,
             nodes: [packet.byId],
@@ -215,6 +252,7 @@ export class SocketWrapper {
     encodeReport(result: any, packet: Packet): Packet { 
         return {
             op: "result",
+            what: packet.what,
             byId: this.selfId,
             uuid: packet.uuid,
             nodes: [packet.byId],
@@ -224,7 +262,10 @@ export class SocketWrapper {
     }
 
     direct(packet: Packet) { 
+        const uuid = packet.uuid ?? UUIDv4();
         this.socket?.emit?.("data", packet as Packet);
+        // @ts-ignore
+        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(packet.op, packet.what, packet.payload) })?.promise;
     }
 
     handleAsk(what: string, payload: any, packet: Packet, selfId: string) { 
@@ -237,7 +278,8 @@ export class SocketWrapper {
 
     emit(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet) { 
         const uuid = packet.uuid ?? UUIDv4();
-        this.socket?.emit?.(op, packet as Packet);
+        packet.op = op || packet.op;
+        this.socket?.emit?.("data", packet as Packet);
         // @ts-ignore
         return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(op, what, payload) })?.promise;
     }
@@ -289,8 +331,40 @@ export class SocketWrapper {
         this.socket = socket;
         socketWrapper.set(socket, this);
 
+        const handlePacket = async (packet: Packet) => {
+            populateToOthers(packet?.op, packet, excludeSelf(packet?.nodes, this.selfId), this.selfId);
+            const payload = this.unpackPayload(packet?.payload);
+            const uuid = packet?.uuid;
+            if (packetTargetsSelf(packet?.nodes, this.selfId)) {
+                if (this.acceptedUUIDs.has(uuid ?? "")) { return; }
+                this.acceptedUUIDs.add(uuid ?? "");
+                setTimeout(() => { this.acceptedUUIDs.delete(uuid ?? ""); }, 10000);
+                
+                if (packet?.op == "ask") {
+                    const result = await this.handleAsk(packet?.what, payload, packet, this.selfId);
+                    this.populate("resolve", this.encodeAnswer(result, packet));
+                    //this.direct(this.encodeAnswer(result, packet));
+                } else
+                if (packet?.op == "act") { 
+                    const result = await this.handleAct(packet?.what, payload, packet, this.selfId);
+                    this.populate("result", this.encodeReport(result, packet));
+                    //this.direct(this.encodeReport(result, packet));
+                } else
+                if (uuid && ["resolve", "result", "error"].includes(packet?.op)) {
+                    if (packet.result) {
+                        this.resolvers?.get(uuid)?.resolve?.(this.unpackPayload(packet?.result));
+                    } else {
+                        this.resolvers?.get(uuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
+                    }
+                    this.resolvers?.delete?.(uuid);
+                }
+            }
+        };
+
         //
-        socket.on("data", async (packet: Packet) => { 
+        socket.on("data", async (packetRaw: unknown) => { 
+            const packet = normalizeInboundPacket(packetRaw);
+            if (!packet) return;
             if (packet?.op == "resolve" && packet?.what == "token") {
                 this.token = packet?.result?.token ?? "";
                 this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
@@ -335,36 +409,17 @@ export class SocketWrapper {
         });
 
         //
-        socket.on("data", (packet: Packet) => {
-            populateToOthers(packet?.op, packet, excludeSelf(packet?.nodes, this.selfId), this.selfId);
-            const payload = this.unpackPayload(packet?.payload);
-            const uuid = packet?.uuid;
-            if (packetTargetsSelf(packet?.nodes, this.selfId)) {
-                // UUID protection from duplicated messages
-                if (this.acceptedUUIDs.has(uuid ?? "")) { return; }
-                this.acceptedUUIDs.add(uuid ?? "");
-                setTimeout(() => { this.acceptedUUIDs.delete(uuid ?? ""); }, 10000);
-                
-                // 
-                if (packet?.op == "ask") {
-                    const result = this.handleAsk(packet?.what, payload, packet, this.selfId);
-                    populateToOthers("resolve", this.encodeAnswer(result, packet), excludeSelf(packet?.nodes, this.selfId), this.selfId);
-                } else
-                if (packet?.op == "act") { 
-                    const result = this.handleAct(packet?.what, payload, packet, this.selfId);
-                    populateToOthers("result", this.encodeReport(result, packet), excludeSelf(packet?.nodes, this.selfId), this.selfId);
-                } else
+        socket.on("data", (packetRaw: unknown) => {
+            const packet = normalizeInboundPacket(packetRaw);
+            if (!packet) return;
+            void handlePacket(packet);
+        });
 
-                // resolve and use post-handler (such as answer drivers)
-                if (uuid && ["resolve", "result", "error"].includes(packet?.op)) {
-                    if (packet.result) {
-                        this.resolvers?.get(uuid)?.resolve?.(this.unpackPayload(packet?.result));
-                    } else {
-                        this.resolvers?.get(uuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
-                    }
-                    this.resolvers?.delete?.(uuid);
-                }
-            }
+        //
+        socket.on("message", (packetRaw: unknown) => {
+            const packet = normalizeInboundPacket(packetRaw);
+            if (!packet) return;
+            void handlePacket(packet);
         });
     }
 }
@@ -400,8 +455,14 @@ export const validateSocketNode = (socket: SocketConnect | SocketClient, packet:
 
 //
 export const formalizeOrigin = (origin: string) => { 
-    const parsed = new URL(origin);
-    return `${parsed.protocol}://${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+    const trimmed = String(origin || "").trim();
+    if (!trimmed) return "";
+    try {
+        const parsed = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
+        return `${parsed.protocol}://${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+    } catch {
+        return "";
+    }
 };
 
 //
@@ -409,7 +470,9 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
     const targetConfig = getKnownClientConfig(forId);
     const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
     for (const origin of origins) {
-        const rawSocket = io(formalizeOrigin(origin));
+        const normalizedOrigin = formalizeOrigin(origin);
+        if (!normalizedOrigin) continue;
+        const rawSocket = io(normalizedOrigin);
         const promised: Promise<SocketWrapper | undefined> = Promise.try(() => {
             return new Promise<SocketWrapper>((resolve, reject) => {
                 rawSocket.on("error", reject);

@@ -1,11 +1,11 @@
-import { registerCoreSettingsEndpoints, registerCoreSettingsRoutes } from "@protocol/http/routers/settings/settings.ts";
+import { registerSettingsHttpHandlers } from "@protocol/http/handlers/settings.ts";
 
 import type { ServerV2HttpBranch } from "../types.ts";
 
 export const settingsHttpBranch: ServerV2HttpBranch = {
     id: "settings",
     label: "Settings",
-    notes: "Mounted through legacy settings registrars until server-v2 gets independent handlers.",
+    notes: "Server-v2 owned settings, prefs, health, and config inspection endpoints.",
     routes: [
         { method: "GET", path: "/health" },
         { method: "GET", path: "/core/admin/prefs" },
@@ -15,7 +15,6 @@ export const settingsHttpBranch: ServerV2HttpBranch = {
         { method: "POST", path: "/core/user/settings" }
     ],
     register: async ({ app }) => {
-        await registerCoreSettingsEndpoints(app);
-        await registerCoreSettingsRoutes(app);
+        await registerSettingsHttpHandlers(app);
     }
 };

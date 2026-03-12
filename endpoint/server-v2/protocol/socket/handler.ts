@@ -2,7 +2,7 @@ import {
     resolveEndpointTransportPreference,
     type EndpointIdPolicyMap,
     type EndpointTransportMode
-} from "../../../server/network/stack/endpoint-policy.ts";
+} from "../../utils/endpoint-policy.ts";
 import { parseBinaryEnvelope } from "../../utils/binary.ts";
 import type { Packet } from "./types.ts";
 import { handleAirpadAction, handleAirpadAsk } from "./handlers/airpad.ts";
@@ -168,5 +168,8 @@ export const handleAsk = (what: string, payload: any, packet: Packet, selfId: st
 }
 
 const getAssociatedToken = async (selfId: string) => {
-    return SELF_DATA.ASSOCIATED_TOKEN;
+    return {
+        id: selfId,
+        token: SELF_DATA.ASSOCIATED_TOKEN
+    };
 }

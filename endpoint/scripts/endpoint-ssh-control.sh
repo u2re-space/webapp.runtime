@@ -49,7 +49,7 @@ linux_restart() {
             fi; \
         else \
             if ! command -v node >/dev/null 2>&1; then echo \"[linux] node is missing\"; exit 1; fi; \
-            pkill -f \"node .*server/index.ts\" 2>/dev/null || true; \
+            pkill -f \"node .*server-v2/index.ts\" 2>/dev/null || true; \
             nohup npm run start >/tmp/airpad-endpoint.log 2>&1 & \
         fi'"
 }
@@ -60,7 +60,7 @@ linux_stop() {
             pm2 stop \"$PM2_APP_NAME\" 2>/dev/null || true; \
             pm2 delete \"$PM2_APP_NAME\" 2>/dev/null || true; \
         else \
-            pkill -f \"node .*server/index.ts\" 2>/dev/null || true; \
+            pkill -f \"node .*server-v2/index.ts\" 2>/dev/null || true; \
         fi'"
 }
 

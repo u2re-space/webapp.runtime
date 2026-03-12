@@ -3,8 +3,8 @@ import { createServerV2ConfigStorage } from "./storage.ts";
 import {
     normalizeEndpointPolicies,
     type EndpointIdPolicyMap
-} from "../../server/network/stack/endpoint-policy.ts";
-import { normalizeNetworkAliasMap, type NetworkAliasMap } from "../../server/network/stack/topology.ts";
+} from "@utils/endpoint-policy.ts";
+import { normalizeNetworkAliasMap, type NetworkAliasMap } from "@utils/topology.ts";
 
 type ServerV2Transport =
     | "http"

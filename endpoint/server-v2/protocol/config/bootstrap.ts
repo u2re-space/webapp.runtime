@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { resolvePortableTextValuePath, safeJsonParse } from "../../server/lib/parsing.ts";
-import { moduleDirname, runtimeArgs } from "../../server/lib/runtime.ts";
+import { resolvePortableTextValuePath, safeJsonParse } from "../utils/parsing.ts";
+import { moduleDirname, runtimeArgs } from "../utils/runtime.ts";
 
 export type ServerV2BootstrapOptions = {
     argv?: string[];
