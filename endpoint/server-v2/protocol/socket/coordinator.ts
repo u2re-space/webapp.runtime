@@ -1,5 +1,6 @@
-import { Socket as SocketClient } from "socket.io";
+import { Server, Socket as SocketClient } from "socket.io";
 import { Socket as SocketConnect, io } from "socket.io-client";
+import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
 
 //
 export const SELF_DATA = {
@@ -65,12 +66,25 @@ export class SocketWrapper {
     public selfId: string;
     public socket: SocketConnect | SocketClient;
     public socketId: string;
+    public isConnected: boolean = false;
     public messages = new Map<string, any>();
     public resolvers = new Map<string, {
         promise: Promise<any>,
         resolve: (result: any) => void,
         reject: (result: any) => void
     }>();
+    public token: string;
+    public origin: string;
+
+    async hello() {
+        const packet = await this.socket.emitWithAck("hello", {
+            byId: this.selfId,
+            uuid: UUIDv4(), nodes: ["*"], op: "ask", what: "token", payload: {}
+        } as Packet);
+        this.token = packet?.result?.token ?? "";
+        this.origin = origin;
+        return this.token;
+    }
 
     encodeAnswer(result: any, packet: Packet) { 
         return {
@@ -91,38 +105,59 @@ export class SocketWrapper {
     }
 
     handleAsk(what: string, payload: any, packet: Packet) { 
-
+        return handleAsk(what, payload, packet);
     }
 
     handleAct(what: string, payload: any, packet: Packet) { 
-        
+        return handleAct(what, payload, packet);
     }
 
     translate(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet) { 
         const uuid = packet.uuid ?? UUIDv4();
         this.socket?.emit?.(op, packet as Packet);
         // @ts-ignore
-        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return Promise.withResolvers() })?.promise;
+        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(op, what, payload) })?.promise;
     }
 
     doAsk(what: string, payload: any, nodes: string[]) { 
         const uuid = UUIDv4();
-        this.resolvers.set(uuid, Promise.withResolvers());
+        this.resolvers.set(uuid, makePostHandler("ask", what, payload));
         this.socket.emit("data", {
-            uuid, nodes, op: "act", what, payload
+            uuid, nodes, op: "ask", what, payload: this.packPayload(payload)
         } as Packet);
         return this.resolvers.get(uuid).promise;
     }
 
     doAct(what: string, payload: any, nodes: string[]) { 
         const uuid = UUIDv4();
-        this.resolvers.set(uuid, Promise.withResolvers());
+        this.resolvers.set(uuid, makePostHandler("act", what, payload));
         this.socket.emit("data", {
-            uuid, nodes, op: "act", what, payload
+            uuid, nodes, op: "act", what, payload: this.packPayload(payload)
         } as Packet);
         return this.resolvers.get(uuid).promise;
     }
-    
+
+    unpackPayload(payload: any) {
+        return payload;
+    }
+
+    packPayload(payload: any) {
+        return payload;
+    }
+
+    // if connection is not established, remove socket after 3 second
+    removeSocket() { 
+        setTimeout(() => {
+            if (!this.isConnected) {
+                this.socket.disconnect();
+                socketWrapper.delete(this.socket);
+                internalNodeMap.delete(this.socketId);
+                knownClients.delete(this.selfId);
+                nodeMap.delete(this.selfId);
+            }
+        }, 3000);
+    }
+
     constructor(socket: SocketConnect | SocketClient, selfId: string) { 
         this.selfId = selfId;
         this.socket = socket;
@@ -131,29 +166,62 @@ export class SocketWrapper {
         socket.on("hello", async (packet: Packet) => { 
             this.socketId = await identifyNodeIdFromIncomingConnection(socket, packet) as string;
             internalNodeMap.set(this.socketId, this.socket);
+            this.isConnected = true;
+        });
+
+        socket.on("disconnect", () => {
+            this.isConnected = false;
+            this.removeSocket();
+        });
+
+        socket.on("connect", async () => {
+            this.socketId = await identifyNodeIdFromIncomingConnection(socket, {}) as string;
+            internalNodeMap.set(this.socketId, this.socket);
+            this.isConnected = true;
+        });
+
+        socket.on("error", (err) => {
+            console.error(err);
+            this.isConnected = false;
+            this.removeSocket();
+        });
+
+        socket.on("close", () => {
+            this.isConnected = false;
+            this.removeSocket();
+        });
+
+        socket.on("reconnect", async () => {
+            this.isConnected = false;
+            this.socketId = await identifyNodeIdFromIncomingConnection(socket, {}) as string;
+            internalNodeMap.set(this.socketId, this.socket);
+            this.isConnected = true;
         });
 
         socket.on("data", (packet: Packet) => {
-            if (packet.nodes?.includes(this.selfId)) {
-                if (packet.op == "ask") {
-                    const result = this.handleAsk(packet.what, packet.payload, packet);
+            populateToOthers(excludeSelf(packet?.nodes, this.selfId), packet, this.selfId);
+            const payload = this.unpackPayload(packet?.payload);
+            const uuid = packet?.uuid;
+            if (packet?.nodes?.includes(this.selfId)) {
+                if (packet?.op == "ask") {
+                    const result = this.handleAsk(packet?.what, payload, packet);
                     socket.emit("resolve", this.encodeAnswer(result, packet));
                 } else
-                if (packet.op == "act") { 
-                    const result = this.handleAct(packet.what, packet.payload, packet);
+                if (packet?.op == "act") { 
+                    const result = this.handleAct(packet?.what, payload, packet);
                     socket.emit("result", this.encodeReport(result, packet));
                 } else
-                if (packet.uuid && ["resolve", "result", "error"].includes(packet.op)) {
+
+                // resolve and use post-handler (such as answer drivers)
+                if (uuid && ["resolve", "result", "error"].includes(packet?.op)) {
                     if (packet.result) {
-                        this.resolvers?.get(packet.uuid)?.resolve?.(packet.result);
+                        this.resolvers?.get(uuid)?.resolve?.(this.unpackPayload(packet?.result));
                     } else {
-                        this.resolvers?.get(packet.uuid)?.reject?.(packet.error ?? {});
+                        this.resolvers?.get(uuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
                     }
-                    this.resolvers?.delete?.(packet.uuid);
+                    this.resolvers?.delete?.(uuid);
                 }
             }
-
-            populateToOthers(excludeSelf(packet.nodes, this.selfId), packet, this.selfId);
         });
     }
 }
@@ -230,3 +298,32 @@ export const findOrInitiateConnection = async (id: string, fromId: string) => { 
         return initiateConnection(id, fromId);
     })
 }
+
+//
+export const makeSocketServer = (originOrServer: any, selfId: string) => {
+    const server = new Server(originOrServer, {  });
+    server.on("connection", async (socket) => {
+        try {
+            const socketWrapper = new SocketWrapper(socket, selfId) as SocketWrapper;
+            await socketWrapper?.hello?.() ?? null;
+            console.log(`[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
+            return socketWrapper;
+        } catch (err) {
+            console.error(err);
+        }
+    });
+    server.on("reconnect", async (socket) => {
+        try {
+            const socketWrapper = new SocketWrapper(socket, selfId) as SocketWrapper;
+            await socketWrapper?.hello?.() ?? null;
+            console.log(`[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
+            return socketWrapper;
+        } catch (err) {
+            console.error(err);
+        }
+    });
+    return server;  
+}
+
+//
+export default makeSocketServer;
