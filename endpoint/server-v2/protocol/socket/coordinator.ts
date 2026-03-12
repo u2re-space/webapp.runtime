@@ -31,12 +31,12 @@ export const nodeMap = new Map<string, SocketWrapper | Promise<SocketWrapper | u
 //
 export const populateToOthers = (nodes: string[], packet: Packet, selfId: string) => { 
     const promisedArray = [];
-    for (const nodeId of uniqueNodeIds(excludeSelf(nodes, selfId))) { 
+    for (const nodeId of uniqueNodeIds(excludeSelf([...nodes, ...Array.from(knownClients.keys()), ...Array.from(nodeMap.keys())], selfId))) { 
         const promise = Promise.resolve(
             findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined
         );
         promisedArray.push(promise.then((socket) => {
-            packet.nodes = excludeSelf(packet.nodes, selfId);
+            packet.nodes = uniqueNodeIds(excludeSelf(packet.nodes, selfId));
             if (packet?.op) {
                 socket?.translate?.(packet.op, packet as Packet);
             }
