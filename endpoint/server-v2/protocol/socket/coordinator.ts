@@ -187,21 +187,23 @@ export class SocketWrapper {
         return this.token;
     }
 
-    encodeAnswer(result: any, packet: Packet) { 
+    encodeAnswer(result: any, packet: Packet): Packet { 
         return {
             op: "resolve",
             byId: this.selfId,
             uuid: packet.uuid,
-            result
+            nodes: [packet.byId],
+            result: this.packPayload(result)
         }
     }
 
-    encodeReport(result, packet: Packet) { 
+    encodeReport(result: any, packet: Packet): Packet { 
         return {
             op: "result",
             byId: this.selfId,
             uuid: packet.uuid,
-            result
+            nodes: [packet.byId],
+            result: this.packPayload(result)
         }
     }
 
@@ -306,11 +308,11 @@ export class SocketWrapper {
             if (packetTargetsSelf(packet?.nodes, this.selfId)) {
                 if (packet?.op == "ask") {
                     const result = this.handleAsk(packet?.what, payload, packet);
-                    socket.emit("resolve", this.encodeAnswer(result, packet));
+                    populateToOthers(excludeSelf(packet?.nodes, this.selfId), this.encodeAnswer(result, packet), this.selfId);
                 } else
                 if (packet?.op == "act") { 
                     const result = this.handleAct(packet?.what, payload, packet);
-                    socket.emit("result", this.encodeReport(result, packet));
+                    populateToOthers(excludeSelf(packet?.nodes, this.selfId), this.encodeReport(result, packet), this.selfId);
                 } else
 
                 // resolve and use post-handler (such as answer drivers)
