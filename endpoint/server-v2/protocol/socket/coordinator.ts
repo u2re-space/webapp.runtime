@@ -1,6 +1,7 @@
 import { Server, Socket as SocketClient } from "socket.io";
 import { Socket as SocketConnect, io } from "socket.io-client";
 import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
+import type { Packet } from "./types.ts";
 
 //
 export const SELF_DATA = {
@@ -25,16 +26,20 @@ export const UUIDv4 = () => {
 export const socketWrapper = new WeakMap<SocketConnect | SocketClient, SocketWrapper>();
 export const internalNodeMap = new Map<string, SocketConnect | SocketClient>();
 export const knownClients = new Map<string, any>();
-export const nodeMap = new Map<string, SocketWrapper>();
+export const nodeMap = new Map<string, SocketWrapper | Promise<SocketWrapper | undefined> | undefined>();
 
 //
 export const populateToOthers = (nodes: string[], packet: Packet, selfId: string) => { 
     const promisedArray = [];
-    for (const nodeId of nodes) { 
-        const promise = findOrInitiateConnection(nodeId, selfId);
-        promisedArray.push(promise?.then?.((socket) => {
+    for (const nodeId of uniqueNodeIds(excludeSelf(nodes, selfId))) { 
+        const promise = Promise.resolve(
+            findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined
+        );
+        promisedArray.push(promise.then((socket) => {
             packet.nodes = excludeSelf(packet.nodes, selfId);
-            socket?.translate?.("op", packet as Packet);
+            if (packet?.op) {
+                socket?.translate?.(packet.op, packet as Packet);
+            }
         })?.catch?.((err) => { 
             console.error(err);
         }));
@@ -43,23 +48,119 @@ export const populateToOthers = (nodes: string[], packet: Packet, selfId: string
 }
 
 //
-export interface Packet { 
-    op?: "ask" | "act" | "resolve" | "result" | "error";
-    what?: string;
-    payload?: any;
-    nodes?: string[];
-    uuid?: string;
-    result?: any;
-    error?: any;
-    byId?: string;
-    from?: string;
-    [key: string]: unknown;
+export const excludeSelf = (lists: string[], self: string) => { 
+    return (lists || []).filter((node) => !areNodeIdsEquivalent(node, self));
 }
 
+const normalizeNodeId = (value: unknown): string => {
+    return String(value || "").trim();
+};
+
 //
-export const excludeSelf = (lists: string[], self: string) => { 
-    return lists.filter((node) => node !== self);
-}
+const getKnownClientConfig = (nodeId: unknown) => {
+    const normalized = normalizeNodeId(nodeId);
+    if (!normalized) return null;
+
+    const directEntry = knownClients.get(normalized);
+    return directEntry ?? [...knownClients.entries()].find(([candidateId]) => {
+        return candidateId.toLowerCase() === normalized.toLowerCase();
+    })?.[1];
+};
+
+//
+export const getKnownClientAliases = (nodeId: unknown): string[] => {
+    const normalized = normalizeNodeId(nodeId);
+    if (!normalized) return [];
+
+    const fallbackEntry = getKnownClientConfig(normalized);
+
+    const aliases = new Set<string>([normalized, normalized.toLowerCase()]);
+    if (!fallbackEntry) {
+        return Array.from(aliases);
+    }
+
+    for (const [candidateId, candidateConfig] of knownClients.entries()) {
+        if (candidateConfig === fallbackEntry) {
+            const aliasId = normalizeNodeId(candidateId);
+            if (!aliasId) continue;
+            aliases.add(aliasId);
+            aliases.add(aliasId.toLowerCase());
+        }
+    }
+
+    return Array.from(aliases);
+};
+
+const getNodeAliasSignature = (nodeId: unknown): string => {
+    return getKnownClientAliases(nodeId)
+        .map((alias) => alias.toLowerCase())
+        .sort()
+        .join("|");
+};
+
+export const areNodeIdsEquivalent = (left: unknown, right: unknown): boolean => {
+    const leftAliases = new Set(getKnownClientAliases(left));
+    if (leftAliases.size === 0) return false;
+    for (const alias of getKnownClientAliases(right)) {
+        if (leftAliases.has(alias)) {
+            return true;
+        }
+    }
+    return false;
+};
+
+export const uniqueNodeIds = (nodes: unknown): string[] => {
+    if (!Array.isArray(nodes)) return [];
+    const unique: string[] = [];
+    const seen = new Set<string>();
+    for (const nodeId of nodes) {
+        const normalized = normalizeNodeId(nodeId);
+        if (!normalized) continue;
+        const signature = getNodeAliasSignature(normalized);
+        if (seen.has(signature)) continue;
+        seen.add(signature);
+        unique.push(normalized);
+    }
+    return unique;
+};
+
+//
+export const packetTargetsSelf = (nodes: unknown, selfId: string): boolean => {
+    if (!Array.isArray(nodes) || nodes.length === 0) return false;
+
+    for (const nodeId of nodes) {
+        if (areNodeIdsEquivalent(nodeId, selfId)) {
+            return true;
+        }
+    }
+
+    return false;
+};
+
+const getCachedNodeConnection = (nodeId: string) => {
+    for (const alias of getKnownClientAliases(nodeId)) {
+        const cached = nodeMap.get(alias);
+        if (cached) return cached;
+    }
+    return undefined;
+};
+
+const cacheNodeConnection = (
+    nodeId: string,
+    connection: SocketWrapper | Promise<SocketWrapper | undefined> | undefined
+) => {
+    for (const alias of getKnownClientAliases(nodeId)) {
+        nodeMap.set(alias, connection);
+    }
+};
+
+const deleteCachedNodeConnection = (...nodeIds: Array<string | undefined>) => {
+    for (const nodeId of nodeIds) {
+        for (const alias of getKnownClientAliases(nodeId)) {
+            nodeMap.delete(alias);
+        }
+    }
+};
 
 //
 export class SocketWrapper {
@@ -153,7 +254,7 @@ export class SocketWrapper {
                 socketWrapper.delete(this.socket);
                 internalNodeMap.delete(this.socketId);
                 knownClients.delete(this.selfId);
-                nodeMap.delete(this.selfId);
+                deleteCachedNodeConnection(this.socketId, this.selfId);
             }
         }, 3000);
     }
@@ -202,7 +303,7 @@ export class SocketWrapper {
             populateToOthers(excludeSelf(packet?.nodes, this.selfId), packet, this.selfId);
             const payload = this.unpackPayload(packet?.payload);
             const uuid = packet?.uuid;
-            if (packet?.nodes?.includes(this.selfId)) {
+            if (packetTargetsSelf(packet?.nodes, this.selfId)) {
                 if (packet?.op == "ask") {
                     const result = this.handleAsk(packet?.what, payload, packet);
                     socket.emit("resolve", this.encodeAnswer(result, packet));
@@ -261,11 +362,13 @@ export const formalizeOrigin = (origin: string) => {
 };
 
 //
-export const initiateConnection = async (forId: string, fromId: string) => { 
-    for (const origin of knownClients.get(forId)?.origins) {
+export const initiateConnection = async (forId: string, fromId: string): Promise<SocketWrapper | undefined> => { 
+    const targetConfig = getKnownClientConfig(forId);
+    const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
+    for (const origin of origins) {
         const rawSocket = io(formalizeOrigin(origin));
-        const promised = Promise.try(() => {
-            return new Promise((resolve, reject) => {
+        const promised: Promise<SocketWrapper | undefined> = Promise.try(() => {
+            return new Promise<SocketWrapper>((resolve, reject) => {
                 rawSocket.on("error", reject);
                 rawSocket.on("connect", () => {
                     if (validateSocketNode(rawSocket, {})) {
@@ -281,48 +384,113 @@ export const initiateConnection = async (forId: string, fromId: string) => {
                 });
             })
         })?.catch?.((err) => { 
-            return err;
+            return undefined;
         });
 
         //
         const isSocket = await promised;
         if (isSocket instanceof SocketWrapper) {
-            return promised;
+            return isSocket;
         }
+    }
+    return undefined;
+}
+
+//
+export const findOrInitiateConnection = (id: string, selfId: string): SocketWrapper | Promise<SocketWrapper | undefined> | undefined => {
+    const cached = getCachedNodeConnection(id);
+    if (cached) return cached;
+
+    const initiated: Promise<SocketWrapper | undefined> = initiateConnection(id, selfId)
+        .then((socket) => {
+            if (socket) {
+                cacheNodeConnection(id, socket);
+                cacheNodeConnection(socket.socketId, socket);
+            } else {
+                deleteCachedNodeConnection(id);
+            }
+            return socket;
+        })
+        ?.catch?.((error) => {
+            deleteCachedNodeConnection(id);
+            throw error;
+        });
+
+    cacheNodeConnection(id, initiated);
+    return initiated;
+}
+
+//
+export class SocketServer {
+    public server: Server;
+    public selfId: string;
+    
+    //
+    public constructor(server: Server, selfId: string) {
+        this.server = server;
+        this.selfId = selfId;
+
+        //
+        server.on("connection", async (socket) => {
+            try {
+                const socketWrapper = new SocketWrapper(socket, selfId) as SocketWrapper;
+                await socketWrapper?.hello?.() ?? null;
+                console.log(`[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
+                return socketWrapper;
+            } catch (err) {
+                console.error(err);
+            }
+        });
+
+        //
+        server.on("reconnect", async (socket) => {
+            try {
+                const socketWrapper = new SocketWrapper(socket, selfId) as SocketWrapper;
+                await socketWrapper?.hello?.() ?? null;
+                console.log(`[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
+                return socketWrapper;
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    }
+
+    //
+    public ask(what: string, payload: any, nodes: string[]) { 
+        return this.emit("ask", nodes, {
+            what, payload
+        } as Packet);
+    }
+
+    //
+    public act(what: string, payload: any, nodes: string[]) { 
+        return this.emit("act", nodes, {
+            what, payload
+        } as Packet);
+    }
+
+    //
+    public populate(nodes: string[], packet: Packet) { 
+        return populateToOthers(uniqueNodeIds(excludeSelf(nodes, this.selfId)), packet, this.selfId);
+    }
+
+    //
+    public emit(op: "ask" | "act" | "resolve" | "result" | "error", nodes: string[], packet: Packet) { 
+        return this.server.emit(op, {
+            ...packet,
+            nodes: uniqueNodeIds(excludeSelf(nodes, this.selfId))
+        } as Packet);
+    }
+
+    //
+    public useConnection(id: string) { 
+        return findOrInitiateConnection(id, this.selfId);
     }
 }
 
 //
-export const findOrInitiateConnection = async (id: string, fromId: string) => { // @ts-ignore
-    return nodeMap?.getOrInsertComputed?.(id, () => { 
-        return initiateConnection(id, fromId);
-    })
-}
-
-//
 export const makeSocketServer = (originOrServer: any, selfId: string) => {
-    const server = new Server(originOrServer, {  });
-    server.on("connection", async (socket) => {
-        try {
-            const socketWrapper = new SocketWrapper(socket, selfId) as SocketWrapper;
-            await socketWrapper?.hello?.() ?? null;
-            console.log(`[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
-            return socketWrapper;
-        } catch (err) {
-            console.error(err);
-        }
-    });
-    server.on("reconnect", async (socket) => {
-        try {
-            const socketWrapper = new SocketWrapper(socket, selfId) as SocketWrapper;
-            await socketWrapper?.hello?.() ?? null;
-            console.log(`[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
-            return socketWrapper;
-        } catch (err) {
-            console.error(err);
-        }
-    });
-    return server;  
+    return new SocketServer(new Server(originOrServer, {  }), selfId);
 }
 
 //

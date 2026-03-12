@@ -1,10 +1,11 @@
-import { Promised } from "../../../utils/Promised.ts";import { Packet } from "../coordinator.ts";
+import { Promised } from "@utils/Promised.ts";
+import type { Packet } from "../types.ts";
 
 //
 export const handleAirpadAction = async (what: string, payload: any, packet: Packet) => {
-    const mouseAccess = Promised(Promised(await import("../../../inputs/access/mouse.ts"))?.default);
-    const keyboardAccess = Promised(Promised(await import("../../../inputs/access/keyboard.ts"))?.default);
-    const clipboardAccess = Promised(Promised(await import("../../../inputs/access/clipboard.ts"))?.default);
+    const mouseAccess = Promised(Promised(await import("@inputs/access/mouse.ts"))?.default);
+    const keyboardAccess = Promised(Promised(await import("@inputs/access/keyboard.ts"))?.default);
+    const clipboardAccess = Promised(Promised(await import("@inputs/access/clipboard.ts"))?.default);
     if (!mouseAccess || !keyboardAccess || !clipboardAccess) return null;
     switch (what) {
         case "mouse:move":
@@ -30,9 +31,9 @@ export const handleAirpadAction = async (what: string, payload: any, packet: Pac
 
 //
 export const handleAirpadAsk = async (what: string, payload: any, packet: Packet) => {
-    const mouseAccess = Promised(Promised(await import("../../../inputs/access/mouse.ts"))?.default);
-    const keyboardAccess = Promised(Promised(await import("../../../inputs/access/keyboard.ts"))?.default);
-    const clipboardAccess = Promised(Promised(await import("../../../inputs/access/clipboard.ts"))?.default);
+    const mouseAccess = Promised(Promised(await import("@inputs/access/mouse.ts"))?.default);
+    const keyboardAccess = Promised(Promised(await import("@inputs/access/keyboard.ts"))?.default);
+    const clipboardAccess = Promised(Promised(await import("@inputs/access/clipboard.ts"))?.default);
     if (!mouseAccess || !keyboardAccess || !clipboardAccess) return null;
     switch (what) {
         case "mouse:isReady":

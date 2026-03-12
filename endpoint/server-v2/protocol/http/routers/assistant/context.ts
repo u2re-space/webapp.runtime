@@ -1,6 +1,10 @@
-import { resolveGptProvider, type GptProviderConfig, hasExplicitCredentialInRequest } from "./provider.ts";
-import { loadUserSettings, verifyUser } from "../lib/users.ts";
-import { createOrchestrator } from "./Orchestrator.ts";
+import { loadUserSettings, verifyUser } from "@protocol/http/routers/auth/users.ts";
+import { createOrchestrator } from "@inputs/assistant/Orchestrator.ts";
+import {
+    hasExplicitCredentialInRequest,
+    resolveGptProvider,
+    type GptProviderConfig
+} from "./provider.ts";
 
 type AiSettingsContext = {
     userId: string;
@@ -11,7 +15,9 @@ type AiSettingsContext = {
     hasExplicitCredential: boolean;
 };
 
-export type AiContextResult = { ok: false; error: string } | { ok: true; value: AiSettingsContext };
+export type AiContextResult =
+    | { ok: false; error: string }
+    | { ok: true; value: AiSettingsContext };
 
 export const createAiContext = async (body: any): Promise<AiContextResult> => {
     const userId = String(body?.userId || "").trim();

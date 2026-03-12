@@ -1,10 +1,10 @@
-import { Promised } from "../../utils/Promised.ts";
+import { Promised } from "@utils/Promised.ts";
 
 //
 export class KeyboardAccess {
     private driver: Promise<any>;
     constructor() {
-        this.driver = Promised(Promised(import("../../inputs/drivers/ahk.ts"))?.default);
+        this.driver = Promised(Promised(import("@inputs/drivers/ahk.ts"))?.default);
     }
 
     async isReady() {

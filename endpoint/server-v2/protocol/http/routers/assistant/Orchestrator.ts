@@ -106,11 +106,10 @@ const extractContent = (payload: any): string => {
 const parseJsonFromText = (text: string): any => {
     const input = (text || "").trim();
     if (!input) return null;
-
     try {
         return JSON.parse(input);
     } catch {
-        // ignore direct parse errors
+        // ignore
     }
 
     const fenced = input.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -118,7 +117,7 @@ const parseJsonFromText = (text: string): any => {
         try {
             return JSON.parse(fenced[1].trim());
         } catch {
-            // ignore fenced parse errors
+            // ignore
         }
     }
 
@@ -128,7 +127,7 @@ const parseJsonFromText = (text: string): any => {
         try {
             return JSON.parse(input.slice(objStart, objEnd + 1));
         } catch {
-            // ignore object slice parse errors
+            // ignore
         }
     }
 
@@ -138,7 +137,7 @@ const parseJsonFromText = (text: string): any => {
         try {
             return JSON.parse(input.slice(arrStart, arrEnd + 1));
         } catch {
-            // ignore array slice parse errors
+            // ignore
         }
     }
 
@@ -203,7 +202,6 @@ export class AIOrchestrator {
         const instructionAddon = options?.customInstruction ? `\n\nCUSTOM INSTRUCTION:\n${options.customInstruction}` : "";
         const prompt = `Recognize and extract structured information from the provided content.${instructionAddon}`;
         const result = await this.runPrompt(String(data || ""), prompt);
-
         return {
             ok: result.ok,
             recognized_data: result.ok ? [result.text] : [],
@@ -228,21 +226,14 @@ export class AIOrchestrator {
         if (Array.isArray(parsed)) return { ok: true, data: parsed };
         if (Array.isArray(parsed?.entities)) return { ok: true, data: parsed.entities };
         if (parsed && typeof parsed === "object") return { ok: true, data: [parsed] };
-
         return { ok: true, data: [] };
     }
 
     async smartRecognize(data: string, hints?: SmartHints, instructionOptions?: InstructionOptions): Promise<RecognitionResult & { entities?: any[] }> {
-        const expected = hints?.expectedType ? `\nExpected type: ${hints.expectedType}` : "";
-        const domain = hints?.domain ? `\nDomain: ${hints.domain}` : "";
-        const language = hints?.language ? `\nLanguage: ${hints.language}` : "";
-        const context = `${expected}${domain}${language}`.trim();
-
         const recognized = await this.recognize(String(data || ""), {
-            context: context ? { expectedType: hints?.expectedType } : {},
+            context: hints?.expectedType ? { expectedType: hints.expectedType } : {},
             customInstruction: instructionOptions?.customInstruction
         });
-
         if (!recognized.ok || !hints?.extractEntities) return recognized;
 
         const entities = await this.extractEntitiesFromData(data, instructionOptions);

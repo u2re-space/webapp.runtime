@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { pickEnvStringLegacy } from "../../../utils/env.ts";
+import { pickEnvStringLegacy } from "@utils/env.ts";
 
 const DEFAULT_AHK_PATH = "C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe";
 const getAhkPath = () => (pickEnvStringLegacy("CWS_AUTOHOTKEY_PATH") || DEFAULT_AHK_PATH).trim();

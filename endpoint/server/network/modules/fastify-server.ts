@@ -18,7 +18,7 @@ import { registerApiFallback, registerCoreApp } from "../../routing/core-app.ts"
 import { createHttpClient } from "../stack/https.ts";
 import { setApp as setClipboardApp, setHttpClient, startClipboardPolling } from "../../io/clipboard.ts";
 import { startMouseFlushInterval } from "../../io/mouse.ts";
-import { setApp as setPythonApp } from "../../gpt/python.ts";
+import { setApp as setPythonApp } from "@inputs/assistant/python.ts";
 import { resolvePeerIdentity } from "../stack/peer-identity.ts";
 import { pickEnvBoolLegacy, pickEnvNumberLegacy, pickEnvStringLegacy } from "../../lib/env.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict, resolveEndpointPolicyRoute, resolveEndpointTransportPreference } from "../stack/endpoint-policy.ts";
@@ -168,7 +168,7 @@ const handleLocalAirpadPayload = (app: FastifyInstance, frame: any): boolean => 
         const text = String(payload.text || "");
         if (text) {
             app.log?.info?.("Voice command via tunnel");
-            import("../../gpt/python.ts").then(({ sendVoiceToPython }) => {
+            import("@inputs/assistant/python.ts").then(({ sendVoiceToPython }) => {
                 sendVoiceToPython(null, text).catch((err: any) => {
                     app.log?.error?.({ err }, "Failed to send voice command to python");
                 });

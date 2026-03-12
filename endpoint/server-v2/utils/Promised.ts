@@ -1,4 +1,4 @@
-import { unwrap, isPrimitive, tryParseByHint, fixFx } from "./Primitive";
+import { unwrap, isPrimitive, tryParseByHint, fixFx } from "./Primitive.ts";
 
 //
 const resolvedMap = new WeakMap(), handledMap = new WeakMap();

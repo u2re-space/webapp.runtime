@@ -2,7 +2,7 @@ import type { Socket } from "socket.io";
 
 import { parseBinaryMessage } from "../io/message.ts";
 import { executeCopyHotkey, executeCutHotkey, executePasteHotkey } from "../io/actions.ts";
-import { sendVoiceToPython, removePythonSubscriber } from "../gpt/python.ts";
+import { sendVoiceToPython, removePythonSubscriber } from "@inputs/assistant/python.ts";
 import { safeJsonParse } from "../lib/parsing.ts";
 import { handleKeyboardBinaryAction } from "./input/keyboard.ts";
 import { handleMouseBinaryAction } from "./input/mouse.ts";

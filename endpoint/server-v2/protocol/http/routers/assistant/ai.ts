@@ -1,16 +1,30 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
-import { createAiContext, toAiCustomInstruction } from "./context.ts";
-import { buildLegacyAiResponse, buildProcessingAiResponse, executeAiPipeline, normalizeAiMode, type AiMode } from "./response-adapter.ts";
+import { createAiContext, toAiCustomInstruction } from "@inputs/assistant/context.ts";
+import {
+    buildLegacyAiResponse,
+    buildProcessingAiResponse,
+    executeAiPipeline,
+    normalizeAiMode,
+    type AiMode
+} from "@inputs/assistant/response-adapter.ts";
 
 export const registerAiRoutes = async (app: FastifyInstance) => {
     const withAiContext = async (body: any, handler: (context: any) => Promise<any>) => {
         const contextResult = await createAiContext(body);
-        if (!contextResult.ok) return { ok: false, error: contextResult.error };
+        if (!contextResult.ok) {
+            return { ok: false, error: "error" in contextResult ? contextResult.error : "Invalid AI context" };
+        }
         return handler(contextResult.value);
     };
 
-    const runCoreAiRoute = async (kind: "recognize" | "analysis", body: any, input: string, mode: AiMode = "smartRecognize", routeHints: { hints?: any; context?: any; title?: string; legacyRecognize?: boolean } = {}) => {
+    const runCoreAiRoute = async (
+        kind: "recognize" | "analysis",
+        body: any,
+        input: string,
+        mode: AiMode = "smartRecognize",
+        routeHints: { hints?: any; context?: any; title?: string; legacyRecognize?: boolean } = {}
+    ) => {
         return withAiContext(body, async (ctx) => {
             const effectiveInstruction = toAiCustomInstruction(body, ctx.settings);
             const result = await executeAiPipeline(ctx, {
@@ -58,8 +72,7 @@ export const registerAiRoutes = async (app: FastifyInstance) => {
         const input = (text || url || "").toString();
         if (!input.trim()) return { ok: false, error: "Missing text/url" };
 
-        const mode = "smartRecognize";
-        return runCoreAiRoute("recognize", body, input, mode, {
+        return runCoreAiRoute("recognize", body, input, "smartRecognize", {
             hints: rest?.hints || rest?.hint,
             title
         });
@@ -94,14 +107,12 @@ export const registerAiRoutes = async (app: FastifyInstance) => {
         if (!input.trim()) return { ok: false, error: "Missing input (text/url/input)" };
 
         const mode = normalizeAiMode((body.mode || body.action || "smartRecognize") as AiMode, "smartRecognize");
-
         if (mode === "timeline") {
             return {
                 ok: false,
                 error: "Timeline generation is not backend-enabled yet (depends on browser/OPFS workers in current core implementation)."
             };
         }
-
         return runProcessingRoute(body, input, mode);
     });
 };

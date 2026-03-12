@@ -38,7 +38,9 @@ const resolveProxyUrl = (baseUrl: string, targetPath?: string): string => {
 
 const executeGptProxy = async (body: ApiProxyBody & any): Promise<any> => {
     const contextResult = await createAiContext(body);
-    if (!contextResult.ok) return { ok: false, error: contextResult.error };
+    if (!contextResult.ok) {
+        return { ok: false, error: "error" in contextResult ? contextResult.error : "Invalid AI context" };
+    }
 
     const { provider } = contextResult.value;
     const targetPath = body.path || body.proxyPath || provider.proxyPath || "/responses";
@@ -85,17 +87,12 @@ const executeGptProxy = async (body: ApiProxyBody & any): Promise<any> => {
 };
 
 const registerGptPassthroughRoutes = async (app: FastifyInstance): Promise<void> => {
-    const handlers = ["proxy", "passthrough"];
-
-    for (const suffix of handlers) {
+    for (const suffix of ["proxy", "passthrough"]) {
         app.post(`/core/ai/${suffix}`, async (request: FastifyRequest<{ Body: ApiProxyBody & any }>) => {
-            const body = (request.body || {}) as ApiProxyBody & any;
-            return executeGptProxy(body);
+            return executeGptProxy((request.body || {}) as ApiProxyBody & any);
         });
-
         app.post(`/api/ai/${suffix}`, async (request: FastifyRequest<{ Body: ApiProxyBody & any }>) => {
-            const body = (request.body || {}) as ApiProxyBody & any;
-            return executeGptProxy(body);
+            return executeGptProxy((request.body || {}) as ApiProxyBody & any);
         });
     }
 };

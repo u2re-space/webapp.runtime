@@ -1,14 +1,21 @@
-import { Promised } from "../../utils/Promised.ts";
+import { Promised } from "@utils/Promised.ts";
 
 //
 export class ClipboardAccess {
     private driver: Promise<any>;
+    private app: any;
     constructor() {
-        this.driver = Promised(Promised(import("../../inputs/drivers/clipboardy.ts"))?.default);
+        this.driver = Promised(Promised(import("@inputs/drivers/clipboardy.ts"))?.default);
+    }
+
+    attachApp(app: any) {
+        this.app = app;
+        return this.app;
     }
 
     async isReady() {
-        return await (await this.driver)?.isReady?.();
+        const driver = await this.driver;
+        return typeof driver?.read === "function" && typeof driver?.write === "function";
     }
 
     async read() {
@@ -25,4 +32,6 @@ export class ClipboardAccess {
 }
 
 //
-export default new ClipboardAccess();
+export const createClipboardAccess = () => new ClipboardAccess();
+
+export default createClipboardAccess();

@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { isKeyboardMessage, isMouseMessage, parseBinaryMessage } from "../../../server/io/message.ts";
+import { isKeyboardMessage, isMouseMessage, parseBinaryMessage } from "@inputs/drivers/adapters/message.ts";
 
 export type BinaryAssetInput =
     | ArrayBuffer

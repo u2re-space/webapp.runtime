@@ -1,4 +1,4 @@
-import { Promised } from "../../utils/Promised.ts";
+import { Promised } from "@utils/Promised.ts";
 
 export let ahkInitialized = false;
 export let ahkService: any = null;

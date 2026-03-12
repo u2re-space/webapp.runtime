@@ -14,17 +14,47 @@
     "baseUrl": "./",
     "compilerOptions": {
         "paths": {
-            "@rs-core/*": [
-                "./lib/shared/*"
-            ],
-            "@rs-com/*": [
-                "./lib/com/*"
-            ],
-            "@rs-server/*": [
+            "@old/*": [
                 "./server/*"
             ],
-            "@rs-lib/*": [
-                "./lib/*"
+            "@old/airpad/*": [
+                "./server/airpad/*"
+            ],
+            "@old/com/*": [
+                "./server/com/*"
+            ],
+            "@old/lib/*": [
+                "./server/lib/*"
+            ],
+            "@old/network/*": [
+                "./server/network/*"
+            ],
+            "@old/routing/*": [
+                "./server/routing/*"
+            ],
+            "@legacy/*": [
+                "./server-v2/legacy/*"
+            ],
+            "@protocol/*": [
+                "./server-v2/protocol/*"
+            ],
+            "@admin/*": [
+                "./server-v2/admin/*"
+            ],
+            "@config/*": [
+                "./server-v2/config/*"
+            ],
+            "@server-v2/*": [
+                "./server-v2/"
+            ],
+            "@server/*": [
+                "./server-v2/"
+            ],
+            "@inputs/*": [
+                "./server-v2/inputs/*"
+            ],
+            "@utils/*": [
+                "./server-v2/utils/*"
             ]
         },
         "outDir": "./dist/",

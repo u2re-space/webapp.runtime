@@ -6,7 +6,6 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { executeActions } from "../io/actions.ts";
 
 let py: any = null;
 const pythonSubscribers = new Set<any>();
@@ -113,7 +112,8 @@ function handlePythonMessage(msg: any) {
     }
 
     if (msg.type === "actions") {
-        executeActions(msg.actions, app);
+        // TODO! reimplement executeActions
+        //executeActions(msg.actions, app);
         for (const socket of pythonSubscribers) {
             try {
                 // @ts-ignore - socket type from Set<any>

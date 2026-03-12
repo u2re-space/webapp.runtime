@@ -1,11 +1,11 @@
-import { Promised } from "../../utils/Promised.ts";
+import { Promised } from "@utils/Promised.ts";
 
 // сомнительно что AHK это умеет
 // у robot такого нету
 export class TouchAccess {
     private driver: Promise<any>;
     constructor() {
-        this.driver = Promised(Promised(import("../../inputs/drivers/robot.ts"))?.default);
+        this.driver = Promised(Promised(import("@inputs/drivers/robot.ts"))?.default);
     }
 
     async isReady() {
