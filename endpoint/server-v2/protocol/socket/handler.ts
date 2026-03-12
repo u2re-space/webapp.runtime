@@ -7,6 +7,7 @@ import { parseBinaryEnvelope } from "../../utils/binary.ts";
 import type { Packet } from "./types.ts";
 import { handleAirpadAction, handleAirpadAsk } from "./handlers/airpad.ts";
 import { handleClipboardAction, handleClipboardAsk } from "./handlers/clipboard.ts";
+import { SELF_DATA } from "./coordinator.ts";
 
 type TransportSender = (payload: Record<string, unknown>) => unknown | Promise<unknown>;
 
@@ -146,7 +147,7 @@ export const createSocketProtocolHandler = (options: CreateSocketProtocolHandler
 };
 
 //
-export const handleAct = (what: string, payload: any, packet: Packet) => {
+export const handleAct = (what: string, payload: any, packet: Packet, selfId: string) => {
     const airpadResult = handleAirpadAction(what, payload, packet);
     if (airpadResult) return airpadResult;
     const clipboardResult = handleClipboardAction(what, payload, packet);
@@ -155,11 +156,17 @@ export const handleAct = (what: string, payload: any, packet: Packet) => {
 }
 
 //
-export const handleAsk = (what: string, payload: any, packet: Packet) => {
+export const handleAsk = (what: string, payload: any, packet: Packet, selfId: string) => {
     const airpadResult = handleAirpadAsk(what, payload, packet);
     if (airpadResult) return airpadResult;
     const clipboardResult = handleClipboardAsk(what, payload, packet);
     if (clipboardResult) return clipboardResult;
+    if (what == "token") {
+        return Promise.resolve(getAssociatedToken(selfId));
+    }
     return packet;
 }
 
+const getAssociatedToken = async (selfId: string) => {
+    return SELF_DATA.ASSOCIATED_TOKEN;
+}

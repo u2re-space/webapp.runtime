@@ -8,6 +8,7 @@ export interface Packet {
     error?: any;
     byId?: string;
     from?: string;
+    timestamp?: number;
     [key: string]: unknown;
 }
 
