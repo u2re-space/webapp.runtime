@@ -489,8 +489,9 @@ export class SocketServer {
 }
 
 //
+export let existsSocketServer: SocketServer | undefined = undefined;
 export const makeSocketServer = (originOrServer: any, selfId: string) => {
-    return new SocketServer(new Server(originOrServer, {  }), selfId);
+    return (existsSocketServer ??= new SocketServer(new Server(originOrServer, {  }), selfId));
 }
 
 //
