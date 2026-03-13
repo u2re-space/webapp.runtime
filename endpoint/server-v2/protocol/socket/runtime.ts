@@ -2,6 +2,7 @@ import type { Server as HttpServer } from "node:http";
 import type { Server as HttpsServer } from "node:https";
 
 import type { Packet } from "./types.ts";
+import { inferWhatFromLegacyType } from "./packet.ts";
 import {
     SELF_DATA,
     internalNodeMap,
@@ -44,42 +45,11 @@ const collectTargetIds = (packet: Packet): string[] => {
             if (normalized) targets.add(normalized);
         }
     }
-    for (const candidate of [packet.byId, packet.from, (packet as any).target, (packet as any).targetId, (packet as any).deviceId]) {
+    for (const candidate of [(packet as any).target, (packet as any).targetId, (packet as any).deviceId]) {
         const normalized = normalizeToken(candidate);
         if (normalized) targets.add(normalized);
     }
     return Array.from(targets);
-};
-
-const inferWhatFromLegacyType = (value: unknown): string | undefined => {
-    const normalized = normalizeToken(value);
-    if (!normalized) return undefined;
-    if (normalized.includes(":")) return normalized;
-    if (normalized === "clipboard") return "clipboard:update";
-    if (normalized === "sms") return "sms:send";
-    if (normalized === "notifications" || normalized === "notify") return "notification:speak";
-    if (normalized === "dispatch") return "network:dispatch";
-    return normalized;
-};
-
-const ensurePacket = (raw: unknown): Packet | null => {
-    try {
-        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-        if (!parsed || typeof parsed !== "object") return null;
-        const packet = parsed as Packet;
-        if (!packet.op && !(packet as any).type) {
-            packet.op = "act";
-        }
-        if (!packet.what) {
-            packet.what = inferWhatFromLegacyType((packet as any).type);
-        }
-        if (packet.payload === undefined && (packet as any).data !== undefined) {
-            packet.payload = (packet as any).data;
-        }
-        return packet;
-    } catch {
-        return null;
-    }
 };
 
 export class ServerV2SocketRuntime {

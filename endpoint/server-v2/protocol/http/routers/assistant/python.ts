@@ -16,7 +16,7 @@ let pythonError: Error | null = null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const ENDPOINT_ROOT = join(__dirname, "..");
+const ENDPOINT_ROOT = join(__dirname, "..", "..", "..", "..", "..");
 const CONTROLLER_PATH = join(ENDPOINT_ROOT, "controller.py");
 
 export function setApp(application: any) {

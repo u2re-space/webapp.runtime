@@ -1,38 +1,8 @@
 import { Server, Socket as SocketClient } from "socket.io";
 import { Socket as SocketConnect, io } from "socket.io-client";
 import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
+import { normalizeInboundPacket } from "./packet.ts";
 import type { Packet } from "./types.ts";
-
-const inferWhatFromLegacyType = (value: unknown): string | undefined => {
-    const normalized = String(value || "").trim().toLowerCase();
-    if (!normalized) return undefined;
-    if (normalized.includes(":")) return normalized;
-    if (normalized === "clipboard") return "clipboard:update";
-    if (normalized === "sms") return "sms:send";
-    if (normalized === "notifications" || normalized === "notify") return "notification:speak";
-    if (normalized === "dispatch") return "network:dispatch";
-    return normalized;
-};
-
-const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
-    try {
-        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-        if (!parsed || typeof parsed !== "object") return undefined;
-        const packet = parsed as Packet;
-        if (!packet.what) {
-            packet.what = inferWhatFromLegacyType((packet as any)?.type);
-        }
-        if (packet.payload === undefined && (packet as any)?.data !== undefined) {
-            packet.payload = (packet as any).data;
-        }
-        if (!packet.op) {
-            packet.op = packet.result !== undefined ? "result" : packet.error !== undefined ? "error" : "act";
-        }
-        return packet;
-    } catch {
-        return undefined;
-    }
-};
 
 //
 export const SELF_DATA = {
@@ -59,19 +29,116 @@ export const internalNodeMap = new Map<string, SocketConnect | SocketClient>();
 export const knownClients = new Map<string, any>();
 export const nodeMap = new Map<string, SocketWrapper | Promise<SocketWrapper | undefined> | undefined>();
 
+const isSocketTraceEnabled = () => {
+    const verbose = String(process.env.CWS_AIRPAD_VERBOSE || "").trim().toLowerCase();
+    const tunnelDebug = String(process.env.CWS_TUNNEL_DEBUG || "").trim().toLowerCase();
+    return ["1", "true", "yes", "on"].includes(verbose) || ["1", "true", "yes", "on"].includes(tunnelDebug);
+};
+
+const traceSocket = (event: string, details: Record<string, unknown>) => {
+    if (!isSocketTraceEnabled()) return;
+    const payload = Object.entries(details)
+        .filter(([, value]) => value !== undefined && value !== null && value !== "")
+        .map(([key, value]) => `${key}=${Array.isArray(value) ? value.join(",") : String(value)}`)
+        .join(" ");
+    console.log(`[socket:${event}]${payload ? ` ${payload}` : ""}`);
+};
+
+const sanitizeWireValue = (value: unknown, seen = new WeakSet<object>()): unknown => {
+    if (value == null) return value;
+    const valueType = typeof value;
+    if (valueType === "string" || valueType === "number" || valueType === "boolean") {
+        return value;
+    }
+    if (valueType === "bigint") {
+        return value.toString();
+    }
+    if (valueType === "function" || valueType === "symbol") {
+        return undefined;
+    }
+    if (
+        value instanceof ArrayBuffer ||
+        ArrayBuffer.isView(value) ||
+        (typeof Blob !== "undefined" && value instanceof Blob) ||
+        (typeof File !== "undefined" && value instanceof File)
+    ) {
+        return value;
+    }
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+    if (value instanceof Error) {
+        return {
+            name: value.name,
+            message: value.message,
+            stack: value.stack
+        };
+    }
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => sanitizeWireValue(entry, seen))
+            .filter((entry) => entry !== undefined);
+    }
+    if (typeof value === "object") {
+        if (seen.has(value as object)) {
+            return undefined;
+        }
+        seen.add(value as object);
+        const sanitized: Record<string, unknown> = {};
+        for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+            if (!key || key.startsWith("__")) continue;
+            const normalized = sanitizeWireValue(entry, seen);
+            if (normalized !== undefined) {
+                sanitized[key] = normalized;
+            }
+        }
+        return sanitized;
+    }
+    return undefined;
+};
+
+const sanitizePacketForWire = (packet: Packet): Packet => {
+    return (sanitizeWireValue(packet) || {}) as Packet;
+};
+
 //
-export const populateToOthers = (op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet, nodes: string[] = ["*"], selfId: string) => { 
-    const promisedArray = [];
-    for (const nodeId of uniqueNodeIds(excludeSelf([...nodes, ...Array.from(knownClients.keys()), ...Array.from(nodeMap.keys())], selfId))) { 
+export const populateToOthers = (
+    channel: "data" | "message",
+    packet: Packet,
+    nodes: string[] = ["*"],
+    selfId?: string,
+    op?: "ask" | "act" | "resolve" | "result" | "error",
+    options?: { rejectOnFailure?: boolean }
+) => { 
+    const promisedArray: Array<Promise<any>> = [];
+    const requestedNodes = Array.isArray(nodes)
+        ? uniqueNodeIds(nodes.filter((nodeId) => String(nodeId || "").trim().length > 0))
+        : ["*"];
+    const candidateNodes = requestedNodes.includes("*")
+        ? [...Array.from(knownClients.keys()), ...Array.from(nodeMap.keys())]
+        : requestedNodes;
+    const rejectOnFailure = options?.rejectOnFailure === true;
+    for (const nodeId of uniqueNodeIds(excludeSelf(candidateNodes, selfId)).filter((nodeId) => nodeId && nodeId !== "*")) { 
         const promise = Promise.resolve(
             findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined
         );
         promisedArray.push(promise.then((socket) => {
             packet.nodes = uniqueNodeIds(excludeSelf(packet.nodes, selfId));
             packet.op = (op ||= packet?.op);
-            socket?.direct?.(packet as Packet);
+            packet.byId ||= selfId;
+            if (!socket) {
+                if (!rejectOnFailure) {
+                    return undefined;
+                }
+                throw new Error(`Unable to connect to node: ${nodeId}`);
+            }
+            return socket.direct(channel, sanitizePacketForWire(packet as Packet));
         })?.catch?.((err) => { 
             console.error(err);
+            if (rejectOnFailure) {
+                throw err;
+            }
+            return undefined;
         }));
     }
     return promisedArray;
@@ -95,6 +162,35 @@ const getKnownClientConfig = (nodeId: unknown) => {
     return directEntry ?? [...knownClients.entries()].find(([candidateId]) => {
         return candidateId.toLowerCase() === normalized.toLowerCase();
     })?.[1];
+};
+
+const resolveConfiguredForwardNode = (selfId: string): string | null => {
+    const selfConfig = getKnownClientConfig(selfId);
+    if (!selfConfig?.flags?.gateway) {
+        return null;
+    }
+    const candidates: string[] = [];
+    if (Array.isArray(selfConfig?.allowedForwards)) {
+        candidates.push(...selfConfig.allowedForwards);
+    }
+    if (Array.isArray(selfConfig?.forward)) {
+        for (const entry of selfConfig.forward) {
+            if (typeof entry === "string") {
+                candidates.push(entry);
+            } else
+            if (entry && typeof entry === "object" && typeof (entry as any).id === "string") {
+                candidates.push((entry as any).id);
+            }
+        }
+    }
+    for (const candidate of candidates) {
+        const normalized = normalizeNodeId(candidate);
+        if (!normalized || normalized === "self" || areNodeIdsEquivalent(normalized, selfId)) continue;
+        if (getKnownClientConfig(normalized)) {
+            return normalized;
+        }
+    }
+    return null;
 };
 
 //
@@ -175,6 +271,58 @@ const getCachedNodeConnection = (nodeId: string) => {
     return undefined;
 };
 
+const getSocketHandshakeQuery = (socket: SocketConnect | SocketClient): Record<string, unknown> => {
+    const query = (socket as any)?.handshake?.query;
+    return query && typeof query === "object" ? query : {};
+};
+
+const resolveLegacyTargetNode = (socket: SocketConnect | SocketClient, selfId: string): string => {
+    const query = getSocketHandshakeQuery(socket);
+    const candidates = [
+        query.__airpad_route_target,
+        query.routeTarget,
+        query.target,
+        query.targetId,
+        query.__airpad_route
+    ];
+
+    for (const candidate of candidates) {
+        const normalized = normalizeNodeId(candidate);
+        if (!normalized) continue;
+        if (areNodeIdsEquivalent(normalized, selfId)) {
+            return selfId;
+        }
+        if (getKnownClientConfig(normalized)) {
+            return normalized;
+        }
+    }
+
+    const configuredForward = resolveConfiguredForwardNode(selfId);
+    if (configuredForward) {
+        return configuredForward;
+    }
+
+    return selfId;
+};
+
+const makeLegacyLocalPacket = (
+    socket: SocketConnect | SocketClient,
+    selfId: string,
+    base: Partial<Packet>
+): Packet => {
+    const byId = normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId || (socket as any)?.id);
+    return {
+        op: base.op || "act",
+        what: base.what,
+        payload: base.payload,
+        nodes: Array.isArray(base.nodes) && base.nodes.length > 0 ? base.nodes : [resolveLegacyTargetNode(socket, selfId)],
+        byId: base.byId || byId || undefined,
+        from: base.from || byId || undefined,
+        timestamp: base.timestamp || Date.now(),
+        ...(base as Packet)
+    };
+};
+
 const cacheNodeConnection = (
     nodeId: string,
     connection: SocketWrapper | Promise<SocketWrapper | undefined> | undefined
@@ -197,6 +345,7 @@ export class SocketWrapper {
     public selfId: string;
     public socket: SocketConnect | SocketClient;
     public socketId: string;
+    public peerId: string;
     public isConnected: boolean = false;
     public messages = new Map<string, any>();
     public resolvers = new Map<string, {
@@ -211,26 +360,39 @@ export class SocketWrapper {
     // saves every for 10 seconds after handled first one
     public acceptedUUIDs: Set<string> = new Set();
 
+    rememberPeerId(candidate?: unknown) {
+        const normalized = normalizeNodeId(candidate);
+        if (!normalized) return "";
+        this.peerId = normalized;
+        this.socketId ||= normalized;
+        internalNodeMap.set(normalized, this.socket);
+        cacheNodeConnection(normalized, this);
+        return normalized;
+    }
+
     //
-    populate(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet) {
-        return populateToOthers(op || packet?.op || "ask", packet, uniqueNodeIds(excludeSelf(packet?.nodes, this.selfId)), this.selfId);
+    populate(channel: "data" | "message", packet: Packet, op?: "ask" | "act" | "resolve" | "result" | "error") {
+        return populateToOthers(channel, { op: op || packet?.op || "ask", ...packet }, uniqueNodeIds(excludeSelf([this.socketId, this.peerId, ...packet?.nodes], this.selfId)), this.selfId, op);
     }
 
     //
     async hello(directly: boolean = false) {
+        const targetNode = this.peerId || this.socketId || "*";
         const packet = {
             op: "ask",
             byId: this.selfId,
-            uuid: UUIDv4(), nodes: ["*", this.socketId || this.selfId || "*"],
+            from: this.selfId,
+            token: this.token || undefined,
+            uuid: UUIDv4(), nodes: uniqueNodeIds([targetNode, this.socketId, this.peerId]),
             what: "token", payload: {},
             timestamp: Date.now()
         } as Packet;
 
         //
         if (directly) {
-            this.socket.emit("data", packet);
+            this.socket.emit("data", sanitizePacketForWire(packet));
         } else {
-            populateToOthers("ask", packet, excludeSelf(packet?.nodes, this.selfId), this.selfId);
+            populateToOthers("data", { op: "ask", ...packet }, excludeSelf(packet?.nodes, this.selfId), this.selfId, "ask");
         }
         this.token = packet?.result?.token ?? "";
         this.origin = formalizeOrigin((this.socket as any)?.address || (this.socket as any)?.origin || this.origin || "");
@@ -243,7 +405,7 @@ export class SocketWrapper {
             what: packet.what,
             byId: this.selfId,
             uuid: packet.uuid,
-            nodes: [packet.byId],
+            nodes: uniqueNodeIds(excludeSelf([packet.byId, ...packet.nodes], this.selfId)),
             result: this.packPayload(result),
             timestamp: Date.now()
         }
@@ -255,15 +417,18 @@ export class SocketWrapper {
             what: packet.what,
             byId: this.selfId,
             uuid: packet.uuid,
-            nodes: [packet.byId],
+            nodes: uniqueNodeIds(excludeSelf([packet.byId, ...packet.nodes], this.selfId)),
             result: this.packPayload(result),
             timestamp: Date.now()
         }
     }
 
-    direct(packet: Packet) { 
+    direct(channel: "data" | "message" | Packet, packet?: Packet) { 
+        if (typeof channel != "string" || packet == null) {
+            packet = channel as Packet;channel = "data";
+        }
         const uuid = packet.uuid ?? UUIDv4();
-        this.socket?.emit?.("data", packet as Packet);
+        this.socket?.emit?.(channel, sanitizePacketForWire(packet as Packet));
         // @ts-ignore
         return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(packet.op, packet.what, packet.payload) })?.promise;
     }
@@ -276,29 +441,47 @@ export class SocketWrapper {
         return handleAct(what, payload, packet, selfId);
     }
 
-    emit(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet) { 
-        const uuid = packet.uuid ?? UUIDv4();
-        packet.op = op || packet.op;
-        this.socket?.emit?.("data", packet as Packet);
-        // @ts-ignore
-        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(op, what, payload) })?.promise;
+    reply(packet: Packet) {
+        //this.socket?.emit?.("data", packet as Packet);
+        //this.socket?.emit?.("message", packet as Packet);
+        this.populate("data", packet as Packet);
+        this.populate("message", packet as Packet);
+        return packet;
     }
-
+    
     doAsk(what: string, payload: any, nodes: string[]) { 
         const uuid = UUIDv4();
         this.resolvers.set(uuid, makePostHandler("ask", what, payload));
-        this.socket.emit("data", {
-            uuid, nodes, op: "ask", what, payload: this.packPayload(payload), timestamp: Date.now()
-        } as Packet);
+        const directNodes = uniqueNodeIds(nodes?.length ? nodes : [this.peerId || this.socketId]).filter(Boolean);
+        this.socket.emit("data", sanitizePacketForWire({
+            uuid,
+            nodes: directNodes,
+            op: "ask",
+            what,
+            payload: this.packPayload(payload),
+            byId: this.selfId,
+            from: this.selfId,
+            token: this.token || undefined,
+            timestamp: Date.now()
+        } as Packet));
         return this.resolvers.get(uuid).promise;
     }
 
     doAct(what: string, payload: any, nodes: string[]) { 
         const uuid = UUIDv4();
         this.resolvers.set(uuid, makePostHandler("act", what, payload));
-        this.socket.emit("data", {
-            uuid, nodes, op: "act", what, payload: this.packPayload(payload), timestamp: Date.now()
-        } as Packet);
+        const directNodes = uniqueNodeIds(nodes?.length ? nodes : [this.peerId || this.socketId]).filter(Boolean);
+        this.socket.emit("data", sanitizePacketForWire({
+            uuid,
+            nodes: directNodes,
+            op: "act",
+            what,
+            payload: this.packPayload(payload),
+            byId: this.selfId,
+            from: this.selfId,
+            token: this.token || undefined,
+            timestamp: Date.now()
+        } as Packet));
         return this.resolvers.get(uuid).promise;
     }
 
@@ -317,8 +500,7 @@ export class SocketWrapper {
                 this.socket.disconnect();
                 socketWrapper.delete(this.socket);
                 internalNodeMap.delete(this.socketId);
-                knownClients.delete(this.selfId);
-                deleteCachedNodeConnection(this.socketId, this.selfId);
+                deleteCachedNodeConnection(this.socketId);
             }
         }, 3000);
     }
@@ -329,26 +511,84 @@ export class SocketWrapper {
         this.token = token;
         this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
         this.socket = socket;
+        this.peerId = "";
         socketWrapper.set(socket, this);
 
         const handlePacket = async (packet: Packet) => {
-            populateToOthers(packet?.op, packet, excludeSelf(packet?.nodes, this.selfId), this.selfId);
+            this.rememberPeerId(packet?.byId || packet?.from || this.socketId || this.peerId);
             const payload = this.unpackPayload(packet?.payload);
             const uuid = packet?.uuid;
-            if (packetTargetsSelf(packet?.nodes, this.selfId)) {
-                if (this.acceptedUUIDs.has(uuid ?? "")) { return; }
-                this.acceptedUUIDs.add(uuid ?? "");
-                setTimeout(() => { this.acceptedUUIDs.delete(uuid ?? ""); }, 10000);
+            const targetsSelf = packetTargetsSelf(packet?.nodes, this.selfId);
+            traceSocket("packet-in", {
+                local: this.selfId,
+                peer: this.peerId || this.socketId,
+                byId: packet?.byId || this.socketId || this.peerId,
+                from: packet?.from || this.socketId || this.peerId,
+                op: packet?.op || "ask",
+                what: packet?.what,
+                nodes: uniqueNodeIds([packet?.byId || this.socketId || this.peerId, ...packet?.nodes, this.socketId, this.peerId]),
+                uuid
+            });
+            if (uuid && this.resolvers.has(uuid) && ["resolve", "result", "error"].includes(packet?.op || "")) {
+                if (packet.result) {
+                    this.resolvers.get(uuid)?.resolve?.(this.unpackPayload(packet?.result));
+                } else {
+                    this.resolvers.get(uuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
+                }
+                this.resolvers.delete(uuid);
+                return;
+            }
+            const shouldRejectForwarded = !targetsSelf && uuid && ["ask", "act"].includes(packet?.op || "");
+            const forwarded = populateToOthers("data", packet, excludeSelf(packet?.nodes, this.selfId), this.selfId, packet?.op, {
+                rejectOnFailure: shouldRejectForwarded
+            });
+            traceSocket("route-decision", {
+                local: this.selfId,
+                peer: this.peerId || this.socketId,
+                byId: packet?.byId || this.socketId || this.peerId,
+                op: packet?.op,
+                what: packet?.what,
+                nodes: uniqueNodeIds([...packet?.nodes, this.socketId, this.peerId]),
+                targetSelf: targetsSelf,
+                forwards: forwarded.length
+            });
+            if (!targetsSelf && uuid && ["ask", "act"].includes(packet?.op || "") && forwarded.length > 0) {
+                try {
+                    const result = await Promise.any(forwarded);
+                    this.reply(packet?.op === "ask" ? this.encodeAnswer(result, packet) : this.encodeReport(result, packet));
+                } catch (error) {
+                    const details = error instanceof AggregateError
+                        ? error.errors?.map?.((entry) => entry instanceof Error ? { message: entry.message, stack: entry.stack } : entry)
+                        : (error instanceof Error ? { message: error.message, stack: error.stack } : error);
+                    this.reply({
+                        op: "error",
+                        what: packet.what,
+                        byId: this.selfId,
+                        uuid: packet.uuid,
+                        nodes: [packet.byId],
+                        error: this.packPayload(details),
+                        timestamp: Date.now()
+                    } as Packet);
+                }
+                return;
+            }
+            if (forwarded.length > 0) {
+                void Promise.allSettled(forwarded);
+            }
+            if (targetsSelf) {
+                if (uuid) {
+                    if (this.acceptedUUIDs.has(uuid)) { return; }
+                    this.acceptedUUIDs.add(uuid);
+                    setTimeout(() => { this.acceptedUUIDs.delete(uuid); }, 10000);
+                }
                 
                 if (packet?.op == "ask") {
                     const result = await this.handleAsk(packet?.what, payload, packet, this.selfId);
-                    this.populate("resolve", this.encodeAnswer(result, packet));
-                    //this.direct(this.encodeAnswer(result, packet));
+                    this.reply(this.encodeAnswer(result, packet));
                 } else
                 if (packet?.op == "act") { 
                     const result = await this.handleAct(packet?.what, payload, packet, this.selfId);
-                    this.populate("result", this.encodeReport(result, packet));
-                    //this.direct(this.encodeReport(result, packet));
+                    this.reply(this.encodeReport(result, packet));
                 } else
                 if (uuid && ["resolve", "result", "error"].includes(packet?.op)) {
                     if (packet.result) {
@@ -362,19 +602,6 @@ export class SocketWrapper {
         };
 
         //
-        socket.on("data", async (packetRaw: unknown) => { 
-            const packet = normalizeInboundPacket(packetRaw);
-            if (!packet) return;
-            if (packet?.op == "resolve" && packet?.what == "token") {
-                this.token = packet?.result?.token ?? "";
-                this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
-                this.socketId = await identifyNodeIdFromIncomingConnection(socket, packet) as string;
-                internalNodeMap.set(this.socketId, this.socket);
-                this.isConnected = true;
-            }
-        });
-
-        //
         socket.on("disconnect", () => {
             this.isConnected = false;
             this.removeSocket();
@@ -382,9 +609,13 @@ export class SocketWrapper {
 
         //
         socket.on("connect", async () => {
-            this.socketId = await identifyNodeIdFromIncomingConnection(socket, {}) as string;
-            internalNodeMap.set(this.socketId, this.socket);
+            this.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
             this.isConnected = true;
+            traceSocket("transport-connect", {
+                local: this.selfId,
+                peer: this.peerId || this.socketId,
+                origin: this.origin
+            });
         });
 
         //
@@ -403,24 +634,118 @@ export class SocketWrapper {
         //
         socket.on("reconnect", async () => {
             this.isConnected = false;
-            this.socketId = await identifyNodeIdFromIncomingConnection(socket, {}) as string;
-            internalNodeMap.set(this.socketId, this.socket);
+            this.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
             this.isConnected = true;
+            traceSocket("transport-reconnect", {
+                local: this.selfId,
+                peer: this.peerId || this.socketId,
+                origin: this.origin
+            });
         });
 
-        //
-        socket.on("data", (packetRaw: unknown) => {
+
+
+        // TODO! needs unified function
+        const makeHelloMsgHandler = () => {
+            
+        }
+
+        // hello v2
+        socket.on("data", async (packetRaw: unknown) => { 
             const packet = normalizeInboundPacket(packetRaw);
             if (!packet) return;
-            void handlePacket(packet);
+            if (packet?.op == "resolve" && packet?.what == "token") {
+                this.token = packet?.result?.token ?? "";
+                this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
+                this.rememberPeerId(packet?.byId || await identifyNodeIdFromIncomingConnection(socket, packet) as string);
+                this.isConnected = true;
+            }
         });
 
-        //
-        socket.on("message", (packetRaw: unknown) => {
-            const packet = normalizeInboundPacket(packetRaw);
-            if (!packet) return;
-            void handlePacket(packet);
+        // hello v1
+        socket.on("hello", (data: any) => {
+            const hintedId = normalizeNodeId(data?.id || (socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId);
+            if (hintedId) {
+                this.rememberPeerId(data?.byId || hintedId);
+            }
+            traceSocket("hello", {
+                local: this.selfId,
+                peer: this.peerId || this.socketId,
+                hinted: hintedId,
+                byId: data?.byId,
+                from: data?.from,
+                nodes: data?.nodes
+            });
+            socket.emit("hello-ack", {
+                id: hintedId || this.socketId || this.selfId,
+                status: "connected"
+            });
         });
+
+
+        //
+        const makeRequestHandler = (what: string, after: string, doTap: boolean = false) => {
+            return async (ack?: any) => { 
+                try {
+                    const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:get", payload: {} });
+                    const text = await this.handleAct(what, {}, packet, this.selfId);
+                    if (doTap) {
+                        await new Promise((resolve) => setTimeout(resolve, 60));
+                        await this.handleAct("keyboard:tap", packet.payload, packet, this.selfId);
+                    }
+                    const payload = { ok: true, text: typeof text === "string" ? text : String(text || "") };
+                    if (typeof ack === "function") ack(payload);
+                    socket.emit(what, { text: payload.text, source: "local" });
+                } catch (error: any) {
+                    if (typeof ack === "function") {
+                        ack({ ok: false, error: error?.message || String(error) });
+                    }
+                }
+            }
+        }
+
+        //
+        const makePacketHandler = () => { 
+            return (packetRaw: unknown) => {
+                const packet = normalizeInboundPacket(packetRaw);
+                if (!packet) return;
+                if ((!packet.nodes || packet.nodes.length === 0) && ["ask", "act"].includes(packet.op || "")) {
+                    packet.nodes = [resolveLegacyTargetNode(socket, this.selfId)];
+                    packet.byId ||= normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId || (socket as any)?.id) || undefined;
+                    packet.from ||= packet.byId;
+                    packet.timestamp ||= Date.now();
+                }
+                traceSocket("packet-normalized", {
+                    local: this.selfId,
+                    peer: this.peerId || this.socketId,
+                    byId: packet?.byId,
+                    from: packet?.from,
+                    op: packet?.op,
+                    what: packet?.what,
+                    nodes: packet?.nodes
+                });
+                // Keep transport context available to local handlers without
+                // serializing the live socket object back through Socket.IO.
+                Object.defineProperty(packet, "__socket", {
+                    value: socket,
+                    enumerable: false,
+                    configurable: true,
+                    writable: true
+                });
+                void handlePacket(packet);
+            }
+        }
+        
+        //
+        socket.on("clipboard:get", makeRequestHandler("clipboard:get", "clipboard:update"));
+        socket.on("clipboard:copy", makeRequestHandler("clipboard:copy", "clipboard:get", true));
+        socket.on("clipboard:cut", makeRequestHandler("clipboard:cut", "clipboard:update"));
+        socket.on("clipboard:update", makeRequestHandler("clipboard:update", "clipboard:update"));
+        socket.on("clipboard:paste", makeRequestHandler("clipboard:paste", "clipboard:update"));
+
+        //
+        socket.on("data", makePacketHandler());
+        socket.on("message", makePacketHandler());
     }
 }
 
@@ -438,6 +763,10 @@ export const loadFromClientsConfig = (clientsData: Record<string, any>[]) => {
 //
 export const identifyNodeIdFromIncomingConnection = async (socket: SocketConnect | SocketClient, packet?: Packet): Promise<string | null> => { 
     if (packet?.byId) { return packet?.byId as string; }
+    const hintedId = normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId);
+    if (hintedId && getKnownClientConfig(hintedId)) {
+        return hintedId;
+    }
     const gotToken = packet?.token ?? (await socketWrapper.get(socket)?.doAsk?.("token", {}, []));
     const possibleNodeId = [...knownClients?.entries?.()].find(([byId, { origins, tokens }]) => {
         return origins.some((ip)=>ip==(socket as any)?.address) || tokens.some((token)=>token==(packet?.token ?? gotToken));
@@ -447,8 +776,8 @@ export const identifyNodeIdFromIncomingConnection = async (socket: SocketConnect
 }
 
 //
-export const validateSocketNode = (socket: SocketConnect | SocketClient, packet: Packet) => { 
-    const nodeId = identifyNodeIdFromIncomingConnection(socket, packet);
+export const validateSocketNode = async (socket: SocketConnect | SocketClient, packet: Packet) => { 
+    const nodeId = await identifyNodeIdFromIncomingConnection(socket, packet);
     if (nodeId) return nodeId;
     return false;
 }
@@ -459,7 +788,7 @@ export const formalizeOrigin = (origin: string) => {
     if (!trimmed) return "";
     try {
         const parsed = new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`);
-        return `${parsed.protocol}://${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+        return `${parsed.protocol}//${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
     } catch {
         return "";
     }
@@ -468,57 +797,161 @@ export const formalizeOrigin = (origin: string) => {
 //
 export const initiateConnection = async (forId: string, fromId: string): Promise<SocketWrapper | undefined> => { 
     const targetConfig = getKnownClientConfig(forId);
+    if (!targetConfig) {
+        traceSocket("initiate-skip", {
+            from: fromId,
+            target: forId,
+            reason: "missing-target-config"
+        });
+        return undefined;
+    }
     const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
-    for (const origin of origins) {
+    const configuredPorts = Array.from(new Set([
+        ...((Array.isArray(targetConfig?.ports?.https) ? targetConfig.ports.https : []) as Array<string | number>),
+        ...((Array.isArray(targetConfig?.ports?.wss) ? targetConfig.ports.wss : []) as Array<string | number>),
+        8443
+    ].map((value) => String(value || "").trim()).filter(Boolean)));
+    const configuredTokens = Array.isArray(targetConfig?.tokens) ? targetConfig.tokens.map((value) => String(value || "").trim()).filter(Boolean) : [];
+    const token = configuredTokens[0] || SELF_DATA.ASSOCIATED_TOKEN || "";
+    const rejectUnauthorized = String(process.env.CWS_BRIDGE_REJECT_UNAUTHORIZED || "").trim().toLowerCase() !== "false";
+    const candidateOrigins = origins.flatMap((origin) => {
         const normalizedOrigin = formalizeOrigin(origin);
-        if (!normalizedOrigin) continue;
-        const rawSocket = io(normalizedOrigin);
-        const promised: Promise<SocketWrapper | undefined> = Promise.try(() => {
-            return new Promise<SocketWrapper>((resolve, reject) => {
-                rawSocket.on("error", reject);
-                rawSocket.on("connect", () => {
-                    if (validateSocketNode(rawSocket, { byId: fromId, token: targetConfig?.token || "", timestamp: Date.now() })) {
-                        resolve(new SocketWrapper(rawSocket, fromId, targetConfig?.token || ""));
-                    } else {
-                        reject(new Error("Invalid socket node", { cause: { byId: fromId, token: targetConfig?.token || "", timestamp: Date.now() } }));
-                    }
+        if (!normalizedOrigin) {
+            return [];
+        }
+        try {
+            const parsed = new URL(normalizedOrigin);
+            if (parsed.port) {
+                return [normalizedOrigin];
+            }
+            return configuredPorts.map((port) => `${parsed.protocol}//${parsed.hostname}:${port}`);
+        } catch {
+            return [];
+        }
+    });
+    traceSocket("initiate-start", {
+        from: fromId,
+        target: forId,
+        origins,
+        candidateOrigins,
+        rejectUnauthorized
+    });
+    for (const normalizedOrigin of candidateOrigins) {
+        const rawSocket = io(normalizedOrigin, {
+            auth: {
+                token,
+                airpadToken: token,
+                clientId: fromId
+            },
+            query: {
+                token,
+                airpadToken: token,
+                clientId: fromId,
+                __airpad_src: fromId,
+                __airpad_client: fromId
+            },
+            transports: ["websocket"],
+            upgrade: false,
+            reconnection: false,
+            timeout: 10000,
+            rejectUnauthorized
+        });
+        const connectedSocket = await new Promise<SocketWrapper | undefined>((resolve) => {
+            let settled = false;
+            const finish = (value?: SocketWrapper) => {
+                if (settled) return;
+                settled = true;
+                rawSocket.off("connect", onConnect);
+                rawSocket.off("connect_error", onError);
+                rawSocket.off("error", onError);
+                clearTimeout(timeoutId);
+                resolve(value);
+            };
+            const onConnect = () => {
+                traceSocket("initiate-connect", {
+                    from: fromId,
+                    target: forId,
+                    origin: normalizedOrigin,
+                    socketId: (rawSocket as any)?.id
                 });
-                rawSocket.on("resolve", (packet) => {
-                    if (packet?.op == "ask" && packet?.what == "token" && validateSocketNode(rawSocket, packet)) {
-                        resolve(new SocketWrapper(rawSocket, fromId, packet?.result?.token || ""));
-                    } else {
-                        reject(new Error("Invalid socket node", { cause: { byId: fromId, token: targetConfig?.token || "", timestamp: Date.now() } }));
-                    }
+                finish(new SocketWrapper(rawSocket, fromId, token));
+            };
+            const onError = (error?: unknown) => {
+                traceSocket("initiate-error", {
+                    from: fromId,
+                    target: forId,
+                    origin: normalizedOrigin,
+                    reason: error instanceof Error ? error.message : String(error || "")
                 });
-                rawSocket?.emit?.("data", { op: "ask", what: "token", payload: {}, byId: fromId, timestamp: Date.now() });
-            })
-        })?.catch?.(console.error.bind(console));
-
-        //
-        const isSocket = await promised;
-        if (isSocket instanceof SocketWrapper) {
-            return isSocket;
+                rawSocket.close();
+                finish(undefined);
+            };
+            const timeoutId = setTimeout(() => {
+                traceSocket("initiate-timeout", {
+                    from: fromId,
+                    target: forId,
+                    origin: normalizedOrigin
+                });
+                rawSocket.close();
+                finish(undefined);
+            }, 10000);
+            rawSocket.on("connect", onConnect);
+            rawSocket.on("connect_error", onError);
+            rawSocket.on("error", onError);
+        });
+        if (connectedSocket instanceof SocketWrapper) {
+            return connectedSocket;
         }
     }
+    traceSocket("initiate-failed", {
+        from: fromId,
+        target: forId
+    });
     return undefined;
 }
 
 //
 export const findOrInitiateConnection = (id: string, selfId: string): SocketWrapper | Promise<SocketWrapper | undefined> | undefined => {
     const cached = getCachedNodeConnection(id);
-    if (cached) return cached;
+    if (cached) {
+        traceSocket("find-cache-hit", {
+            from: selfId,
+            target: id,
+            cachedType: cached instanceof SocketWrapper ? "socket" : "promise"
+        });
+        return cached;
+    }
+    traceSocket("find-cache-miss", {
+        from: selfId,
+        target: id
+    });
 
     const initiated: Promise<SocketWrapper | undefined> = initiateConnection(id, selfId)
         .then((socket) => {
             if (socket) {
+                traceSocket("find-cache-store", {
+                    from: selfId,
+                    target: id,
+                    socketId: socket.socketId,
+                    peer: socket.peerId
+                });
                 cacheNodeConnection(id, socket);
                 cacheNodeConnection(socket.socketId, socket);
             } else {
+                traceSocket("find-empty", {
+                    from: selfId,
+                    target: id
+                });
                 deleteCachedNodeConnection(id);
             }
             return socket;
         })
         ?.catch?.((error) => {
+            traceSocket("find-error", {
+                from: selfId,
+                target: id,
+                reason: error instanceof Error ? error.message : String(error || "")
+            });
             deleteCachedNodeConnection(id);
             throw error;
         });
@@ -543,8 +976,14 @@ export class SocketServer {
         server.on("connection", async (socket) => {
             try {
                 const socketWrapper = new SocketWrapper(socket, selfId, token) as SocketWrapper;
+                socketWrapper.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
                 await socketWrapper?.hello?.(true) ?? null;
-                console.log(`[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
+                traceSocket("server-connection", {
+                    local: socketWrapper?.selfId,
+                    peer: socketWrapper?.peerId || socketWrapper?.socketId,
+                    origin: socketWrapper?.origin
+                });
+                console.log(`[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.peerId || socketWrapper?.socketId || socketWrapper?.origin}`);
                 return socketWrapper;
             } catch (err) {
                 console.error(err);
@@ -555,8 +994,14 @@ export class SocketServer {
         server.on("reconnect", async (socket) => {
             try {
                 const socketWrapper = new SocketWrapper(socket, selfId, token) as SocketWrapper;
+                socketWrapper.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
                 await socketWrapper?.hello?.() ?? null;
-                console.log(`[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.origin}`);
+                traceSocket("server-reconnect", {
+                    local: socketWrapper?.selfId,
+                    peer: socketWrapper?.peerId || socketWrapper?.socketId,
+                    origin: socketWrapper?.origin
+                });
+                console.log(`[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.peerId || socketWrapper?.socketId || socketWrapper?.origin}`);
                 return socketWrapper;
             } catch (err) {
                 console.error(err);
@@ -566,7 +1011,8 @@ export class SocketServer {
 
     //
     public act(what: string, payload: any, nodes: string[]) { 
-        return populateToOthers("act", {
+        return populateToOthers("data", {
+            op: "act",
             what, payload,
             byId: this.selfId,
             timestamp: Date.now()
@@ -575,7 +1021,8 @@ export class SocketServer {
 
     //
     public ask(what: string, payload: any, nodes: string[]) { 
-        return populateToOthers("ask", {
+        return populateToOthers("data", {
+            op: "ask",
             what, payload,
             byId: this.selfId,
             timestamp: Date.now()
@@ -584,22 +1031,22 @@ export class SocketServer {
 
     //
     public hello(nodes: string[] = ["*"]) { 
-        return populateToOthers("ask", {
+        return populateToOthers("data", {
+            op: "ask",
             what: "token",
             payload: {},
-            byId: this.selfId,
-            timestamp: Date.now()
-        } as Packet, uniqueNodeIds(excludeSelf([...nodes, this.selfId], this.selfId)), this.selfId);
+            byId: this.selfId, timestamp: Date.now()
+        } as Packet, uniqueNodeIds(excludeSelf([...nodes, this.selfId], this.selfId)), this.selfId, "ask");
     }
 
     //
     public populate(packet: Packet = {}, nodes: string[] = ["*"]) { 
-        return populateToOthers(packet?.op || "ask", packet, uniqueNodeIds(excludeSelf([...nodes, this.selfId], this.selfId)), this.selfId);
+        return populateToOthers("data", packet, uniqueNodeIds(excludeSelf([...nodes, this.selfId], this.selfId)), this.selfId, packet?.op || "ask");
     }
 
     //
     public emit(op: "ask" | "act" | "resolve" | "result" | "error", packet: Packet, nodes: string[] = ["*"]) { 
-        return populateToOthers(op || "ask", packet, uniqueNodeIds(excludeSelf([...nodes, this.selfId], this.selfId)), this.selfId);
+        return populateToOthers("data", { op: op, ...packet }, uniqueNodeIds(excludeSelf([...nodes, this.selfId], this.selfId)), this.selfId, op);
     }
 
     //

@@ -1,10 +1,10 @@
-import { Promised } from "@utils/Promised.ts";
+import type { NativeInputDriver, ToggleState } from "@inputs/drivers/types.ts";
 
 //
 export class KeyboardAccess {
-    private driver: Promise<any>;
+    private driver: Promise<NativeInputDriver>;
     constructor() {
-        this.driver = Promised(Promised(import("@inputs/drivers/ahk.ts"))?.default);
+        this.driver = import("@inputs/drivers/ahk.ts").then((module) => module.default);
     }
 
     async isReady() {
@@ -15,7 +15,7 @@ export class KeyboardAccess {
         return await (await this.driver)?.keyTap?.(key, modifier);
     }
 
-    async toggle(key: string, state: string) { 
+    async toggle(key: string, state: ToggleState) { 
         return await (await this.driver)?.keyToggle?.(key, state);
     }
 

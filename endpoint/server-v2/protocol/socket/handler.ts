@@ -5,9 +5,11 @@ import {
 } from "../../utils/endpoint-policy.ts";
 import { parseBinaryEnvelope } from "../../utils/binary.ts";
 import type { Packet } from "./types.ts";
+import { inferWhatFromLegacyType } from "./packet.ts";
 import { handleAirpadAction, handleAirpadAsk } from "./handlers/airpad.ts";
 import { handleClipboardAction, handleClipboardAsk } from "./handlers/clipboard.ts";
 import { SELF_DATA } from "./coordinator.ts";
+
 
 type TransportSender = (payload: Record<string, unknown>) => unknown | Promise<unknown>;
 
@@ -147,24 +149,34 @@ export const createSocketProtocolHandler = (options: CreateSocketProtocolHandler
 };
 
 //
-export const handleAct = (what: string, payload: any, packet: Packet, selfId: string) => {
-    const airpadResult = handleAirpadAction(what, payload, packet);
-    if (airpadResult) return airpadResult;
-    const clipboardResult = handleClipboardAction(what, payload, packet);
-    if (clipboardResult) return clipboardResult;
-    return packet;
+export const handleAct = async (what: string, payload: any, packet: Packet, selfId: string) => {
+    const airpadResult = await handleAirpadAction(what, payload, packet);
+    if (airpadResult !== null) return airpadResult;
+    const clipboardResult = await handleClipboardAction(what, payload, packet);
+    if (clipboardResult !== null) return clipboardResult;
+    return {
+        ok: false,
+        handled: false,
+        reason: "unhandled-act",
+        what
+    };
 }
 
 //
-export const handleAsk = (what: string, payload: any, packet: Packet, selfId: string) => {
-    const airpadResult = handleAirpadAsk(what, payload, packet);
-    if (airpadResult) return airpadResult;
-    const clipboardResult = handleClipboardAsk(what, payload, packet);
-    if (clipboardResult) return clipboardResult;
+export const handleAsk = async (what: string, payload: any, packet: Packet, selfId: string) => {
+    const airpadResult = await handleAirpadAsk(what, payload, packet);
+    if (airpadResult !== null) return airpadResult;
+    const clipboardResult = await handleClipboardAsk(what, payload, packet);
+    if (clipboardResult !== null) return clipboardResult;
     if (what == "token") {
         return Promise.resolve(getAssociatedToken(selfId));
     }
-    return packet;
+    return {
+        ok: false,
+        handled: false,
+        reason: "unhandled-ask",
+        what
+    };
 }
 
 const getAssociatedToken = async (selfId: string) => {

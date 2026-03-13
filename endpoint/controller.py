@@ -3,7 +3,11 @@ import json
 import os
 import sys
 
-from dotenv import load_dotenv
+try:
+  from dotenv import load_dotenv
+except ImportError:
+  def load_dotenv():
+    return False
 
 try:
   from windows_use.llms.openai import ChatOpenAI

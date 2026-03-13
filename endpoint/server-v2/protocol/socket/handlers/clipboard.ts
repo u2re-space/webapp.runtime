@@ -11,9 +11,9 @@ export const handleClipboardAction = async (what: string, payload: any, packet: 
     if (!clipboardAccess) return null;
     switch (what) {
         case "clipboard:update":
+        case "clipboard:write":
             return clipboardAccess?.write?.(payload.text);
         case "clipboard:read":
-            return clipboardAccess?.read?.();
         case "clipboard:get":
             return clipboardAccess?.read?.();
         case "clipboard:clear":

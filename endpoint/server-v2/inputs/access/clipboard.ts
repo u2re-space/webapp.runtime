@@ -1,11 +1,9 @@
-import { Promised } from "@utils/Promised.ts";
-
 //
 export class ClipboardAccess {
     private driver: Promise<any>;
     private app: any;
     constructor() {
-        this.driver = Promised(Promised(import("@inputs/drivers/clipboardy.ts"))?.default);
+        this.driver = import("@inputs/drivers/clipboardy.ts").then((module) => module.default);
     }
 
     attachApp(app: any) {

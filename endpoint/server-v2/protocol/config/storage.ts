@@ -53,9 +53,13 @@ const PORTABLE_CONFIG = resolvePortableConfig();
 const resolvePortableModuleRecord = (key: string): Record<string, unknown> => {
     const modules = asRecord(PORTABLE_CONFIG.portableModules);
     const moduleRef = modules[key];
-    if (typeof moduleRef !== "string") return {};
-    const resolved = resolvePortablePayload(moduleRef, loadReport.configDir || process.cwd());
-    const record = asRecord(resolved);
+    let record: Record<string, unknown> = {};
+    if (typeof moduleRef === "string") {
+        const resolved = resolvePortablePayload(moduleRef, loadReport.configDir || process.cwd());
+        record = asRecord(resolved);
+    } else {
+        record = asRecord(moduleRef);
+    }
     if (Object.keys(record).length) loadReport.portableModules.push(key);
     return record;
 };
@@ -154,6 +158,8 @@ const resolveNetworkAliases = (): Record<string, unknown> => {
 const resolveEndpointIds = (): Record<string, unknown> => {
     const explicit = asRecord(PORTABLE_ENDPOINT.endpointIDs || PORTABLE_CORE.endpointIDs);
     if (Object.keys(explicit).length) return explicit;
+    const fromEndpointIdsModule = resolvePortableModuleRecord("endpointIDs");
+    if (Object.keys(fromEndpointIdsModule).length) return fromEndpointIdsModule;
     return asRecord(PORTABLE_CLIENTS);
 };
 

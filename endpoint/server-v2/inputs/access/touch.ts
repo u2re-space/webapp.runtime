@@ -1,4 +1,5 @@
 import { Promised } from "@utils/Promised.ts";
+import type { PointerButton } from "@inputs/drivers/types.ts";
 
 // сомнительно что AHK это умеет
 // у robot такого нету
@@ -21,15 +22,15 @@ export class TouchAccess {
     }
 
     async scroll(delta: number) {
-        return await (await this.driver)?.scrollMouse?.(delta);
+        return await (await this.driver)?.scrollMouse?.(0, delta);
     }
     
-    async down(button?: string) {
-        return await (await this.driver)?.downMouse?.(button);
+    async down(button?: PointerButton) {
+        return await (await this.driver)?.mouseToggle?.("down", button);
     }
 
-    async up(button?: string) {
-        return await (await this.driver)?.upMouse?.(button);
+    async up(button?: PointerButton) {
+        return await (await this.driver)?.mouseToggle?.("up", button);
     }
 
     async tap(button?: string) {

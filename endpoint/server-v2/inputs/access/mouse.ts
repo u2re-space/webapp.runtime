@@ -1,10 +1,10 @@
-import { Promised } from "@utils/Promised.ts";
+import type { NativeInputDriver, PointerButton } from "@inputs/drivers/types.ts";
 
 //
 export class MouseAccess {
-    private driver: Promise<any>;
+    private driver: Promise<NativeInputDriver>;
     constructor() {
-        this.driver = Promised(Promised(import("@inputs/drivers/ahk.ts"))?.default);
+        this.driver = import("@inputs/drivers/ahk.ts").then((module) => module.default);
     }
 
     async isReady() {
@@ -15,20 +15,20 @@ export class MouseAccess {
         return await (await this.driver)?.moveMouse?.(x, y);
     }
 
-    async click(button?: string, double?: boolean) {
+    async click(button?: PointerButton, double?: boolean) {
         return await (await this.driver)?.mouseClick?.(button, double);
     }
 
-    async scroll(delta: number) {
-        return await (await this.driver)?.scrollMouse?.(delta);
+    async scroll(dx: number, dy: number = 0) {
+        return await (await this.driver)?.scrollMouse?.(dx, dy);
     }
 
-    async down(button?: string) {
-        return await (await this.driver)?.downMouse?.(button);
+    async down(button?: PointerButton) {
+        return await (await this.driver)?.mouseToggle?.("down", button);
     }
 
-    async up(button?: string) {
-        return await (await this.driver)?.upMouse?.(button);
+    async up(button?: PointerButton) {
+        return await (await this.driver)?.mouseToggle?.("up", button);
     }
 }
 
