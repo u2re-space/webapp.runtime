@@ -66,6 +66,7 @@ const explicitDataArg = resolveValue(extractDataArg());
 if (explicitDataArg) {
     envFromFile.CWS_PORTABLE_DATA_PATH = path.isAbsolute(explicitDataArg) ? explicitDataArg : path.resolve(process.cwd(), explicitDataArg);
 }
+const portableDataPath = resolveValue(envFromFile.CWS_PORTABLE_DATA_PATH) || path.resolve(__dirname, ".data");
 
 const normalizeEnvValue = (value) => {
     if (Array.isArray(value)) return value.join(",");
@@ -82,7 +83,7 @@ module.exports = {
             cwd: __dirname,
             // Use Node.js absolute binary directly to prevent npm/cmd invocation drift.
             script: NODE_BIN,
-            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/index.ts", "--config", "./portable.config.json", "--data", "./.data"],
+            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/index.ts", "--config", portableConfigPath || "./portable.config.json", "--data", portableDataPath],
             interpreter: "none",
             exec_mode: "fork",
             instances: 1,
@@ -102,8 +103,8 @@ module.exports = {
                 NODE_ENV: "production",
                 CWS_TUNNEL_DEBUG: true,
                 CWS_AIRPAD_VERBOSE: 1,
-                CWS_PORTABLE_CONFIG_PATH: path.resolve(__dirname, "portable.config.json"),
-                CWS_PORTABLE_DATA_PATH: path.resolve(__dirname, ".data"),
+                CWS_PORTABLE_CONFIG_PATH: portableConfigPath || path.resolve(__dirname, "portable.config.json"),
+                CWS_PORTABLE_DATA_PATH: portableDataPath,
                 CWS_ASSOCIATED_TOKEN: "n3v3rm1nd",
                 CWS_AIRPAD_NATIVE_ACTIONS: "true",
                 CWS_AIRPAD_ROBOTJS_ENABLED: "true",
@@ -120,7 +121,7 @@ module.exports = {
             name: "cws-vds-fake-client",
             cwd: __dirname,
             script: NODE_BIN,
-            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/client/vds-fake-client.ts", "--config", "./portable.config.json"],
+            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/client/vds-fake-client.ts", "--config", portableConfigPath || "./portable.config.json"],
             interpreter: "none",
             exec_mode: "fork",
             instances: 1,

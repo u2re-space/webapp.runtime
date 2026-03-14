@@ -187,6 +187,7 @@ const main = async () => {
     });
 
     let clipboardState = options.clipboardText;
+    const initialClipboardText = options.clipboardText;
     let sentInitialClipboard = false;
     let idleTimer: NodeJS.Timeout | null = null;
 
@@ -214,10 +215,10 @@ const main = async () => {
     };
 
     const maybeSendInitialClipboard = async () => {
-        if (sentInitialClipboard || !clipboardState || !options.targetIds.length) return;
+        if (sentInitialClipboard || !initialClipboardText || !options.targetIds.length) return;
         sentInitialClipboard = true;
         await wait(250);
-        sendPacket(buildClipboardPacket(identity, clipboardState, options.targetIds));
+        sendPacket(buildClipboardPacket(identity, initialClipboardText, options.targetIds));
         resetIdleTimer();
     };
 
