@@ -9,12 +9,20 @@
         "endpoint": "fs:./config/portable-endpoint.json"
     },
     "build": {
-        "copyMode": "none",
+        "copyMode": "remote",
         "outputDir": "",
-        "skipOutputCopy": true,
+        "skipOutputCopy": false,
         "nodeModulesMode": "none",
         "includeNodeModules": false,
         "archiveRetentionCount": 1,
+        "preserveTargets": ["node_modules", ".data", ".endpoint.config.json", ".config.endpoint.json", "portable.config.json"]
+    },
+    "remote": {
+        "host": "45.150.9.153",
+        "hosts": ["45.150.9.153"],
+        "user": "root",
+        "port": 22,
+        "path": "/root/endpoint-portable",
         "preserveTargets": ["node_modules", ".data", ".endpoint.config.json", ".config.endpoint.json", "portable.config.json"]
     },
     "launcherEnv": {
@@ -26,15 +34,17 @@
         "CWS_PORTABLE_CONFIG_PATH": "./portable.config.json",
         "CWS_PORTABLE_DATA_PATH": "./.data",
         "CWS_ASSOCIATED_ID": "L-45.150.9.153",
-        "CWS_ASSOCIATED_TOKEN": "n3v3rm1nd",
+        "CWS_ASSOCIATED_TOKEN": "VDS-client",
         "CWS_BRIDGE_USER_ID": "L-45.150.9.153",
-        "CWS_BRIDGE_USER_KEY": "n3v3rm1nd",
+        "CWS_BRIDGE_USER_KEY": "VDS-client",
         "CWS_BRIDGE_DEVICE_ID": "L-45.150.9.153",
         "CWS_BRIDGE_ENABLED": true,
         "CWS_BRIDGE_MODE": "active",
         "CWS_BRIDGE_CONNECTION_TYPE": "exchanger-initiator",
         "CWS_BRIDGE_ENDPOINT_URL": "https://45.147.121.152:8443/",
-        "CWS_BRIDGE_ENDPOINTS": ["https://45.147.121.152:8443/"],
+        "CWS_BRIDGE_ENDPOINTS": ["https://45.147.121.152:8443/", "https://192.168.0.200:8443/"],
+        "CWS_BRIDGE_RECONNECT_MS": 3000,
+        "CWS_BRIDGE_PRECONNECT_TARGETS": ["L-192.168.0.200"],
         "CWS_ROLES": ["responser-initiated", "requestor-initiated", "responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
         "CWS_BRIDGE_REJECT_UNAUTHORIZED": "false",
         "CWS_HTTPS_ENABLED": true,
@@ -42,6 +52,8 @@
         "CWS_HTTPS_CERT": "fs:./https/local/multi.crt",
         "CWS_HTTPS_CA": "fs:./https/local/rootCA.crt",
         "CWS_AIRPAD_NATIVE_ACTIONS": "false",
-        "CWS_AIRPAD_ROBOTJS_ENABLED": "false"
+        "CWS_AIRPAD_ROBOTJS_ENABLED": "false",
+        "CWS_FAKE_CLIENT_TARGETS": ["L-192.168.0.110"],
+        "CWS_FAKE_CLIENT_LOG_JSON": "true"
     }
 }

@@ -1,12 +1,89 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { verifyUser } from "@protocol/http/routers/auth/users.ts";
 import type { ClipboardAccess } from "@inputs/access/clipboard.ts";
 import type { ServerV2SocketRuntime } from "@protocol/socket/runtime.ts";
+import {
+    buildClipboardBroadcastPayload,
+    normalizeClipboardText
+} from "../../../../server/routing/routes.ts";
+import {
+    setBroadcasting as setLegacyClipboardBroadcasting,
+    writeClipboard as writeLegacyClipboard
+} from "../../../../server/io/clipboard.ts";
+import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../../../utils/endpoint-policy.ts";
 
 const TRANSPORT_HANDLERS_KEY = Symbol.for("cws.serverV2.transportHandlers");
+const RAW_CLIENTS_CONFIG_PATH = path.resolve(process.cwd(), "config/clients.json");
 
 const normalizeString = (value: unknown): string => String(value || "").trim();
+const normalizeToken = (value: unknown): string => String(value || "").trim().toLowerCase();
+
+const loadEndpointPolicies = () => {
+    try {
+        const raw = JSON.parse(readFileSync(RAW_CLIENTS_CONFIG_PATH, "utf8")) as Record<string, unknown>;
+        return normalizeEndpointPolicies(raw);
+    } catch {
+        return normalizeEndpointPolicies({});
+    }
+};
+
+const endpointPolicies = loadEndpointPolicies();
+
+const resolvePolicyTokens = (tokens: unknown[]): string[] => {
+    const out = new Set<string>();
+    for (const entry of tokens) {
+        const raw = String(entry || "").trim();
+        if (!raw) continue;
+        if (raw === "*") {
+            out.add("*");
+            continue;
+        }
+        if (raw.startsWith("inline:")) {
+            out.add(normalizeToken(raw.slice("inline:".length)));
+            continue;
+        }
+        if (raw.startsWith("token:")) {
+            out.add(normalizeToken(raw.slice("token:".length)));
+            continue;
+        }
+        if (raw.startsWith("env:")) {
+            const envValue = normalizeToken(process.env[raw.slice("env:".length).trim()]);
+            if (envValue) out.add(envValue);
+            continue;
+        }
+        out.add(normalizeToken(raw));
+    }
+    return Array.from(out).filter(Boolean);
+};
+
+const verifyEndpointPolicyUser = (userId: string, userKey: string) => {
+    const normalizedUserId = normalizeString(userId);
+    const normalizedUserKey = normalizeToken(userKey);
+    if (!normalizedUserId || !normalizedUserKey) return null;
+
+    const policy = resolveEndpointIdPolicyStrict(endpointPolicies, normalizedUserId);
+    const policyTokens = resolvePolicyTokens(Array.isArray(policy?.tokens) ? policy.tokens : []);
+    const runtimeTokens = [
+        process.env.CWS_ASSOCIATED_TOKEN,
+        process.env.CWS_BRIDGE_USER_KEY,
+        process.env.CWS_UPSTREAM_USER_KEY
+    ]
+        .map((value) => normalizeToken(value))
+        .filter(Boolean);
+    const acceptedTokens = new Set([...policyTokens, ...runtimeTokens]);
+    if (!acceptedTokens.size) return null;
+    if (!acceptedTokens.has("*") && !acceptedTokens.has(normalizedUserKey)) return null;
+
+    return {
+        userId: normalizedUserId,
+        userKeyHash: "endpoint-policy",
+        encrypt: false,
+        createdAt: 0
+    };
+};
 
 const normalizeTargets = (body: Record<string, unknown>): string[] => {
     const targets = new Set<string>();
@@ -34,7 +111,11 @@ const verifyRequestUser = async (body: Record<string, unknown>) => {
     const userKey = normalizeString(body.userKey);
     if (!userId || !userKey) return { ok: false as const, error: "Missing credentials" };
     const record = await verifyUser(userId, userKey);
-    if (!record) return { ok: false as const, error: "Invalid credentials" };
+    if (!record) {
+        const endpointRecord = verifyEndpointPolicyUser(userId, userKey);
+        if (!endpointRecord) return { ok: false as const, error: "Invalid credentials" };
+        return { ok: true as const, userId, userKey, record: endpointRecord };
+    }
     return { ok: true as const, userId, userKey, record };
 };
 
@@ -77,9 +158,27 @@ export const registerTransportHttpHandlers = async (
 
     app.post("/clipboard", async (request: FastifyRequest<{ Body: Record<string, unknown> }>, reply) => {
         const body = asRecord(request.body);
-        const text = normalizeString(body.text ?? body.data ?? body.payload);
+        const text = normalizeClipboardText(body);
         if (!text) {
             return reply.code(400).send({ ok: false, error: "No text provided" });
+        }
+
+        const relayPayload = buildClipboardBroadcastPayload(app, body, text, request);
+        if (relayPayload) {
+            const relayResponse = await app.inject({
+                method: "POST",
+                url: "/core/ops/http/dispatch",
+                headers: {
+                    "content-type": "application/json"
+                },
+                payload: relayPayload
+            });
+            const relayBody = String((relayResponse as any)?.body || "").trim();
+            try {
+                return reply.code(relayResponse.statusCode || 200).send(relayBody ? JSON.parse(relayBody) : {});
+            } catch {
+                return reply.code(relayResponse.statusCode || 200).send(relayBody || "");
+            }
         }
 
         const targets = normalizeTargets(body);
@@ -89,10 +188,16 @@ export const registerTransportHttpHandlers = async (
         }
 
         try {
-            await clipboard.write(text);
+            setLegacyClipboardBroadcasting(true);
+            const written = await writeLegacyClipboard(text);
+            if (!written) {
+                return reply.code(204).send({ ok: false, error: "Clipboard unavailable" });
+            }
             return { ok: true, mode: "local-write" };
         } catch (error) {
             return reply.code(500).send({ ok: false, error: String(error) });
+        } finally {
+            setLegacyClipboardBroadcasting(false);
         }
     });
 

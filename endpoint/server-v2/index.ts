@@ -4,12 +4,14 @@ import fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
 
+import { setApp as setLegacyClipboardApp, startClipboardPolling } from "../server/io/clipboard.ts";
 import { isMainModule, moduleDirname } from "./utils/runtime.ts";
 import { applyServerV2Bootstrap, type ServerV2BootstrapOptions } from "./config/bootstrap.ts";
 import { createServerV2Engine } from "./config/engine.ts";
 import { createServerV2Http } from "./protocol/http/index.ts";
 import { createClipboardAccess } from "./inputs/access/clipboard.ts";
 import { createSocketProtocolHandler } from "./protocol/socket/handler.ts";
+import { resolveServerV2WireIdentity } from "./protocol/socket/client-contract.ts";
 import { ServerV2SocketRuntime } from "./protocol/socket/runtime.ts";
 import { loadHttpsOptions } from "./utils/certificate.ts";
 
@@ -45,11 +47,16 @@ const logProfile = (
 
 const buildRuntimeContext = (engine: ReturnType<typeof createServerV2Engine>, clipboard: ReturnType<typeof createClipboardAccess>) => {
     const bridge = (engine.config?.bridge || {}) as Record<string, unknown>;
-    const selfId =
-        String(bridge.deviceId || bridge.userId || process.env.CWS_ASSOCIATED_ID || "server-v2").trim() || "server-v2";
-    const token = String(bridge.userKey || process.env.CWS_ASSOCIATED_TOKEN || "").trim();
+    const identity = resolveServerV2WireIdentity({
+        endpointUrl: String(bridge.endpointUrl || "").trim(),
+        userId: String(bridge.userId || process.env.CWS_ASSOCIATED_ID || "").trim(),
+        deviceId: String(bridge.deviceId || process.env.CWS_ASSOCIATED_ID || "").trim(),
+        token: String(bridge.userKey || process.env.CWS_ASSOCIATED_TOKEN || "").trim()
+    });
+    const selfId = identity.userId || identity.deviceId || "server-v2";
+    const token = identity.token;
     const clientSeed = ((engine.config?.endpointIDs || {}) as Record<string, any>) || {};
-    const sockets = new ServerV2SocketRuntime(selfId, token, clientSeed);
+    const sockets = new ServerV2SocketRuntime(selfId, token, clientSeed, bridge);
     const context: RuntimeContext = {
         clipboard,
         selfId,
@@ -107,10 +114,14 @@ export const createServerV2Runtime = async (options: ServerV2StartOptions = {}) 
         await app.register(formbody);
 
         clipboard.attachApp(app);
+        // Reuse the existing clipboard producer so local OS clipboard changes
+        // become policy-aware /clipboard dispatches in server-v2 as well.
+        setLegacyClipboardApp(app);
         runtimeContext.sockets.attach(app.server as any);
         await http.register(app, {
             wsHub: runtimeContext
         });
+        startClipboardPolling();
 
         primaryApp = app;
         return {

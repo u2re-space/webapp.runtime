@@ -328,7 +328,7 @@ async function broadcastClipboard(text: string) {
                 method: "POST",
                 url: "/clipboard",
                 headers: injectHeaders,
-                payload: relayBody
+                payload: JSON.stringify(relayBody)
             });
             const relayStatus = Number((relayResponse as any)?.statusCode || 0);
             if (relayStatus >= 200 && relayStatus < 300) {

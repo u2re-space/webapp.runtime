@@ -12,6 +12,7 @@
         "start:with-env": "npm run start:v2:with-env",
         "start:v2:with-env": "pm2 stop cws && tsx server-v2/index.ts --config ./portable.config.json --data ./.data",
         "start:pm2": "pm2 start ecosystem.config.cjs --only cws --update-env && pm2 logs cws",
+        "start:pm2:vds-fake-client": "pm2 start ecosystem.config.cjs --only cws-vds-fake-client --update-env && pm2 logs cws-vds-fake-client",
         "stop:pm2": "pm2 stop cws && pm2 delete cws || true",
         "reload:pm2": "pm2 reload cws --update-env || pm2 restart cws --update-env || npm run start:pm2",
         "start": "npm run start:pm2",
@@ -21,6 +22,8 @@
         "start:with-env:watch": "npm run start:v2:watch",
         "start:watch": "npm run start:v2:watch",
         "start:v2:watch": "tsx watch server-v2/index.ts --config ./portable.config.json --data ./.data",
+        "start:v2:fake-client": "tsx server-v2/client/vds-fake-client.ts --config ./portable.config.vds.json",
+        "start:v2:fake-client:once": "tsx server-v2/client/vds-fake-client.ts --config ./portable.config.vds.json --once=true",
         "start:legacy:fastify": "cross-env CWS_ASSOCIATED_TOKEN=n3v3rm1nd CWS_AIRPAD_NATIVE_ACTIONS=true CWS_AIRPAD_ROBOTJS_ENABLED=true CWS_BRIDGE_REJECT_UNAUTHORIZED=false CWS_HTTPS_ENABLED=true CWS_HTTPS_KEY=./https/local/multi.key CWS_HTTPS_CERT=./https/local/multi.crt CWS_HTTPS_CA=./https/local/rootCA.crt CWS_CLIPBOARD_LOGGING=false CWS_PORTABLE_CONFIG_PATH=./portable.config.json CWS_PORTABLE_DATA_PATH=./.data tsx server/fastify-server.ts",
         "start:fastify": "npm run start:v2:with-env",
         "start:legacy:fastify:watch": "cross-env CWS_ASSOCIATED_TOKEN=n3v3rm1nd CWS_AIRPAD_NATIVE_ACTIONS=true CWS_AIRPAD_ROBOTJS_ENABLED=true CWS_BRIDGE_REJECT_UNAUTHORIZED=false CWS_HTTPS_ENABLED=true CWS_HTTPS_KEY=./https/local/multi.key CWS_HTTPS_CERT=./https/local/multi.crt CWS_HTTPS_CA=./https/local/rootCA.crt CWS_CLIPBOARD_LOGGING=false CWS_PORTABLE_CONFIG_PATH=./portable.config.json CWS_PORTABLE_DATA_PATH=./.data tsx watch server/fastify-server.ts",
@@ -34,6 +37,7 @@
         "pack:portable:fast": "PORTABLE_NODE_MODULES_MODE=copy node ./scripts/pack-portable.mjs",
         "pack:portable:remote": "PORTABLE_COPY_MODE=remote PORTABLE_NODE_MODULES_MODE=none node ./scripts/pack-portable.mjs",
         "pack:portable:to-110": "PORTABLE_CONFIG_PATH=./portable.config.110.json node ./scripts/pack-portable.mjs",
+        "pack:portable:to-vds": "PORTABLE_CONFIG_PATH=./portable.config.vds.json node ./scripts/pack-portable.mjs",
         "deno:start": "deno run --allow-net --allow-env --allow-read --allow-write --allow-ffi --unstable server/fastify-server.ts",
         "deno:dev": "deno run --allow-net --allow-env --allow-read --allow-write --allow-ffi --unstable --watch server/fastify-server.ts",
         "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -73,7 +77,8 @@
         "fastify": ">=5.7.4",
         "iconv-lite": ">=0.7.0",
         "jsox": ">=1.2.124",
-        "socket.io": ">=4.8.1"
+        "socket.io": ">=4.8.1",
+        "socket.io-client": "^4.8.3"
     },
     "optionalDependencies": {
         "clipboardy": ">=5.0.1",
@@ -82,7 +87,6 @@
     "devDependencies": {
         "@types/node": ">=22.10.2",
         "cross-env": "^10.1.0",
-        "socket.io-client": "^4.8.3",
         "tsx": ">=4.21.0",
         "typescript": ">=6.0.0-beta"
     },

@@ -110,14 +110,28 @@ const resolveRoles = (): string[] => {
 const resolveBridgeConfig = () => {
     const portableBridge = asRecord(PORTABLE_ENDPOINT.bridge);
     const coreBridge = asRecord(PORTABLE_CORE.bridge);
+    const networkBridge = asRecord(PORTABLE_NETWORK.bridge);
     const endpoints = [
         ...(pickEnvListLegacy("CWS_BRIDGE_ENDPOINTS") || []),
         ...splitList(portableBridge.endpoints),
-        ...splitList(coreBridge.endpoints)
+        ...splitList(coreBridge.endpoints),
+        ...splitList(networkBridge.endpoints || PORTABLE_NETWORK.endpoints)
+    ].filter(Boolean);
+    const preconnectTargets = [
+        ...(pickEnvListLegacy("CWS_BRIDGE_PRECONNECT_TARGETS") || []),
+        ...splitList(asRecord(portableBridge.preconnect).targets),
+        ...splitList(asRecord(coreBridge.preconnect).targets),
+        ...splitList(portableBridge.preconnectTargets),
+        ...splitList(coreBridge.preconnectTargets)
     ].filter(Boolean);
     const endpointUrl =
         pickEnvStringLegacy("CWS_BRIDGE_ENDPOINT_URL") ||
         String(portableBridge.endpointUrl || coreBridge.endpointUrl || endpoints[0] || "").trim();
+    const reconnectMs =
+        pickEnvNumberLegacy("CWS_BRIDGE_RECONNECT_MS") ??
+        parsePortableInteger(portableBridge.reconnectMs) ??
+        parsePortableInteger(coreBridge.reconnectMs) ??
+        5000;
 
     return {
         enabled:
@@ -128,9 +142,28 @@ const resolveBridgeConfig = () => {
         mode: pickEnvStringLegacy("CWS_BRIDGE_MODE") || String(portableBridge.mode || coreBridge.mode || "active"),
         endpointUrl,
         endpoints: Array.from(new Set(endpoints)),
-        userId: pickEnvStringLegacy("CWS_ASSOCIATED_ID") || String(portableBridge.userId || coreBridge.userId || "").trim(),
-        userKey: pickEnvStringLegacy("CWS_ASSOCIATED_TOKEN") || String(portableBridge.userKey || coreBridge.userKey || "").trim(),
-        deviceId: pickEnvStringLegacy("CWS_DEVICE_ID") || String(portableBridge.deviceId || coreBridge.deviceId || "").trim()
+        reconnectMs: reconnectMs > 0 ? reconnectMs : 5000,
+        userId:
+            pickEnvStringLegacy("CWS_BRIDGE_USER_ID") ||
+            pickEnvStringLegacy("CWS_ASSOCIATED_ID") ||
+            String(portableBridge.userId || coreBridge.userId || "").trim(),
+        userKey:
+            pickEnvStringLegacy("CWS_BRIDGE_USER_KEY") ||
+            pickEnvStringLegacy("CWS_ASSOCIATED_TOKEN") ||
+            String(portableBridge.userKey || coreBridge.userKey || "").trim(),
+        deviceId:
+            pickEnvStringLegacy("CWS_BRIDGE_DEVICE_ID") ||
+            pickEnvStringLegacy("CWS_DEVICE_ID") ||
+            pickEnvStringLegacy("CWS_ASSOCIATED_ID") ||
+            String(portableBridge.deviceId || coreBridge.deviceId || "").trim(),
+        preconnect: {
+            enabled:
+                pickEnvBoolLegacy("CWS_BRIDGE_PRECONNECT") ??
+                parsePortableBoolean(asRecord(portableBridge.preconnect).enabled) ??
+                parsePortableBoolean(asRecord(coreBridge.preconnect).enabled) ??
+                true,
+            targets: Array.from(new Set(preconnectTargets))
+        }
     };
 };
 

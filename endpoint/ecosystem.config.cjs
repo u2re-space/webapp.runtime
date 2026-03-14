@@ -115,6 +115,26 @@ module.exports = {
                 CWS_BRIDGE_REJECT_UNAUTHORIZED: "false",
                 ...envFromFile
             }
+        },
+        {
+            name: "cws-vds-fake-client",
+            cwd: __dirname,
+            script: NODE_BIN,
+            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/client/vds-fake-client.ts", "--config", "./portable.config.json"],
+            interpreter: "none",
+            exec_mode: "fork",
+            instances: 1,
+            windowsHide: true,
+            watch: false,
+            restart_delay: 2000,
+            min_uptime: 5000,
+            max_restarts: 20,
+            merge_logs: true,
+            env: {
+                NODE_ENV: "production",
+                CWS_FAKE_CLIENT_LOG_JSON: "true",
+                ...envFromFile
+            }
         }
     ]
 };

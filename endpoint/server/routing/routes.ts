@@ -35,7 +35,7 @@ const isClipboardLoggingEnabled = () => {
     return pickEnvBoolLegacy("CWS_CLIPBOARD_LOGGING", true) !== false;
 };
 
-const normalizeClipboardText = (body: any): string => {
+export const normalizeClipboardText = (body: any): string => {
     if (typeof body === "string") return body.trim();
     if (Buffer.isBuffer(body)) return body.toString("utf8").trim();
     if (body instanceof Uint8Array) return Buffer.from(body).toString("utf8").trim();
@@ -380,7 +380,7 @@ const collectClipboardTargets = (requestBody: any): string[] => {
     return Array.from(out);
 };
 
-const buildClipboardBroadcastPayload = (app: any, requestBody: any, text: string, request: any) => {
+export const buildClipboardBroadcastPayload = (app: any, requestBody: any, text: string, request: any) => {
     let targets = collectClipboardTargets(requestBody);
     let sourceId = "";
     if (!targets.length) {
@@ -403,6 +403,7 @@ const buildClipboardBroadcastPayload = (app: any, requestBody: any, text: string
     };
     if (resolvedClientId) payload.clientId = resolvedClientId;
     if (resolvedToken) payload.token = resolvedToken;
+    if (resolvedToken && !payload.userKey) payload.userKey = resolvedToken;
     if (sourceId) {
         payload.userId = sourceId;
         payload.from = sourceId;
@@ -410,6 +411,7 @@ const buildClipboardBroadcastPayload = (app: any, requestBody: any, text: string
     }
     if (typeof request.headers?.["x-auth-token"] === "string") {
         payload.token = payload.token || String(request.headers["x-auth-token"]).trim();
+        payload.userKey = payload.userKey || payload.token;
     }
     return payload;
 };

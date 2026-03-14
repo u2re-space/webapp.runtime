@@ -561,6 +561,41 @@ const copyRemote = async () => {
                 BUNDLE_DIR,
                 `${remoteTarget}:${remoteDestination}`
             ]);
+            const nestedBundleName = path.basename(BUNDLE_DIR);
+            const preserveJson = JSON.stringify(Array.from(PORTABLE_PRESERVE_TARGETS));
+            runRemoteCommand(remoteTarget, [
+                "python3 - <<'PY'",
+                "from pathlib import Path",
+                "import json, os, shutil",
+                `dest = Path(${JSON.stringify(remoteDestinationPosix)})`,
+                `nested = dest / ${JSON.stringify(nestedBundleName)}`,
+                `preserve = set(json.loads(${JSON.stringify(preserveJson)}))`,
+                "if nested.is_dir():",
+                "    for entry in list(nested.iterdir()):",
+                "        target = dest / entry.name",
+                "        target_exists = os.path.lexists(target)",
+                "        if entry.name in preserve and target_exists:",
+                "            if entry.is_dir():",
+                "                target.mkdir(parents=True, exist_ok=True)",
+                "                for child in entry.iterdir():",
+                "                    child_target = target / child.name",
+                "                    if child.is_dir():",
+                "                        shutil.copytree(child, child_target, dirs_exist_ok=True)",
+                "                    else:",
+                "                        shutil.copy2(child, child_target)",
+                "            continue",
+                "        if target_exists:",
+                "            if target.is_symlink() or target.is_file():",
+                "                target.unlink()",
+                "            elif target.is_dir():",
+                "                shutil.rmtree(target)",
+                "        if entry.is_dir():",
+                "            shutil.copytree(entry, target, dirs_exist_ok=True)",
+                "        else:",
+                "            shutil.copy2(entry, target)",
+                "    shutil.rmtree(nested)",
+                "PY"
+            ].join("\n"));
             console.log(`[portable] Remote bundle mirror complete: ${remoteTarget}:${remoteDestination}`);
             return true;
         } catch (error) {

@@ -5,10 +5,13 @@ import type { Packet } from "./types.ts";
 import { inferWhatFromLegacyType } from "./packet.ts";
 import {
     SELF_DATA,
+    areNodeIdsEquivalent,
+    findOrInitiateConnection,
     internalNodeMap,
     knownClients,
     loadFromClientsConfig,
-    makeSocketServer
+    makeSocketServer,
+    resolveKnownClientId
 } from "./coordinator.ts";
 
 type SocketServerInput = HttpServer | HttpsServer;
@@ -35,6 +38,22 @@ const toStringArray = (values: unknown[]): string[] => {
     return values.map((entry) => String(entry || "").trim()).filter(Boolean);
 };
 
+const normalizeString = (value: unknown): string => String(value || "").trim();
+
+const toPositiveInteger = (value: unknown, fallback: number): number => {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.trunc(parsed);
+    }
+    return fallback;
+};
+
+const splitList = (value: unknown): string[] => {
+    if (Array.isArray(value)) return value.map((entry) => normalizeString(entry)).filter(Boolean);
+    if (typeof value === "string") return value.split(/[;,]/).map((entry) => entry.trim()).filter(Boolean);
+    return [];
+};
+
 const packetClone = (packet: Packet): Packet => JSON.parse(JSON.stringify(packet || {})) as Packet;
 
 const collectTargetIds = (packet: Packet): string[] => {
@@ -56,12 +75,15 @@ export class ServerV2SocketRuntime {
     private readonly selfId: string;
     private readonly token: string;
     private readonly clientSeed: Record<string, any>;
+    private readonly bridgeConfig: Record<string, unknown>;
     private socketServer?: ReturnType<typeof makeSocketServer>;
+    private preconnectTimer?: ReturnType<typeof setInterval>;
 
-    constructor(selfId: string, token: string, clientSeed: Record<string, any> = {}) {
+    constructor(selfId: string, token: string, clientSeed: Record<string, any> = {}, bridgeConfig: Record<string, unknown> = {}) {
         this.selfId = selfId || "server-v2";
         this.token = token || "";
         this.clientSeed = clientSeed;
+        this.bridgeConfig = bridgeConfig;
     }
 
     attach(server: SocketServerInput): void {
@@ -72,9 +94,14 @@ export class ServerV2SocketRuntime {
             loadFromClientsConfig(this.clientSeed as any);
         }
         this.socketServer = makeSocketServer(server as any, this.selfId);
+        this.startBridgePreconnect();
     }
 
     close(): void {
+        if (this.preconnectTimer) {
+            clearInterval(this.preconnectTimer);
+            this.preconnectTimer = undefined;
+        }
         this.socketServer?.server?.close?.();
         this.socketServer = undefined;
     }
@@ -127,13 +154,28 @@ export class ServerV2SocketRuntime {
         }
 
         let delivered = false;
+        const pendingTargets = [...targets];
         for (const [nodeId, socket] of internalNodeMap.entries()) {
             const normalizedNodeId = normalizeToken(nodeId);
             if (!targets.includes(normalizedNodeId)) continue;
             socket.emit("data", outbound);
             delivered = true;
+            for (let index = pendingTargets.length - 1; index >= 0; index -= 1) {
+                if (areNodeIdsEquivalent(pendingTargets[index], normalizedNodeId)) {
+                    pendingTargets.splice(index, 1);
+                }
+            }
         }
-        if (!delivered && this.socketServer) {
+        if (pendingTargets.length && this.socketServer) {
+            const relaySocket = this.findGatewayRelayConnection(pendingTargets);
+            if (relaySocket) {
+                relaySocket.emit("data", { ...outbound, nodes: pendingTargets });
+                delivered = true;
+            } else {
+                this.socketServer.populate({ ...outbound, nodes: pendingTargets }, pendingTargets);
+                delivered = true;
+            }
+        } else if (!delivered && this.socketServer) {
             this.socketServer.populate(outbound, targets);
             delivered = true;
         }
@@ -152,6 +194,77 @@ export class ServerV2SocketRuntime {
             from: from || this.selfId,
             timestamp: Date.now()
         } as Packet);
+    }
+
+    private hasEquivalentLiveConnection(targetId: string): boolean {
+        for (const connectedId of internalNodeMap.keys()) {
+            if (areNodeIdsEquivalent(connectedId, targetId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private findGatewayRelayConnection(targetIds: string[]): { emit: (event: string, payload: unknown) => void } | null {
+        const seenSockets = new Set<object>();
+        for (const [nodeId, socket] of internalNodeMap.entries()) {
+            if (!socket || typeof socket !== "object") continue;
+            if (seenSockets.has(socket as object)) continue;
+            seenSockets.add(socket as object);
+            const relayId = resolveKnownClientId(nodeId) || normalizeString(nodeId);
+            if (!relayId || areNodeIdsEquivalent(relayId, this.selfId)) continue;
+            if (targetIds.some((targetId) => areNodeIdsEquivalent(targetId, relayId))) continue;
+            const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(nodeId));
+            if (asRecord(relayConfig.flags).gateway === true && typeof (socket as any).emit === "function") {
+                return socket as { emit: (event: string, payload: unknown) => void };
+            }
+        }
+        return null;
+    }
+
+    private resolveBridgePreconnectTargets(): string[] {
+        const bridge = asRecord(this.bridgeConfig);
+        const preconnect = asRecord(bridge.preconnect);
+        const rawTargets = [
+            ...splitList(preconnect.targets),
+            ...splitList(bridge.preconnectTargets),
+            ...splitList(bridge.endpoints),
+            normalizeString(bridge.endpointUrl)
+        ];
+        const resolved: string[] = [];
+        for (const candidate of rawTargets) {
+            const targetId = resolveKnownClientId(candidate) || normalizeString(candidate);
+            if (!targetId) continue;
+            if (areNodeIdsEquivalent(targetId, this.selfId)) continue;
+            const canonicalTargetId = resolveKnownClientId(targetId);
+            if (!canonicalTargetId) continue;
+            if (resolved.some((entry) => areNodeIdsEquivalent(entry, canonicalTargetId))) continue;
+            resolved.push(canonicalTargetId);
+        }
+        return resolved;
+    }
+
+    private startBridgePreconnect(): void {
+        const bridge = asRecord(this.bridgeConfig);
+        if (bridge.enabled === false) return;
+
+        const preconnect = asRecord(bridge.preconnect);
+        if (preconnect.enabled === false) return;
+
+        const targets = this.resolveBridgePreconnectTargets();
+        if (!targets.length) return;
+
+        const reconnectMs = Math.max(1000, toPositiveInteger(bridge.reconnectMs, 5000));
+        const connectTargets = () => {
+            for (const targetId of targets) {
+                if (this.hasEquivalentLiveConnection(targetId)) continue;
+                void Promise.resolve(findOrInitiateConnection(targetId, this.selfId)).catch(() => undefined);
+            }
+        };
+
+        connectTargets();
+        this.preconnectTimer = setInterval(connectTargets, reconnectMs);
+        console.log(`[server-v2] bridge preconnect active: ${targets.join(", ")} (${reconnectMs}ms)`);
     }
 
     private profileFor(id: string): ConnectionProfile {
