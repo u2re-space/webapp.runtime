@@ -80,14 +80,12 @@ module.exports = {
     apps: [
         {
             name: "cws",
-            cwd: __dirname,
-            // Use Node.js absolute binary directly to prevent npm/cmd invocation drift.
-            script: NODE_BIN,
-            args: ["./node_modules/tsx/dist/cli.mjs", "server-v2/index.ts", "--config", portableConfigPath || "./portable.config.json", "--data", portableDataPath],
-            interpreter: "none",
+            script: "launcher.mjs",
+            interpreter: "node",
             exec_mode: "fork",
             instances: 1,
             windowsHide: true,
+            cwd: __dirname,
             watch: true,
             watch_delay: 2000,
             restart_delay: 2000,
@@ -98,23 +96,11 @@ module.exports = {
                 followSymlinks: false
             },
             env: {
-                CWS_BRIDGE_ENDPOINTS: ["https://192.168.0.200:8443/", "https://45.147.121.152:8443/"],
-                CWS_ROLES: "responser-initiated,requestor-initiated,responser-initiator,requestor-initiator",
                 NODE_ENV: "production",
-                CWS_TUNNEL_DEBUG: true,
-                CWS_AIRPAD_VERBOSE: 1,
-                CWS_PORTABLE_CONFIG_PATH: portableConfigPath || path.resolve(__dirname, "portable.config.json"),
-                CWS_PORTABLE_DATA_PATH: portableDataPath,
-                CWS_ASSOCIATED_TOKEN: "n3v3rm1nd",
-                CWS_AIRPAD_NATIVE_ACTIONS: "true",
-                CWS_AIRPAD_ROBOTJS_ENABLED: "true",
-                CWS_CLIPBOARD_LOGGING: "false",
-                CWS_HTTPS_ENABLED: "true",
-                CWS_HTTPS_KEY: path.resolve(__dirname, "https/local/multi.key"),
-                CWS_HTTPS_CERT: path.resolve(__dirname, "https/local/multi.crt"),
-                CWS_HTTPS_CA: path.resolve(__dirname, "https/local/rootCA.crt"),
-                CWS_BRIDGE_REJECT_UNAUTHORIZED: "false",
                 ...envFromFile
+            },
+            env_production: {
+                NODE_ENV: "production"
             }
         },
         {

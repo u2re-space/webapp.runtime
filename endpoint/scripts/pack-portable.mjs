@@ -276,9 +276,9 @@ if [ ! -f "node_modules/.bin/tsx" ]; then
   npm ci --include=dev || npm install --include=dev
 fi
 if [ "$start_mode" = "watch" ] || [ "$start_mode" = "1" ] || [ "$start_mode" = "true" ] || [ "$start_mode" = "dev" ]; then
-  npm run start:watch
+  exec npm run start:watch
 else
-  npm run start
+  exec npm run start:direct
 fi
 `;
 
@@ -329,6 +329,14 @@ if not exist "node_modules\\.bin\\tsx.cmd" (
 )
 
 :portable_pm2_fallback
+if not exist "launcher.mjs" goto :use_legacy_start
+if /I "%CWS_START_MODE%"=="watch" (
+  start "" /B /D "%~dp0" npm.cmd run start:watch
+) else (
+  start "" /B /D "%~dp0" npm.cmd run start:direct
+)
+exit /b 0
+:use_legacy_start
 if /I "%CWS_START_MODE%"=="watch" (
   start "" /B /D "%~dp0" npm.cmd run start:watch
 ) else (
@@ -360,7 +368,7 @@ This bundle is generated from apps/CrossWord/src/endpoint.
 - Node modules mode: ${nodeModulesMode}
 ${installNote}
 - Slim mode auto-installs dependencies on first run via npm.
-- Launcher starts \`npm run start\` (\`server-v2/index.ts\`) so the portable bundle boots the standalone server-v2 runtime by default.
+- PM2 runs \`launcher.mjs\` (which starts \`server-v2/index.ts\`). Without PM2, run.sh/run.cmd fall back to \`npm run start:direct\`.
 - Default launcher environment:
 ${launcherEnvNotes}
 - Set \`CWS_START_MODE=watch\` to run auto-restart on file changes from the launcher (\`start:watch\`).

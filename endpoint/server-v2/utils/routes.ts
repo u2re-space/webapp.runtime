@@ -2,11 +2,12 @@
 // HTTP Routes
 // =========================
 
-import { writeClipboard, setBroadcasting } from "../io/clipboard.ts";
+import writeClipboard from "@inputs/access/clipboard.ts";
+import setBroadcasting from "@inputs/access/clipboard.ts";
 import config from "../config/config.ts";
-import { pickEnvBoolLegacy } from "../lib/env.ts";
-import { CONFIG_DIR } from "../lib/paths.ts";
-import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../network/stack/endpoint-policy.ts";
+import { pickEnvBoolLegacy } from "./env.ts";
+import { CONFIG_DIR } from "./paths.ts";
+import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "@utils/endpoint-policy.ts";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 

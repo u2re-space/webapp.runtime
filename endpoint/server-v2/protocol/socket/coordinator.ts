@@ -30,7 +30,9 @@ export const internalNodeMap = new Map<string, SocketConnect | SocketClient>();
 export const knownClients = new Map<string, any>();
 export const nodeMap = new Map<string, SocketWrapper | Promise<SocketWrapper | undefined> | undefined>();
 const failedNodeRetryAt = new Map<string, number>();
-const FAILED_NODE_RETRY_MS = 5000;
+// Keep reconnect/cooldown close to "about a second" by default.
+// Can be overridden for tuning in noisy network scenarios.
+const FAILED_NODE_RETRY_MS = Math.max(1000, Number(process.env.CWS_SOCKET_FAILED_NODE_RETRY_MS || 1000) || 1000);
 
 const isSocketTraceEnabled = () => {
     const verbose = String(process.env.CWS_AIRPAD_VERBOSE || "").trim().toLowerCase();
@@ -670,7 +672,8 @@ export class SocketWrapper {
         return payload;
     }
 
-    // if connection is not established, remove socket after 3 second
+    // If connection is not established, remove socket quickly so reconnect
+    // can recover without waiting for long stale timers.
     removeSocket() { 
         setTimeout(() => {
             if (!this.isConnected) {
@@ -679,7 +682,7 @@ export class SocketWrapper {
                 internalNodeMap.delete(this.socketId);
                 deleteCachedNodeConnection(this.socketId);
             }
-        }, 3000);
+        }, 1000);
     }
 
     //
@@ -864,25 +867,21 @@ export class SocketWrapper {
 
 
         //
-        const makeRequestHandler = (what: string, after: string, doTap: boolean = false) => {
-            return async (ack?: any) => { 
-                try {
-                    const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:get", payload: {} });
-                    const text = await this.handleAct(what, {}, packet, this.selfId);
-                    if (doTap) {
-                        await new Promise((resolve) => setTimeout(resolve, 60));
-                        await this.handleAct("keyboard:tap", packet.payload, packet, this.selfId);
-                    }
-                    const payload = { ok: true, text: typeof text === "string" ? text : String(text || "") };
-                    if (typeof ack === "function") ack(payload);
-                    socket.emit(what, { text: payload.text, source: "local" });
-                } catch (error: any) {
-                    if (typeof ack === "function") {
-                        ack({ ok: false, error: error?.message || String(error) });
-                    }
-                }
-            }
-        }
+        // Legacy clipboard socket events.
+        // Keep them compatible with `runtime/endpoint/server/airpad/socket-airpad.ts`:
+        // - clipboard:get/copy/cut respond with `clipboard:update`
+        // - clipboard:update/paste write local clipboard, then forward coordinator packets
+        const readLocalClipboardText = async (): Promise<string> => {
+            const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:get", payload: {} });
+            const text = await this.handleAct("clipboard:get", {}, packet, this.selfId);
+            return typeof text === "string" ? text : String(text ?? "");
+        };
+
+        const tapCtrlKey = async (key: string): Promise<void> => {
+            const payload = { key, modifier: ["control"] };
+            const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "keyboard:tap", payload });
+            await this.handleAct("keyboard:tap", payload, packet, this.selfId);
+        };
 
         //
         const makePacketHandler = () => { 
@@ -928,11 +927,89 @@ export class SocketWrapper {
         }
         
         //
-        socket.on("clipboard:get", makeRequestHandler("clipboard:get", "clipboard:update"));
-        socket.on("clipboard:copy", makeRequestHandler("clipboard:copy", "clipboard:get", true));
-        socket.on("clipboard:cut", makeRequestHandler("clipboard:cut", "clipboard:update"));
-        socket.on("clipboard:update", makeRequestHandler("clipboard:update", "clipboard:update"));
-        socket.on("clipboard:paste", makeRequestHandler("clipboard:paste", "clipboard:update"));
+        socket.on("clipboard:get", async (ack?: any) => {
+            try {
+                const text = await readLocalClipboardText();
+                const payload = { ok: true, text };
+                if (typeof ack === "function") ack(payload);
+                socket.emit("clipboard:update", { text, source: "local" });
+            } catch (error: any) {
+                if (typeof ack === "function") {
+                    ack({ ok: false, error: error?.message || String(error) });
+                }
+            }
+        });
+
+        socket.on("clipboard:copy", async (ack?: any) => {
+            try {
+                await tapCtrlKey("c");
+                await new Promise((resolve) => setTimeout(resolve, 60));
+                const text = await readLocalClipboardText();
+                const payload = { ok: true, text };
+                if (typeof ack === "function") ack(payload);
+                socket.emit("clipboard:update", { text, source: "local" });
+
+                // Forward the resulting clipboard update to the targeted node(s).
+                const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
+                void this.reply(packet);
+            } catch (error: any) {
+                if (typeof ack === "function") {
+                    ack({ ok: false, error: error?.message || String(error) });
+                }
+            }
+        });
+
+        socket.on("clipboard:cut", async (ack?: any) => {
+            try {
+                await tapCtrlKey("x");
+                await new Promise((resolve) => setTimeout(resolve, 60));
+                const text = await readLocalClipboardText();
+                const payload = { ok: true, text };
+                if (typeof ack === "function") ack(payload);
+                socket.emit("clipboard:update", { text, source: "local" });
+
+                const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
+                void this.reply(packet);
+            } catch (error: any) {
+                if (typeof ack === "function") {
+                    ack({ ok: false, error: error?.message || String(error) });
+                }
+            }
+        });
+
+        socket.on("clipboard:update", async (data: any, ack?: any) => {
+            try {
+                const text = typeof data?.text === "string" ? data.text : String(data?.text ?? "");
+                const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
+                await this.handleAct("clipboard:update", { text }, packet, this.selfId);
+                void this.reply(packet);
+                if (typeof ack === "function") ack({ ok: true });
+            } catch (error: any) {
+                if (typeof ack === "function") {
+                    ack({ ok: false, error: error?.message || String(error) });
+                }
+            }
+        });
+
+        socket.on("clipboard:paste", async (data: any, ack?: any) => {
+            try {
+                const text = typeof data?.text === "string" ? data.text : String(data?.text ?? "");
+                const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
+                await this.handleAct("clipboard:update", { text }, packet, this.selfId);
+                void this.reply(packet);
+                socket.emit("clipboard:update", { text, source: "local" });
+
+                // Best-effort: paste the clipboard content via Ctrl+V.
+                await new Promise((resolve) => setTimeout(resolve, 20));
+                await tapCtrlKey("v");
+
+                if (typeof ack === "function") ack({ ok: true });
+            } catch (error: any) {
+                if (typeof ack === "function") {
+                    ack({ ok: false, error: error?.message || String(error) });
+                }
+            }
+        });
 
         //
         socket.on("data", makePacketHandler());

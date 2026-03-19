@@ -54,6 +54,21 @@ const buildRuntimeContext = (engine: ReturnType<typeof createServerV2Engine>, cl
         deviceId: String(bridge.deviceId || process.env.CWS_ASSOCIATED_ID || "").trim(),
         token: String(bridge.userKey || process.env.CWS_ASSOCIATED_TOKEN || "").trim()
     });
+    if (!String(process.env.CWS_ASSOCIATED_ID || "").trim() && identity.userId) {
+        process.env.CWS_ASSOCIATED_ID = identity.userId;
+    }
+    if (!String(process.env.CWS_BRIDGE_USER_ID || "").trim() && identity.userId) {
+        process.env.CWS_BRIDGE_USER_ID = identity.userId;
+    }
+    if (!String(process.env.CWS_BRIDGE_DEVICE_ID || "").trim() && identity.deviceId) {
+        process.env.CWS_BRIDGE_DEVICE_ID = identity.deviceId;
+    }
+    if (!String(process.env.CWS_BRIDGE_USER_KEY || "").trim() && identity.token) {
+        process.env.CWS_BRIDGE_USER_KEY = identity.token;
+    }
+    if (!String(process.env.CWS_ASSOCIATED_TOKEN || "").trim() && identity.token) {
+        process.env.CWS_ASSOCIATED_TOKEN = identity.token;
+    }
     const selfId = identity.userId || identity.deviceId || "server-v2";
     const token = identity.token;
     const clientSeed = ((engine.config?.endpointIDs || {}) as Record<string, any>) || {};
@@ -97,11 +112,13 @@ export const createServerV2Runtime = async (options: ServerV2StartOptions = {}) 
         }
 
         const moduleDir = moduleDirname(import.meta);
+        const cwd = bootstrap.configDir || process.cwd();
         const httpsOptions =
             options.httpsOptions ??
             (await loadHttpsOptions({
                 httpsConfig: ((engine.config as Record<string, unknown>)?.https as Record<string, any>) || {},
-                moduleDir
+                moduleDir,
+                cwd
             }));
 
         const app = fastify({

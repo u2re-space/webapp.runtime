@@ -254,7 +254,9 @@ export class ServerV2SocketRuntime {
         const targets = this.resolveBridgePreconnectTargets();
         if (!targets.length) return;
 
-        const reconnectMs = Math.max(1000, toPositiveInteger(bridge.reconnectMs, 5000));
+        // Prefer preconnect-specific reconnect interval.
+        // Default to ~1s so connections can recover quickly after a link drop.
+        const reconnectMs = Math.max(1000, toPositiveInteger(preconnect.reconnectMs ?? bridge.reconnectMs, 1000));
         const connectTargets = () => {
             for (const targetId of targets) {
                 if (this.hasEquivalentLiveConnection(targetId)) continue;

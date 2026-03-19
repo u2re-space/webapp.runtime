@@ -89,6 +89,7 @@ export const registerSystemHttpHandlers = async (app: FastifyInstance): Promise<
         if (origin) {
             reply.header("Access-Control-Allow-Origin", origin);
             reply.header("Vary", "Origin");
+            reply.header("Access-Control-Allow-Private-Network", "true");
         }
         noStore(reply);
         return reply.code(204).send();

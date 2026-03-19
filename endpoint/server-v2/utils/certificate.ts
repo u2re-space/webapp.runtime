@@ -98,26 +98,27 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
 
     const defaultHttpsPaths = resolveHttpsPaths(moduleDir, cwd);
     const { key: keyPath, cert: certPath, candidates } = defaultHttpsPaths;
+    const baseDir = cwd;
     const keySource = resolveHttpsConfigValue(
         httpsConfig,
         ["key", "keyFile", "keyPath"],
         ["CWS_HTTPS_KEY", "CWS_HTTPS_KEY_FILE", "HTTPS_KEY", "HTTPS_KEY_FILE"],
         keyPath,
-        moduleDir
+        baseDir
     );
     const certSource = resolveHttpsConfigValue(
         httpsConfig,
         ["cert", "certFile", "certPath"],
         ["CWS_HTTPS_CERT", "CWS_HTTPS_CERT_FILE", "HTTPS_CERT", "HTTPS_CERT_FILE"],
         certPath,
-        moduleDir
+        baseDir
     );
     const caSource = resolveHttpsConfigValue(
         httpsConfig,
         ["ca", "caFile", "caPath"],
         ["CWS_HTTPS_CA", "CWS_HTTPS_CA_FILE", "HTTPS_CA", "HTTPS_CA_FILE"],
         undefined,
-        moduleDir
+        baseDir
     );
 
     const keyCandidates = [keySource, ...candidates.keys];

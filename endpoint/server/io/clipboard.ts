@@ -18,7 +18,26 @@ const stopClipboardRetryOnUnsupported = pickEnvBoolLegacy("CWS_CLIPBOARD_STOP_ON
 const clipboardLoggingEnabled = pickEnvBoolLegacy("CWS_CLIPBOARD_LOGGING", true) !== false;
 const clipboardLogHashEnabled = pickEnvBoolLegacy("CWS_CLIPBOARD_LOG_HASH", true) !== false;
 const clipboardPreviewLength = Math.max(8, parsePortableInteger((config as any)?.clipboardLogPreviewLength ?? process.env.CWS_CLIPBOARD_LOG_PREVIEW) ?? 64);
-const clipboardNodeLabel = String(process.env.CWS_ASSOCIATED_ID || process.env.CWS_BRIDGE_CLIENT_ID || process.env.HOSTNAME || "").trim() || "endpoint";
+const resolveClipboardNodeLabel = (): string => {
+    return String(
+        process.env.CWS_ASSOCIATED_ID ||
+        process.env.CWS_BRIDGE_USER_ID ||
+        process.env.CWS_BRIDGE_DEVICE_ID ||
+        process.env.CWS_BRIDGE_CLIENT_ID ||
+        process.env.HOSTNAME ||
+        ""
+    ).trim() || "endpoint";
+};
+
+const resolveClipboardSourceId = (): string => {
+    return String(
+        process.env.CWS_ASSOCIATED_ID ||
+        process.env.CWS_BRIDGE_USER_ID ||
+        process.env.CWS_BRIDGE_DEVICE_ID ||
+        process.env.CWS_BRIDGE_CLIENT_ID ||
+        ""
+    ).trim();
+};
 const logClipboard = (level: "info" | "warn" | "error" | "debug", ...args: any[]) => {
     if (!clipboardLoggingEnabled) return;
     const logger = (app as any)?.log;
@@ -275,8 +294,9 @@ async function broadcastClipboard(text: string) {
     if (!text) return;
     if (!peers || peers.length === 0) return;
 
-    const sourceId = String(process.env.CWS_ASSOCIATED_ID || process.env.CWS_BRIDGE_USER_ID || process.env.CWS_BRIDGE_CLIENT_ID || "").trim();
+    const sourceId = resolveClipboardSourceId();
     const sourceToken = String(process.env.CWS_ASSOCIATED_TOKEN || process.env.CWS_BRIDGE_USER_KEY || "").trim();
+    const clipboardNodeLabel = resolveClipboardNodeLabel();
     const body: string | Record<string, any> = sourceId || sourceToken
         ? {
             text,
@@ -388,14 +408,14 @@ async function pollClipboard() {
         }
 
         logClipboard("info", "[ClipboardPoll] Local clipboard changed", {
-            node: clipboardNodeLabel,
+            node: resolveClipboardNodeLabel(),
             text: summarizeClipboardText(current)
         });
         lastClipboard = current;
 
         if (current === lastNetworkClipboard) {
             logClipboard("info", "[ClipboardPoll] Skip rebroadcast: change originated from network", {
-                node: clipboardNodeLabel,
+                node: resolveClipboardNodeLabel(),
                 text: summarizeClipboardText(current)
             });
             emitClipboardChange(current, "network");
@@ -482,7 +502,7 @@ export async function writeClipboard(text: string): Promise<boolean> {
     lastNetworkClipboard = text;
     lastClipboard = text;
     logClipboard("info", "[ClipboardRx] Clipboard payload applied", {
-        node: clipboardNodeLabel,
+        node: resolveClipboardNodeLabel(),
         text: summarizeClipboardText(text)
     });
     emitClipboardChange(text, "network");

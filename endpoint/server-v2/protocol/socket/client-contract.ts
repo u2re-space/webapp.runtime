@@ -88,9 +88,14 @@ export const resolveServerV2WireIdentity = (identity: ServerV2WireIdentity): Req
 
 export const buildServerV2SocketHandshake = (identity: ServerV2WireIdentity): ServerV2SocketHandshake => {
     const resolved = resolveServerV2WireIdentity(identity);
+    // Dual-wire compatibility:
+    // some gateway nodes only understand `connectionType=first-order`,
+    // while we still want to keep "exchanger-*" semantics in identity/archetype.
+    const rawConnectionType = String(resolved.connectionType || "").trim().toLowerCase();
+    const wireConnectionType = rawConnectionType.includes("exchanger") ? "first-order" : resolved.connectionType;
     const auth: Record<string, string> = {};
     const query: Record<string, string> = {
-        connectionType: resolved.connectionType,
+        connectionType: wireConnectionType,
         archetype: resolved.archetype
     };
 

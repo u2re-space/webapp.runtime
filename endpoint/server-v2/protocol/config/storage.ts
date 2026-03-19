@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { hostname as getHostname, networkInterfaces } from "node:os";
 
 import { CONFIG_DIR, SETTINGS_FILE, ensureDataDirs } from "@utils/paths.ts";
 import { parsePortableBoolean, parsePortableInteger, resolvePortablePayload, safeJsonParse } from "@utils/parsing.ts";
@@ -50,6 +51,21 @@ const resolvePortableConfig = (): Record<string, unknown> => {
 
 const PORTABLE_CONFIG = resolvePortableConfig();
 
+const applyPortableLauncherEnvDefaults = () => {
+    const launcherEnv = asRecord(PORTABLE_CONFIG.launcherEnv);
+    for (const [key, rawValue] of Object.entries(launcherEnv)) {
+        if (!key || process.env[key]?.trim()) continue;
+        if (Array.isArray(rawValue)) {
+            process.env[key] = rawValue.map((entry) => String(entry ?? "").trim()).filter(Boolean).join(",");
+            continue;
+        }
+        if (rawValue === undefined || rawValue === null) continue;
+        process.env[key] = typeof rawValue === "string" ? rawValue : String(rawValue);
+    }
+};
+
+applyPortableLauncherEnvDefaults();
+
 const resolvePortableModuleRecord = (key: string): Record<string, unknown> => {
     const modules = asRecord(PORTABLE_CONFIG.portableModules);
     const moduleRef = modules[key];
@@ -96,6 +112,62 @@ const splitList = (value: unknown): string[] => {
     return [];
 };
 
+const normalizeHost = (value: unknown): string => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const withoutZone = raw.split("%")[0].replace(/^\[(.*)\]$/, "$1").trim();
+    if (!withoutZone) return "";
+    try {
+        const parsed = new URL(withoutZone.includes("://") ? withoutZone : `https://${withoutZone}`);
+        return String(parsed.hostname || "").trim().toLowerCase();
+    } catch {
+        return withoutZone.toLowerCase();
+    }
+};
+
+const getLocalHosts = (): Set<string> => {
+    const hosts = new Set<string>(["localhost", "127.0.0.1", "::1"]);
+    const hostname = normalizeHost(getHostname());
+    if (hostname) hosts.add(hostname);
+    const interfaces = networkInterfaces();
+    for (const entries of Object.values(interfaces || {})) {
+        if (!entries) continue;
+        for (const entry of entries) {
+            const host = normalizeHost(entry?.address);
+            if (host) hosts.add(host);
+        }
+    }
+    return hosts;
+};
+
+const resolveAliasId = (policies: Record<string, unknown>, candidateId: string, depth = 0): string => {
+    const trimmed = String(candidateId || "").trim();
+    if (!trimmed || depth > 8) return trimmed;
+    const value = policies[trimmed];
+    if (typeof value !== "string") return trimmed;
+    const aliasMatch = /^alias:(.+)$/i.exec(value.trim());
+    if (!aliasMatch) return trimmed;
+    return resolveAliasId(policies, aliasMatch[1].trim(), depth + 1);
+};
+
+const inferBridgeIdentityFromEndpointIds = (policies: Record<string, unknown>): string => {
+    if (!Object.keys(policies).length) return "";
+    const localHosts = getLocalHosts();
+    for (const [rawId, rawPolicy] of Object.entries(policies)) {
+        const canonicalId = resolveAliasId(policies, rawId);
+        const policy = asRecord(typeof rawPolicy === "string" ? policies[canonicalId] : rawPolicy);
+        const origins = splitList(policy.origins);
+        if (!origins.length) continue;
+        for (const origin of origins) {
+            const host = normalizeHost(origin);
+            if (host && localHosts.has(host)) {
+                return canonicalId || rawId;
+            }
+        }
+    }
+    return "";
+};
+
 const PORTABLE_CORE = readPortableCore();
 const PORTABLE_ENDPOINT = readPortableEndpoint();
 const PORTABLE_CLIENTS = readPortableClients();
@@ -111,6 +183,8 @@ const resolveBridgeConfig = () => {
     const portableBridge = asRecord(PORTABLE_ENDPOINT.bridge);
     const coreBridge = asRecord(PORTABLE_CORE.bridge);
     const networkBridge = asRecord(PORTABLE_NETWORK.bridge);
+    const endpointPolicies = resolveEndpointIds();
+    const inferredSelfId = inferBridgeIdentityFromEndpointIds(endpointPolicies);
     const endpoints = [
         ...(pickEnvListLegacy("CWS_BRIDGE_ENDPOINTS") || []),
         ...splitList(portableBridge.endpoints),
@@ -146,7 +220,8 @@ const resolveBridgeConfig = () => {
         userId:
             pickEnvStringLegacy("CWS_BRIDGE_USER_ID") ||
             pickEnvStringLegacy("CWS_ASSOCIATED_ID") ||
-            String(portableBridge.userId || coreBridge.userId || "").trim(),
+            String(portableBridge.userId || coreBridge.userId || "").trim() ||
+            inferredSelfId,
         userKey:
             pickEnvStringLegacy("CWS_BRIDGE_USER_KEY") ||
             pickEnvStringLegacy("CWS_ASSOCIATED_TOKEN") ||
@@ -155,7 +230,8 @@ const resolveBridgeConfig = () => {
             pickEnvStringLegacy("CWS_BRIDGE_DEVICE_ID") ||
             pickEnvStringLegacy("CWS_DEVICE_ID") ||
             pickEnvStringLegacy("CWS_ASSOCIATED_ID") ||
-            String(portableBridge.deviceId || coreBridge.deviceId || "").trim(),
+            String(portableBridge.deviceId || coreBridge.deviceId || "").trim() ||
+            inferredSelfId,
         preconnect: {
             enabled:
                 pickEnvBoolLegacy("CWS_BRIDGE_PRECONNECT") ??
