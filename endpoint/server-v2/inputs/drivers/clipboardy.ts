@@ -6,6 +6,18 @@ type ClipboardyModule = {
 };
 
 let clipboardyModulePromise: Promise<ClipboardyModule | null> | null = null;
+let memoryClipboard = "";
+
+const isHeadlessClipboardError = (error: unknown): boolean => {
+    const msg = String((error as any)?.message || error || "").toLowerCase();
+    return (
+        msg.includes("can't open display") ||
+        msg.includes("requires a display server") ||
+        msg.includes("x11") ||
+        msg.includes("wayland") ||
+        msg.includes("xsel")
+    );
+};
 
 const loadClipboardy = async (): Promise<ClipboardyModule | null> => {
     if (!clipboardyModulePromise) {
@@ -36,22 +48,45 @@ const writeViaPowerShell = async (text: string): Promise<void> => {
 
 export const clipboardyDriver = {
     read: async (): Promise<string> => {
-        const clipboardy = await loadClipboardy();
-        if (clipboardy) return await clipboardy.read() ?? "";
-        if (process.platform === "win32") return await readViaPowerShell();
-        throw new Error("Clipboard driver unavailable");
+        try {
+            const clipboardy = await loadClipboardy();
+            if (clipboardy) {
+                const value = await clipboardy.read();
+                memoryClipboard = String(value ?? "");
+                return memoryClipboard;
+            }
+            if (process.platform === "win32") {
+                const value = await readViaPowerShell();
+                memoryClipboard = String(value ?? "");
+                return memoryClipboard;
+            }
+        } catch (error) {
+            if (!isHeadlessClipboardError(error)) {
+                // Preserve resilience: don't crash socket handlers on clipboard backend faults.
+                console.warn("[clipboardyDriver] read failed, using memory fallback:", String((error as any)?.message || error));
+            }
+        }
+        return memoryClipboard;
     },
     write: async (text: string): Promise<string> => {
-        const clipboardy = await loadClipboardy();
-        if (clipboardy) {
-            await clipboardy.write(text);
-            return text;
+        const value = String(text ?? "");
+        memoryClipboard = value;
+        try {
+            const clipboardy = await loadClipboardy();
+            if (clipboardy) {
+                await clipboardy.write(value);
+                return value;
+            }
+            if (process.platform === "win32") {
+                await writeViaPowerShell(value);
+                return value;
+            }
+        } catch (error) {
+            if (!isHeadlessClipboardError(error)) {
+                console.warn("[clipboardyDriver] write failed, using memory fallback:", String((error as any)?.message || error));
+            }
         }
-        if (process.platform === "win32") {
-            await writeViaPowerShell(text);
-            return text;
-        }
-        throw new Error("Clipboard driver unavailable");
+        return value;
     },
     clear: async (): Promise<void> => {
         await clipboardyDriver.write("");

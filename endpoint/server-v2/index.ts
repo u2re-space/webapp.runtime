@@ -121,6 +121,17 @@ export const createServerV2Runtime = async (options: ServerV2StartOptions = {}) 
                 cwd
             }));
 
+        if (httpsOptions) {
+            console.log(
+                "[server-v2] TLS: active — Fastify uses Node HTTPS; Socket.IO shares this server on path /socket.io/"
+            );
+        } else {
+            console.log(
+                "[server-v2] TLS: off — plain HTTP only (see [core-backend] HTTPS disabled… above if certs failed). " +
+                    "Browsers hitting https://this-host:443 go to the reverse proxy, not this process, unless you terminate TLS here."
+            );
+        }
+
         const app = fastify({
             logger: options.logger ?? true,
             ...(httpsOptions ? { https: httpsOptions } : {})
@@ -173,7 +184,10 @@ export const createServerV2Runtime = async (options: ServerV2StartOptions = {}) 
                 port
             });
             const protocol = isHttps ? "https" : "http";
-            console.log(`[server-v2] listening on ${protocol}://0.0.0.0:${port}`);
+            console.log(
+                `[server-v2] listening on ${protocol}://0.0.0.0:${port} — Engine.IO/Socket.IO on same port (/socket.io/). ` +
+                    `Public :443 must reverse-proxy WebSocket+long-poll to this port if clients use standard HTTPS.`
+            );
             return built;
         }
     };

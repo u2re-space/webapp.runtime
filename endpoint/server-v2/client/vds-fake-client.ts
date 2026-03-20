@@ -157,7 +157,7 @@ const main = async () => {
     const endpointList = parseUrlList(readLauncher("CWS_BRIDGE_ENDPOINTS"));
     const endpointUrl = endpointCandidate || endpointList[0] || "";
     const token = options.token || readLauncher("CWS_BRIDGE_USER_KEY") || readLauncher("CWS_ASSOCIATED_TOKEN");
-    const userId = normalizeWireNodeId(options.userId || readLauncher("CWS_BRIDGE_USER_ID") || readLauncher("CWS_ASSOCIATED_ID") || "L-45.150.9.153");
+    const userId = normalizeWireNodeId(options.userId || readLauncher("CWS_BRIDGE_USER_ID") || readLauncher("CWS_ASSOCIATED_ID") || "L-wan-client");
     const deviceId = normalizeWireNodeId(options.deviceId || readLauncher("CWS_BRIDGE_DEVICE_ID") || readLauncher("CWS_DEVICE_ID") || userId);
     const rejectUnauthorized = readLauncher("CWS_BRIDGE_REJECT_UNAUTHORIZED").toLowerCase() !== "false";
     const identity = resolveServerV2WireIdentity({

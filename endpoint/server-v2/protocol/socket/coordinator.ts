@@ -4,6 +4,7 @@ import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
 import { buildServerV2SocketHandshake, normalizeWireNodeId } from "./client-contract.ts";
 import { normalizeInboundPacket } from "./packet.ts";
 import type { Packet } from "./types.ts";
+import { normalizeIpForMatch } from "../../utils/ip-match.ts";
 
 //
 export const SELF_DATA = {
@@ -58,7 +59,8 @@ const traceSocket = (event: string, details: Record<string, unknown>) => {
     if (existing && now - existing.lastAt < TRACE_SUPPRESSION_WINDOW_MS) {
         existing.lastAt = now;
         existing.count += 1;
-        if (existing.count % 50 === 0) {
+        const step = existing.count > 20000 ? 2000 : existing.count > 2000 ? 500 : existing.count > 200 ? 50 : 10;
+        if (existing.count % step === 0) {
             console.log(`[socket:${event}-suppressed] repeats=${existing.count} windowMs=${TRACE_SUPPRESSION_WINDOW_MS}`);
         }
         return;
@@ -213,9 +215,49 @@ const getKnownClientConfig = (nodeId: unknown) => {
     if (!normalized) return null;
 
     const directEntry = knownClients.get(normalized);
-    return directEntry ?? [...knownClients.entries()].find(([candidateId]) => {
+    if (directEntry) return directEntry;
+
+    const caseInsensitive = [...knownClients.entries()].find(([candidateId]) => {
         return candidateId.toLowerCase() === normalized.toLowerCase();
     })?.[1];
+    if (caseInsensitive) return caseInsensitive;
+
+    // Same host may appear as L-192.168.0.200, l-45.x, bare 192.168.x, or WAN IP — tie to policy via origins.
+    const candidateOrigin = formalizeOrigin(normalized);
+    let candidateHostLc = "";
+    if (candidateOrigin) {
+        try {
+            candidateHostLc = new URL(candidateOrigin).hostname.toLowerCase();
+        } catch {
+            candidateHostLc = "";
+        }
+    }
+
+    const visited = new Set<unknown>();
+    for (const [, entry] of knownClients.entries()) {
+        if (!entry || typeof entry !== "object" || visited.has(entry)) continue;
+        visited.add(entry);
+        const origins = Array.isArray((entry as Record<string, unknown>)?.origins)
+            ? ((entry as Record<string, unknown>).origins as unknown[])
+            : [];
+        for (const origin of origins) {
+            const normalizedOrigin = formalizeOrigin(String(origin || ""));
+            if (!normalizedOrigin) continue;
+            if (candidateOrigin && normalizedOrigin === candidateOrigin) {
+                return entry;
+            }
+            if (candidateHostLc) {
+                try {
+                    if (new URL(normalizedOrigin).hostname.toLowerCase() === candidateHostLc) {
+                        return entry;
+                    }
+                } catch {
+                    continue;
+                }
+            }
+        }
+    }
+    return null;
 };
 
 const pickCanonicalKnownClientId = (entry: unknown, fallback?: string): string | null => {
@@ -244,47 +286,9 @@ const pickCanonicalKnownClientId = (entry: unknown, fallback?: string): string |
 export const resolveKnownClientId = (candidate: unknown): string | null => {
     const normalized = normalizeNodeId(candidate);
     if (!normalized) return null;
-
-    const directEntry = getKnownClientConfig(normalized);
-    if (directEntry) {
-        return pickCanonicalKnownClientId(directEntry, normalized);
-    }
-
-    const candidateOrigin = formalizeOrigin(normalized);
-    let candidateHost = "";
-    if (candidateOrigin) {
-        try {
-            candidateHost = new URL(candidateOrigin).hostname;
-        } catch {
-            candidateHost = "";
-        }
-    }
-
-    const visited = new Set<unknown>();
-    for (const [, entry] of knownClients.entries()) {
-        if (!entry || typeof entry !== "object" || visited.has(entry)) continue;
-        visited.add(entry);
-        const origins = Array.isArray((entry as Record<string, unknown>)?.origins)
-            ? ((entry as Record<string, unknown>).origins as unknown[])
-            : [];
-        for (const origin of origins) {
-            const normalizedOrigin = formalizeOrigin(origin as string);
-            if (!normalizedOrigin) continue;
-            if (candidateOrigin && normalizedOrigin === candidateOrigin) {
-                return pickCanonicalKnownClientId(entry);
-            }
-            if (!candidateHost) continue;
-            try {
-                if (new URL(normalizedOrigin).hostname === candidateHost) {
-                    return pickCanonicalKnownClientId(entry);
-                }
-            } catch {
-                continue;
-            }
-        }
-    }
-
-    return null;
+    const entry = getKnownClientConfig(normalized);
+    if (!entry) return null;
+    return pickCanonicalKnownClientId(entry, normalized);
 };
 
 const resolveConfiguredForwardNode = (selfId: string): string | null => {
@@ -391,7 +395,66 @@ const getSocketHandshakeQuery = (socket: SocketConnect | SocketClient): Record<s
     return query && typeof query === "object" ? query : {};
 };
 
-const resolveLegacyTargetNode = (socket: SocketConnect | SocketClient, selfId: string): string => {
+/** Socket.IO stores the peer on `handshake.address`, not `socket.address`. */
+export const collectNormalizedRemoteIps = (socket: SocketConnect | SocketClient): string[] => {
+    const out = new Set<string>();
+    const push = (raw: unknown) => {
+        const n = normalizeIpForMatch(String(raw || ""));
+        if (n) out.add(n);
+    };
+    const forwarded = String((socket as any)?.handshake?.headers?.["x-forwarded-for"] || "").trim();
+    if (forwarded) {
+        for (const part of forwarded.split(",")) {
+            push(part.trim());
+        }
+    }
+    push((socket as any)?.handshake?.address);
+    push((socket as any)?.request?.socket?.remoteAddress);
+    push((socket as any)?.conn?.remoteAddress);
+    push((socket as any)?.address);
+    return Array.from(out);
+};
+
+const normalizePolicyOriginToRemoteIps = (origin: unknown): string[] => {
+    const raw = String(origin || "").trim();
+    if (!raw) return [];
+    if (raw.includes("://") || raw.includes("/")) {
+        try {
+            const normalizedUrl = raw.includes("://") ? raw : `https://${raw}`;
+            const hostname = new URL(normalizedUrl).hostname;
+            const ip = normalizeIpForMatch(hostname);
+            if (ip && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip)) {
+                return [ip];
+            }
+            return [];
+        } catch {
+            const fallback = normalizeIpForMatch(raw);
+            return fallback ? [fallback] : [];
+        }
+    }
+    const ip = normalizeIpForMatch(raw);
+    return ip ? [ip] : [];
+};
+
+const resolveHandshakeTokenString = (value: unknown): string => {
+    if (value == null) return "";
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "object" && value && "token" in (value as Record<string, unknown>)) {
+        return String((value as Record<string, unknown>).token ?? "").trim();
+    }
+    return String(value).trim();
+};
+
+const splitLegacyTargets = (value: unknown): string[] => {
+    if (Array.isArray(value)) {
+        return value.map((entry) => normalizeNodeId(entry)).filter(Boolean);
+    }
+    const raw = String(value || "").trim();
+    if (!raw) return [];
+    return raw.split(/[;,]/).map((entry) => normalizeNodeId(entry)).filter(Boolean);
+};
+
+const resolveLegacyTargetNodes = (socket: SocketConnect | SocketClient, selfId: string): string[] => {
     const query = getSocketHandshakeQuery(socket);
     const candidates = [
         query.__airpad_route_target,
@@ -401,23 +464,50 @@ const resolveLegacyTargetNode = (socket: SocketConnect | SocketClient, selfId: s
         query.__airpad_route
     ];
 
+    const resolved: string[] = [];
     for (const candidate of candidates) {
-        const normalized = normalizeNodeId(candidate);
-        if (!normalized) continue;
-        if (areNodeIdsEquivalent(normalized, selfId)) {
-            return selfId;
+        const parts = splitLegacyTargets(candidate);
+        for (const normalized of parts) {
+            if (areNodeIdsEquivalent(normalized, selfId)) {
+                if (!resolved.some((entry) => areNodeIdsEquivalent(entry, selfId))) {
+                    resolved.push(selfId);
+                }
+                continue;
+            }
+            // Accept explicit node ids even if the local known-clients map is stale;
+            // this keeps clipboard fan-out working for multiple Android targets.
+            if (!resolved.some((entry) => areNodeIdsEquivalent(entry, normalized))) {
+                resolved.push(normalized);
+            }
         }
-        if (getKnownClientConfig(normalized)) {
-            return normalized;
+    }
+    const knownOnly = resolved.filter((nodeId) => getKnownClientConfig(nodeId));
+    let out: string[] = knownOnly.length > 0 ? [...knownOnly] : resolved.length > 0 ? [...resolved] : [];
+
+    // Tunnel clients often send __airpad_route = WAN IP or host that aliases to this gateway (L-192.168.0.200).
+    // populateToOthers excludes selfId, so "only gateway" collapses to [] and nothing reaches AirPad PC.
+    const isTunnelClient =
+        String(query.__airpad_endpoint || "").trim() === "0" ||
+        String(query.__airpad_via || "").trim().toLowerCase() === "tunnel";
+    if (isTunnelClient) {
+        out = out.filter((id) => !areNodeIdsEquivalent(id, selfId));
+        // Only inject gateway.forward when the route collapsed to "this server" (WAN/LAN IP of gateway).
+        const forward = resolveConfiguredForwardNode(selfId);
+        if (out.length === 0 && forward) {
+            out.push(forward);
         }
+    }
+
+    if (out.length > 0) {
+        return uniqueNodeIds(out);
     }
 
     const configuredForward = resolveConfiguredForwardNode(selfId);
     if (configuredForward) {
-        return configuredForward;
+        return [configuredForward];
     }
 
-    return selfId;
+    return [selfId];
 };
 
 const makeLegacyLocalPacket = (
@@ -430,7 +520,7 @@ const makeLegacyLocalPacket = (
         op: base.op || "act",
         what: base.what,
         payload: base.payload,
-        nodes: Array.isArray(base.nodes) && base.nodes.length > 0 ? base.nodes : [resolveLegacyTargetNode(socket, selfId)],
+        nodes: Array.isArray(base.nodes) && base.nodes.length > 0 ? base.nodes : resolveLegacyTargetNodes(socket, selfId),
         byId: base.byId || byId || undefined,
         from: base.from || byId || undefined,
         timestamp: base.timestamp || Date.now(),
@@ -518,6 +608,21 @@ export const socketMatchesRoutingTarget = (peerInstanceId: string, targetId: str
         if (accountPeerByAlias.get(normalizeNodeId(alias).toLowerCase())?.has(peerInstanceId)) return true;
     }
     return false;
+};
+
+export const resolveKnownClientIdForPeerInstance = (peerInstanceId: string): string | null => {
+    const direct = resolveKnownClientId(peerInstanceId);
+    if (direct) return direct;
+    const keys = peerAccountKeys.get(normalizeNodeId(peerInstanceId));
+    if (!keys || keys.size === 0) return null;
+    for (const key of keys) {
+        const canonical = resolveKnownClientId(key);
+        if (canonical) return canonical;
+    }
+    for (const key of keys) {
+        if (knownClients.has(key)) return key;
+    }
+    return null;
 };
 
 const resolvePeerInstanceIdFromSocket = (socket: SocketConnect | SocketClient): string => {
@@ -681,7 +786,7 @@ export class SocketWrapper {
             populateToOthers("data", { op: "ask", ...packet }, excludeSelf(packet?.nodes, this.selfId), this.selfId, "ask");
         }
         this.token = packet?.result?.token ?? "";
-        this.origin = formalizeOrigin((this.socket as any)?.address || (this.socket as any)?.origin || this.origin || "");
+        this.origin = formalizeSocketVisibleOrigin(this.socket) || this.origin || "";
         return this.token;
     }
 
@@ -803,7 +908,7 @@ export class SocketWrapper {
     constructor(socket: SocketConnect | SocketClient, selfId: string, token: string) { 
         this.selfId = selfId;
         this.token = token;
-        this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
+        this.origin = formalizeSocketVisibleOrigin(socket);
         this.socket = socket;
         this.peerInstanceId = resolvePeerInstanceIdFromSocket(socket);
         this.socketId = this.peerInstanceId;
@@ -899,9 +1004,25 @@ export class SocketWrapper {
                 }
             }
         };
+        let clipboardWatchTimer: ReturnType<typeof setInterval> | null = null;
+        let clipboardWatchBusy = false;
+        let lastObservedClipboardText: string | null = null;
+        let suppressClipboardWatchUntil = 0;
+        const clipboardWatchIntervalMs = Math.max(
+            300,
+            Number(process.env.CWS_CLIPBOARD_WATCH_INTERVAL_MS || 900) || 900
+        );
+
+        const stopClipboardWatch = () => {
+            if (clipboardWatchTimer) {
+                clearInterval(clipboardWatchTimer);
+                clipboardWatchTimer = null;
+            }
+        };
 
         //
         socket.on("disconnect", () => {
+            stopClipboardWatch();
             this.isConnected = false;
             this.removeSocket();
         });
@@ -920,12 +1041,14 @@ export class SocketWrapper {
         //
         socket.on("error", (err) => {
             console.error(err);
+            stopClipboardWatch();
             this.isConnected = false;
             this.removeSocket();
         });
 
         //
         socket.on("close", () => {
+            stopClipboardWatch();
             this.isConnected = false;
             this.removeSocket();
         });
@@ -955,7 +1078,7 @@ export class SocketWrapper {
             if (!packet) return;
             if (packet?.op == "resolve" && packet?.what == "token") {
                 this.token = packet?.result?.token ?? "";
-                this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
+                this.origin = formalizeSocketVisibleOrigin(socket) || this.origin || "";
                 this.rememberPeerId(packet?.byId || await identifyNodeIdFromIncomingConnection(socket, packet) as string);
                 this.isConnected = true;
             }
@@ -993,6 +1116,37 @@ export class SocketWrapper {
             return typeof text === "string" ? text : String(text ?? "");
         };
 
+        const startClipboardWatch = () => {
+            const targets = resolveLegacyTargetNodes(socket, this.selfId).filter((target) => !areNodeIdsEquivalent(target, this.selfId));
+            if (targets.length === 0) {
+                stopClipboardWatch();
+                return;
+            }
+            stopClipboardWatch();
+            clipboardWatchTimer = setInterval(async () => {
+                if (!this.isConnected || clipboardWatchBusy) return;
+                clipboardWatchBusy = true;
+                try {
+                    const text = await readLocalClipboardText();
+                    if (!text && text !== "") return;
+                    if (Date.now() < suppressClipboardWatchUntil) return;
+                    if (lastObservedClipboardText === text) return;
+                    lastObservedClipboardText = text;
+                    socket.emit("clipboard:update", { text, source: "watch" });
+                    const packet = makeLegacyLocalPacket(socket, this.selfId, {
+                        what: "clipboard:update",
+                        payload: { text },
+                        nodes: targets
+                    });
+                    void this.reply(packet);
+                } catch {
+                    // keep loop alive on transient clipboard read failures
+                } finally {
+                    clipboardWatchBusy = false;
+                }
+            }, clipboardWatchIntervalMs);
+        };
+
         const tapCtrlKey = async (key: string): Promise<void> => {
             const payload = { key, modifier: ["control"] };
             const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "keyboard:tap", payload });
@@ -1005,7 +1159,7 @@ export class SocketWrapper {
                 const packet = normalizeInboundPacket(packetRaw);
                 if (!packet) return;
                 if ((!packet.nodes || packet.nodes.length === 0) && ["ask", "act"].includes(packet.op || "")) {
-                    packet.nodes = [resolveLegacyTargetNode(socket, this.selfId)];
+                    packet.nodes = resolveLegacyTargetNodes(socket, this.selfId);
                     packet.byId ||= normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId || (socket as any)?.id) || undefined;
                     packet.from ||= packet.byId;
                     packet.timestamp ||= Date.now();
@@ -1096,6 +1250,8 @@ export class SocketWrapper {
         socket.on("clipboard:update", async (data: any, ack?: any) => {
             try {
                 const text = typeof data?.text === "string" ? data.text : String(data?.text ?? "");
+                lastObservedClipboardText = text;
+                suppressClipboardWatchUntil = Date.now() + clipboardWatchIntervalMs * 2;
                 const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
                 await this.handleAct("clipboard:update", { text }, packet, this.selfId);
                 void this.reply(packet);
@@ -1110,6 +1266,8 @@ export class SocketWrapper {
         socket.on("clipboard:paste", async (data: any, ack?: any) => {
             try {
                 const text = typeof data?.text === "string" ? data.text : String(data?.text ?? "");
+                lastObservedClipboardText = text;
+                suppressClipboardWatchUntil = Date.now() + clipboardWatchIntervalMs * 2;
                 const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
                 await this.handleAct("clipboard:update", { text }, packet, this.selfId);
                 void this.reply(packet);
@@ -1130,6 +1288,9 @@ export class SocketWrapper {
         //
         socket.on("data", makePacketHandler());
         socket.on("message", makePacketHandler());
+        socket.on("connect", startClipboardWatch);
+        socket.on("reconnect", startClipboardWatch);
+        startClipboardWatch();
     }
 }
 
@@ -1148,14 +1309,49 @@ export const loadFromClientsConfig = (clientsData: Record<string, any>[]) => {
 export const identifyNodeIdFromIncomingConnection = async (socket: SocketConnect | SocketClient, packet?: Packet): Promise<string | null> => { 
     if (packet?.byId) { return packet?.byId as string; }
     const hintedId = normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId);
-    if (hintedId && getKnownClientConfig(hintedId)) {
-        return hintedId;
+    if (hintedId) {
+        const hintedEntry = getKnownClientConfig(hintedId);
+        if (hintedEntry) {
+            return pickCanonicalKnownClientId(hintedEntry, hintedId);
+        }
     }
+
+    const remoteIps = collectNormalizedRemoteIps(socket);
+    for (const ip of remoteIps) {
+        const byIp = getKnownClientConfig(ip);
+        if (byIp) {
+            const canon = pickCanonicalKnownClientId(byIp, ip);
+            if (canon) return canon;
+        }
+    }
+
     const gotToken = packet?.token ?? (await socketWrapper.get(socket)?.doAsk?.("token", {}, []));
-    const possibleNodeId = [...knownClients?.entries?.()].find(([byId, { origins, tokens }]) => {
-        return origins.some((ip)=>ip==(socket as any)?.address) || tokens.some((token)=>token==(packet?.token ?? gotToken));
-    })?.[0];
-    if (possibleNodeId) { return possibleNodeId; }
+    const tokenStr = resolveHandshakeTokenString(packet?.token ?? gotToken).toLowerCase();
+
+    const matched = [...knownClients.entries()].find(([, cfg]) => {
+        if (!cfg || typeof cfg !== "object") return false;
+        const origins = Array.isArray((cfg as Record<string, unknown>).origins)
+            ? ((cfg as Record<string, unknown>).origins as unknown[])
+            : [];
+        const tokens = Array.isArray((cfg as Record<string, unknown>).tokens)
+            ? ((cfg as Record<string, unknown>).tokens as unknown[])
+            : [];
+        const originHit = origins.some((origin) =>
+            normalizePolicyOriginToRemoteIps(origin).some((slice) => remoteIps.includes(slice))
+        );
+        const tokenHit =
+            !!tokenStr &&
+            tokens.some((t) => {
+                const ts = String(t || "").trim().toLowerCase();
+                return ts === "*" || ts === tokenStr;
+            });
+        return originHit || tokenHit;
+    });
+
+    if (matched) {
+        const [byId, cfg] = matched;
+        return pickCanonicalKnownClientId(cfg, byId);
+    }
     return null;
 }
 
@@ -1178,6 +1374,45 @@ export const formalizeOrigin = (origin: string) => {
     }
 };
 
+/** Prefer the Host the client used (WAN vs LAN), then normalized remote IP — not the broken `socket.address` field. */
+export const formalizeSocketVisibleOrigin = (socket: SocketConnect | SocketClient): string => {
+    const s = socket as any;
+    const headers = s?.handshake?.headers;
+    const host = String(headers?.host || headers?.[":authority"] || "").trim();
+    if (host) {
+        const protoRaw = String(headers?.["x-forwarded-proto"] || "https").split(",")[0]?.trim() || "https";
+        const proto = protoRaw === "http" ? "http:" : "https:";
+        return formalizeOrigin(`${proto}//${host}`);
+    }
+    const ips = collectNormalizedRemoteIps(socket);
+    if (ips[0]) {
+        return formalizeOrigin(`https://${ips[0]}`);
+    }
+    return formalizeOrigin(String(s?.address || s?.origin || ""));
+};
+
+const resolveTlsServername = (targetConfig: any, normalizedOrigin: string): string | undefined => {
+    const explicit = normalizeNodeId(targetConfig?.tls?.servername || targetConfig?.tls?.serverName);
+    if (explicit) return explicit;
+    const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
+    if (!origins.length) return undefined;
+    let connectedHost = "";
+    try {
+        connectedHost = new URL(normalizedOrigin).hostname;
+    } catch {
+        connectedHost = "";
+    }
+    const privateIpv4 = origins
+        .map((value: unknown) => normalizeNodeId(value))
+        .filter(Boolean)
+        .find((host) => {
+            if (host === connectedHost) return false;
+            if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return false;
+            return /^10\./.test(host) || /^192\.168\./.test(host) || /^172\.(1[6-9]|2\d|3[0-1])\./.test(host);
+        });
+    return privateIpv4 || undefined;
+};
+
 //
 export const initiateConnection = async (forId: string, fromId: string): Promise<SocketWrapper | undefined> => { 
     const targetConfig = getKnownClientConfig(forId);
@@ -1190,25 +1425,45 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
         return undefined;
     }
     const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
-    const configuredPorts = Array.from(new Set([
+    const securePorts = Array.from(new Set([
         ...((Array.isArray(targetConfig?.ports?.https) ? targetConfig.ports.https : []) as Array<string | number>),
         ...((Array.isArray(targetConfig?.ports?.wss) ? targetConfig.ports.wss : []) as Array<string | number>),
         8443
+    ].map((value) => String(value || "").trim()).filter(Boolean)));
+    const plainPorts = Array.from(new Set([
+        ...((Array.isArray(targetConfig?.ports?.http) ? targetConfig.ports.http : []) as Array<string | number>),
+        ...((Array.isArray(targetConfig?.ports?.ws) ? targetConfig.ports.ws : []) as Array<string | number>),
+        8080
     ].map((value) => String(value || "").trim()).filter(Boolean)));
     const configuredTokens = Array.isArray(targetConfig?.tokens) ? targetConfig.tokens.map((value) => String(value || "").trim()).filter(Boolean) : [];
     const token = configuredTokens[0] || SELF_DATA.ASSOCIATED_TOKEN || "";
     const rejectUnauthorized = String(process.env.CWS_BRIDGE_REJECT_UNAUTHORIZED || "").trim().toLowerCase() !== "false";
     const candidateOrigins = origins.flatMap((origin) => {
-        const normalizedOrigin = formalizeOrigin(origin);
-        if (!normalizedOrigin) {
-            return [];
-        }
+        const raw = String(origin || "").trim();
+        if (!raw) return [];
+        const hasScheme = raw.includes("://");
+        const normalized = hasScheme ? raw : `https://${raw}`;
         try {
-            const parsed = new URL(normalizedOrigin);
+            const parsed = new URL(normalized);
+            const host = parsed.hostname;
+            if (!host) return [];
             if (parsed.port) {
-                return [normalizedOrigin];
+                const proto = parsed.protocol.toLowerCase();
+                if (proto === "https:" || proto === "wss:") return [`https://${host}:${parsed.port}`];
+                if (proto === "http:" || proto === "ws:") return [`http://${host}:${parsed.port}`];
+                return [`https://${host}:${parsed.port}`];
             }
-            return configuredPorts.map((port) => `${parsed.protocol}//${parsed.hostname}:${port}`);
+            if (hasScheme) {
+                const proto = parsed.protocol.toLowerCase();
+                if (proto === "http:" || proto === "ws:") {
+                    return plainPorts.map((port) => `http://${host}:${port}`);
+                }
+                return securePorts.map((port) => `https://${host}:${port}`);
+            }
+            return [
+                ...securePorts.map((port) => `https://${host}:${port}`),
+                ...plainPorts.map((port) => `http://${host}:${port}`)
+            ];
         } catch {
             return [];
         }
@@ -1221,6 +1476,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
         rejectUnauthorized
     });
     for (const normalizedOrigin of candidateOrigins) {
+        const tlsServername = resolveTlsServername(targetConfig, normalizedOrigin);
         const handshake = buildServerV2SocketHandshake({
             endpointUrl: normalizedOrigin,
             userId: fromId,
@@ -1239,7 +1495,8 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
             upgrade: false,
             reconnection: false,
             timeout: 10000,
-            rejectUnauthorized
+            rejectUnauthorized,
+            ...(tlsServername ? { servername: tlsServername } : {})
         });
         const connectedSocket = await new Promise<SocketWrapper | undefined>((resolve) => {
             let settled = false;
@@ -1257,16 +1514,21 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
                     from: fromId,
                     target: forId,
                     origin: normalizedOrigin,
+                    tlsServername,
                     socketId: (rawSocket as any)?.id
                 });
                 finish(new SocketWrapper(rawSocket, fromId, token));
             };
             const onError = (error?: unknown) => {
+                const normalizedError = String((error as any)?.message || error || "");
                 traceSocket("initiate-error", {
                     from: fromId,
                     target: forId,
                     origin: normalizedOrigin,
-                    reason: error instanceof Error ? error.message : String(error || "")
+                    reason: normalizedError,
+                    tlsHint: /ssl|tls|certificate|self[-\s]?signed|wrong version number|protocol/i.test(normalizedError)
+                        ? "tls-or-protocol-mismatch"
+                        : undefined
                 });
                 rawSocket.close();
                 finish(undefined);
@@ -1456,8 +1718,28 @@ export class SocketServer {
 
 //
 export let existsSocketServer: SocketServer | undefined = undefined;
+const isTruthyEnv = (value: unknown): boolean => ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+const buildSocketIoServerOptions = () => {
+    const allowAnyOrigin = !isTruthyEnv(process.env.CWS_SOCKET_STRICT_CORS);
+    const corsOrigin: any = allowAnyOrigin
+        ? (origin: string | undefined, cb: (err: Error | null, ok?: boolean) => void) => cb(null, true)
+        : (
+            process.env.CWS_SOCKET_CORS_ORIGINS
+                ? process.env.CWS_SOCKET_CORS_ORIGINS.split(",").map((entry) => entry.trim()).filter(Boolean)
+                : true
+        );
+    return {
+        transports: ["websocket", "polling"] as const,
+        cors: {
+            origin: corsOrigin,
+            credentials: true,
+            methods: ["GET", "POST", "OPTIONS"]
+        },
+        allowRequest: (_req: any, callback: (err: string | null, ok: boolean) => void) => callback(null, true)
+    } as any;
+};
 export const makeSocketServer = (originOrServer: any, selfId: string) => {
-    return (existsSocketServer ??= new SocketServer(new Server(originOrServer, {  }), selfId));
+    return (existsSocketServer ??= new SocketServer(new Server(originOrServer, buildSocketIoServerOptions()), selfId));
 }
 
 //

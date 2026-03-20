@@ -149,6 +149,6 @@ export const options = {
     },
     port: port || 443,
     https: { allowHTTP1: true, ...httpsConfig },
-    address: "0.0.0.0",
-    host: "0.0.0.0",
+    address: "::",
+    host: "::",
 };

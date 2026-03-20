@@ -18,26 +18,68 @@ const parseCsv = (value) =>
         .map((item) => item.trim())
         .filter(Boolean);
 
+/** Browsers usually send http(s) Origin for pages; some clients echo wss/ws for the socket URL. */
+const matchesExactAllowed = (origin, exactAllowed) => {
+    if (exactAllowed.has(origin)) return true;
+    if (/^wss:\/\//i.test(origin)) {
+        return exactAllowed.has(`https://${origin.slice(6)}`);
+    }
+    if (/^ws:\/\//i.test(origin)) {
+        return exactAllowed.has(`http://${origin.slice(5)}`);
+    }
+    if (/^https:\/\//i.test(origin)) {
+        return exactAllowed.has(`wss://${origin.slice(8)}`);
+    }
+    if (/^http:\/\//i.test(origin)) {
+        return exactAllowed.has(`ws://${origin.slice(7)}`);
+    }
+    return false;
+};
+
 const createCorsOriginMatcher = () => {
     const allowAll = String(process.env.CORS_ALLOW_ALL || "").toLowerCase() === "true";
     const configuredOrigins = parseCsv(process.env.CORS_ALLOWED_ORIGINS);
+    /**
+     * AirPad / sub-clients hit https://<gateway-ip>:8443 — those origins failed before (exact list had no :port).
+     * On a dedicated gateway, set CORS_DISABLE_U2RE_DOMAIN=true so only IPs / CORS_ALLOWED_ORIGINS apply.
+     */
+    const allowU2reDomain =
+        String(process.env.CORS_DISABLE_U2RE_DOMAIN || "").toLowerCase() !== "true";
 
     const exactAllowed = new Set([
-        "https://u2re.space",
-        "https://www.u2re.space",
+        "https://45.147.121.152",
+        "http://45.147.121.152",
+        "https://100.110.152.73",
+        "http://100.110.152.73",
         "https://192.168.0.200",
         "http://192.168.0.200",
         "https://localhost",
         "http://localhost",
         "https://127.0.0.1",
         "http://127.0.0.1",
+        ...(allowU2reDomain ? ["https://u2re.space", "https://www.u2re.space"] : []),
         ...configuredOrigins
     ]);
 
-    const localhostPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i;
-    const privateLanPattern =
-        /^https?:\/\/((10\.\d{1,3}\.\d{1,3}\.\d{1,3})|(192\.168\.\d{1,3}\.\d{1,3})|(172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}))(:\d+)?$/i;
-    const u2rePattern = /^https?:\/\/([a-z0-9-]+\.)*u2re\.space(:\d+)?$/i;
+    const webSocketOriginScheme = "(?:https?|wss?)";
+    const localhostPattern = new RegExp(
+        `^${webSocketOriginScheme}:\\/\\/(localhost|127\\.0\\.0\\.1)(:\\d+)?$`,
+        "i"
+    );
+    const privateLanPattern = new RegExp(
+        `^${webSocketOriginScheme}:\\/\\/` +
+            `((10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|(192\\.168\\.\\d{1,3}\\.\\d{1,3})|(172\\.(1[6-9]|2\\d|3[0-1])\\.\\d{1,3}\\.\\d{1,3}))(:\\d+)?$`,
+        "i"
+    );
+    /** http(s) / ws(s) + host:port — WAN IP :8443 etc. */
+    const ipv4LiteralOriginPattern = new RegExp(
+        `^${webSocketOriginScheme}:\\/\\/(\\d{1,3}\\.){3}\\d{1,3}(:\\d+)?$`,
+        "i"
+    );
+    const u2rePattern = new RegExp(
+        `^${webSocketOriginScheme}:\\/\\/([a-z0-9-]+\\.)*u2re\\.space(:\\d+)?$`,
+        "i"
+    );
     const extensionPattern = /^(chrome-extension|moz-extension):\/\//i;
 
     return (origin, callback) => {
@@ -47,10 +89,11 @@ const createCorsOriginMatcher = () => {
         }
 
         if (
-            exactAllowed.has(origin) ||
+            matchesExactAllowed(origin, exactAllowed) ||
             localhostPattern.test(origin) ||
             privateLanPattern.test(origin) ||
-            u2rePattern.test(origin) ||
+            ipv4LiteralOriginPattern.test(origin) ||
+            (allowU2reDomain && u2rePattern.test(origin)) ||
             extensionPattern.test(origin)
         ) {
             callback(null, true);

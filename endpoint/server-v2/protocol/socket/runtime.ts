@@ -11,6 +11,7 @@ import {
     knownClients,
     loadFromClientsConfig,
     makeSocketServer,
+    resolveKnownClientIdForPeerInstance,
     resolveKnownClientId,
     socketMatchesRoutingTarget
 } from "./coordinator.ts";
@@ -212,7 +213,7 @@ export class ServerV2SocketRuntime {
             if (!socket || typeof socket !== "object") continue;
             if (seenSockets.has(socket as object)) continue;
             seenSockets.add(socket as object);
-            const relayId = resolveKnownClientId(peerInstanceId) || normalizeString(peerInstanceId);
+            const relayId = resolveKnownClientIdForPeerInstance(peerInstanceId) || normalizeString(peerInstanceId);
             if (!relayId || areNodeIdsEquivalent(relayId, this.selfId)) continue;
             if (targetIds.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId))) continue;
             const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(peerInstanceId));

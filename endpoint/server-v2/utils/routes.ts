@@ -10,6 +10,7 @@ import { CONFIG_DIR } from "./paths.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "@utils/endpoint-policy.ts";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { normalizeIpForMatch } from "./ip-match.ts";
 
 function setUtf8Plain(reply: any) {
     reply.header("Content-Type", "text/plain; charset=utf-8");
@@ -108,19 +109,6 @@ const normalizeClipboardToken = (value: any): string => {
     if (raw.startsWith("token:")) return raw.slice("token:".length).trim();
     if (raw.startsWith("env:") || raw.startsWith("fs:")) return "";
     return raw;
-};
-
-const normalizeIpForMatch = (value: string): string => {
-    const trimmed = String(value || "").trim().toLowerCase();
-    if (!trimmed) return "";
-    const first = trimmed.split(",")[0]?.trim() || trimmed;
-    const noZone = first.split("%")[0];
-    const noBrackets = noZone.replace(/^\[(.*)\]$/, "$1");
-    const noV4Prefix = noBrackets.replace(/^::ffff:/, "");
-    if (/^\d{1,3}(?:\.\d{1,3}){3}:\d+$/.test(noV4Prefix)) {
-        return noV4Prefix.replace(/:\d+$/, "");
-    }
-    return noV4Prefix;
 };
 
 const extractRequestIps = (request: any): string[] => {
@@ -351,9 +339,13 @@ const resolveSourceEndpointPolicy = (app: any, requestBody: any, request: any): 
     // if unresolved, keep Android clipboard fanout available for known sender identities.
     const lowerSourceHints = sourceHints.map((entry) => normalizeClipboardId(entry));
     const looksLikeLaptop110 = requestIps.includes("192.168.0.110") || lowerSourceHints.includes("l-192.168.0.110");
-    const looksLikeVds45 = requestIps.includes("45.150.9.153") || lowerSourceHints.includes("l-45.150.9.153");
-    if (looksLikeLaptop110 || looksLikeVds45) {
-        return { sourceId: looksLikeVds45 ? "l-45.150.9.153" : "l-192.168.0.110", targets: ["l-192.168.0.196", "l-192.168.0.208"] };
+    const looksLikeWanClient =
+        lowerSourceHints.includes("l-wan-client") || lowerSourceHints.includes("l-u2re-space");
+    if (looksLikeLaptop110 || looksLikeWanClient) {
+        return {
+            sourceId: looksLikeWanClient ? "l-wan-client" : "l-192.168.0.110",
+            targets: ["l-192.168.0.196", "l-192.168.0.208"]
+        };
     }
 
     return null;
