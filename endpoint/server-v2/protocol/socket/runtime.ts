@@ -11,7 +11,8 @@ import {
     knownClients,
     loadFromClientsConfig,
     makeSocketServer,
-    resolveKnownClientId
+    resolveKnownClientId,
+    socketMatchesRoutingTarget
 } from "./coordinator.ts";
 
 type SocketServerInput = HttpServer | HttpsServer;
@@ -155,13 +156,13 @@ export class ServerV2SocketRuntime {
 
         let delivered = false;
         const pendingTargets = [...targets];
-        for (const [nodeId, socket] of internalNodeMap.entries()) {
-            const normalizedNodeId = normalizeToken(nodeId);
-            if (!targets.includes(normalizedNodeId)) continue;
+        for (const [peerInstanceId, socket] of internalNodeMap.entries()) {
+            const matches = pendingTargets.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId));
+            if (!matches) continue;
             socket.emit("data", outbound);
             delivered = true;
             for (let index = pendingTargets.length - 1; index >= 0; index -= 1) {
-                if (areNodeIdsEquivalent(pendingTargets[index], normalizedNodeId)) {
+                if (socketMatchesRoutingTarget(peerInstanceId, pendingTargets[index])) {
                     pendingTargets.splice(index, 1);
                 }
             }
@@ -198,7 +199,7 @@ export class ServerV2SocketRuntime {
 
     private hasEquivalentLiveConnection(targetId: string): boolean {
         for (const connectedId of internalNodeMap.keys()) {
-            if (areNodeIdsEquivalent(connectedId, targetId)) {
+            if (socketMatchesRoutingTarget(connectedId, targetId)) {
                 return true;
             }
         }
@@ -207,14 +208,14 @@ export class ServerV2SocketRuntime {
 
     private findGatewayRelayConnection(targetIds: string[]): { emit: (event: string, payload: unknown) => void } | null {
         const seenSockets = new Set<object>();
-        for (const [nodeId, socket] of internalNodeMap.entries()) {
+        for (const [peerInstanceId, socket] of internalNodeMap.entries()) {
             if (!socket || typeof socket !== "object") continue;
             if (seenSockets.has(socket as object)) continue;
             seenSockets.add(socket as object);
-            const relayId = resolveKnownClientId(nodeId) || normalizeString(nodeId);
+            const relayId = resolveKnownClientId(peerInstanceId) || normalizeString(peerInstanceId);
             if (!relayId || areNodeIdsEquivalent(relayId, this.selfId)) continue;
-            if (targetIds.some((targetId) => areNodeIdsEquivalent(targetId, relayId))) continue;
-            const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(nodeId));
+            if (targetIds.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId))) continue;
+            const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(peerInstanceId));
             if (asRecord(relayConfig.flags).gateway === true && typeof (socket as any).emit === "function") {
                 return socket as { emit: (event: string, payload: unknown) => void };
             }

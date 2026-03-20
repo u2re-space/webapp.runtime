@@ -4,6 +4,8 @@ export type ServerV2WireIdentity = {
     archetype?: string;
     connectionType?: string;
     deviceId?: string;
+    /** Unique per device/session; avoids Socket.IO routing collisions when userId/clientId match. */
+    peerInstanceId?: string;
     endpointUrl?: string;
     rejectUnauthorized?: boolean;
     token?: string;
@@ -114,6 +116,14 @@ export const buildServerV2SocketHandshake = (identity: ServerV2WireIdentity): Se
         query.userId = resolved.userId;
         query.__airpad_client = resolved.clientId;
         query.__airpad_src = resolved.clientId;
+    }
+
+    const peerInstance = normalizeString(identity.peerInstanceId);
+    if (peerInstance) {
+        auth.peerInstanceId = peerInstance;
+        auth.deviceInstanceId = peerInstance;
+        query.peerInstanceId = peerInstance;
+        query.deviceInstanceId = peerInstance;
     }
 
     return {

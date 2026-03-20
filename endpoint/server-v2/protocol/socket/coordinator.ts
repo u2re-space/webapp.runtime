@@ -1,7 +1,7 @@
 import { Server, Socket as SocketClient } from "socket.io";
 import { Socket as SocketConnect, io } from "socket.io-client";
 import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
-import { buildServerV2SocketHandshake } from "./client-contract.ts";
+import { buildServerV2SocketHandshake, normalizeWireNodeId } from "./client-contract.ts";
 import { normalizeInboundPacket } from "./packet.ts";
 import type { Packet } from "./types.ts";
 
@@ -30,6 +30,9 @@ export const internalNodeMap = new Map<string, SocketConnect | SocketClient>();
 export const knownClients = new Map<string, any>();
 export const nodeMap = new Map<string, SocketWrapper | Promise<SocketWrapper | undefined> | undefined>();
 const failedNodeRetryAt = new Map<string, number>();
+/** Lowercase account / alias key -> peer instance ids that share that identity (same token, different devices). */
+const accountPeerByAlias = new Map<string, Set<string>>();
+const peerAccountKeys = new Map<string, Set<string>>();
 // Keep reconnect/cooldown close to "about a second" by default.
 // Can be overridden for tuning in noisy network scenarios.
 const FAILED_NODE_RETRY_MS = Math.max(1000, Number(process.env.CWS_SOCKET_FAILED_NODE_RETRY_MS || 1000) || 1000);
@@ -152,40 +155,45 @@ export const populateToOthers = (
         : requestedNodes;
     const rejectOnFailure = options?.rejectOnFailure === true;
     for (const nodeId of uniqueNodeIds(excludeSelf(candidateNodes, selfId)).filter((nodeId) => nodeId && nodeId !== "*")) { 
-        const promise = Promise.resolve(
-            findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined
-        );
-        promisedArray.push(promise.then((socket) => {
-            packet.nodes = uniqueNodeIds(excludeSelf(packet.nodes, selfId));
-            packet.op = (op ||= packet?.op);
-            packet.byId ||= selfId;
-            if (!socket) {
-                if (!rejectOnFailure) {
-                    return undefined;
+        const localWrappers = resolveLocalSocketWrappersForTarget(nodeId);
+        const dispatchList =
+            localWrappers.length > 0
+                ? localWrappers
+                : [findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined];
+        for (const entry of dispatchList) {
+            const promise = Promise.resolve(entry);
+            promisedArray.push(promise.then((socket) => {
+                packet.nodes = uniqueNodeIds(excludeSelf(packet.nodes, selfId));
+                packet.op = (op ||= packet?.op);
+                packet.byId ||= selfId;
+                if (!socket) {
+                    if (!rejectOnFailure) {
+                        return undefined;
+                    }
+                    throw new Error(`Unable to connect to node: ${nodeId}`);
                 }
-                throw new Error(`Unable to connect to node: ${nodeId}`);
-            }
-            return socket.direct(channel, sanitizePacketForWire(packet as Packet));
-        })?.catch?.((err) => { 
-            if (rejectOnFailure) {
-                traceSocket("forward-error", {
+                return socket.direct(channel, sanitizePacketForWire(packet as Packet));
+            })?.catch?.((err) => { 
+                if (rejectOnFailure) {
+                    traceSocket("forward-error", {
+                        from: selfId,
+                        target: nodeId,
+                        op: packet?.op,
+                        what: packet?.what,
+                        reason: describeSocketError(err)
+                    });
+                    throw err;
+                }
+                traceSocket("forward-skip", {
                     from: selfId,
                     target: nodeId,
                     op: packet?.op,
                     what: packet?.what,
                     reason: describeSocketError(err)
                 });
-                throw err;
-            }
-            traceSocket("forward-skip", {
-                from: selfId,
-                target: nodeId,
-                op: packet?.op,
-                what: packet?.what,
-                reason: describeSocketError(err)
-            });
-            return undefined;
-        }));
+                return undefined;
+            }));
+        }
     }
     return promisedArray;
 }
@@ -378,14 +386,6 @@ export const packetTargetsSelf = (nodes: unknown, selfId: string): boolean => {
     return false;
 };
 
-const getCachedNodeConnection = (nodeId: string) => {
-    for (const alias of getKnownClientAliases(nodeId)) {
-        const cached = nodeMap.get(alias);
-        if (cached) return cached;
-    }
-    return undefined;
-};
-
 const getSocketHandshakeQuery = (socket: SocketConnect | SocketClient): Record<string, unknown> => {
     const query = (socket as any)?.handshake?.query;
     return query && typeof query === "object" ? query : {};
@@ -438,6 +438,100 @@ const makeLegacyLocalPacket = (
     };
 };
 
+const cachePeerInstanceOnly = (
+    peerInstanceId: string,
+    connection: SocketWrapper | Promise<SocketWrapper | undefined> | undefined
+) => {
+    const key = normalizeNodeId(peerInstanceId);
+    if (!key) return;
+    nodeMap.set(key, connection);
+};
+
+const unregisterAccountPeersForSocket = (peerInstanceId: string) => {
+    const keys = peerAccountKeys.get(peerInstanceId);
+    if (!keys) return;
+    for (const k of keys) {
+        const bucket = accountPeerByAlias.get(k);
+        if (!bucket) continue;
+        bucket.delete(peerInstanceId);
+        if (bucket.size === 0) accountPeerByAlias.delete(k);
+    }
+    peerAccountKeys.delete(peerInstanceId);
+};
+
+const registerAccountPeersForSocket = (peerInstanceId: string, accountAliases: string[]) => {
+    unregisterAccountPeersForSocket(peerInstanceId);
+    const keyBucket = new Set<string>();
+    peerAccountKeys.set(peerInstanceId, keyBucket);
+    const seen = new Set<string>();
+    for (const alias of accountAliases) {
+        const k = normalizeNodeId(alias).toLowerCase();
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        keyBucket.add(k);
+        if (!accountPeerByAlias.has(k)) accountPeerByAlias.set(k, new Set());
+        accountPeerByAlias.get(k)!.add(peerInstanceId);
+    }
+};
+
+export const resolveLocalSocketWrappersForTarget = (
+    targetId: string
+): Array<SocketWrapper | Promise<SocketWrapper | undefined> | undefined> => {
+    const out: Array<SocketWrapper | Promise<SocketWrapper | undefined> | undefined> = [];
+    for (const alias of getKnownClientAliases(targetId)) {
+        const cached = nodeMap.get(alias);
+        if (cached) {
+            out.push(cached);
+            return out;
+        }
+    }
+    const direct = nodeMap.get(targetId);
+    if (direct) {
+        out.push(direct);
+        return out;
+    }
+    const peerIds = new Set<string>();
+    const token = normalizeNodeId(targetId).toLowerCase();
+    const fromDirect = accountPeerByAlias.get(token);
+    if (fromDirect) {
+        for (const pid of fromDirect) peerIds.add(pid);
+    }
+    for (const alias of getKnownClientAliases(targetId)) {
+        const bucket = accountPeerByAlias.get(normalizeNodeId(alias).toLowerCase());
+        if (bucket) {
+            for (const pid of bucket) peerIds.add(pid);
+        }
+    }
+    for (const pid of peerIds) {
+        const cached = nodeMap.get(pid);
+        if (cached) out.push(cached);
+    }
+    return out;
+};
+
+export const socketMatchesRoutingTarget = (peerInstanceId: string, targetId: string): boolean => {
+    if (areNodeIdsEquivalent(peerInstanceId, targetId)) return true;
+    const t = normalizeNodeId(targetId).toLowerCase();
+    if (normalizeNodeId(peerInstanceId).toLowerCase() === t) return true;
+    if (accountPeerByAlias.get(t)?.has(peerInstanceId)) return true;
+    for (const alias of getKnownClientAliases(targetId)) {
+        if (accountPeerByAlias.get(normalizeNodeId(alias).toLowerCase())?.has(peerInstanceId)) return true;
+    }
+    return false;
+};
+
+const resolvePeerInstanceIdFromSocket = (socket: SocketConnect | SocketClient): string => {
+    const q = getSocketHandshakeQuery(socket);
+    const raw = normalizeNodeId(q.peerInstanceId || q.deviceInstanceId || q.sessionPeerId);
+    if (raw) {
+        const wired = normalizeWireNodeId(raw);
+        return wired || raw;
+    }
+    const sid = normalizeNodeId((socket as any)?.id);
+    if (sid) return `io-${sid}`;
+    return `io-${UUIDv4()}`;
+};
+
 const cacheNodeConnection = (
     nodeId: string,
     connection: SocketWrapper | Promise<SocketWrapper | undefined> | undefined
@@ -449,6 +543,11 @@ const cacheNodeConnection = (
 
 const deleteCachedNodeConnection = (...nodeIds: Array<string | undefined>) => {
     for (const nodeId of nodeIds) {
+        const normalized = normalizeNodeId(nodeId);
+        if (!normalized) continue;
+        if (peerAccountKeys.has(normalized)) {
+            unregisterAccountPeersForSocket(normalized);
+        }
         for (const alias of getKnownClientAliases(nodeId)) {
             nodeMap.delete(alias);
         }
@@ -495,6 +594,9 @@ export class SocketWrapper {
     public socket: SocketConnect | SocketClient;
     public socketId: string;
     public peerId: string;
+    /** Unique Socket.IO routing id (per device); avoids collisions when clientId matches across AirPad/Android. */
+    public peerInstanceId: string;
+    private accountRoutingHints = new Set<string>();
     public isConnected: boolean = false;
     public messages = new Map<string, any>();
     public resolvers = new Map<string, {
@@ -534,13 +636,24 @@ export class SocketWrapper {
     }
 
     rememberPeerId(candidate?: unknown) {
-        const normalized = normalizeNodeId(candidate);
-        if (!normalized) return "";
-        this.peerId = normalized;
-        this.socketId ||= normalized;
-        internalNodeMap.set(normalized, this.socket);
-        cacheNodeConnection(normalized, this);
-        return normalized;
+        const peerInstance = this.peerInstanceId || resolvePeerInstanceIdFromSocket(this.socket);
+        this.peerInstanceId = peerInstance;
+        this.peerId = peerInstance;
+        this.socketId = peerInstance;
+        internalNodeMap.set(peerInstance, this.socket);
+        cachePeerInstanceOnly(peerInstance, this);
+        const cand = normalizeNodeId(candidate);
+        const handshakeClient = normalizeNodeId(
+            (this.socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(this.socket).clientId
+        );
+        if (cand) this.accountRoutingHints.add(cand);
+        if (handshakeClient) this.accountRoutingHints.add(handshakeClient);
+        const expanded: string[] = [];
+        for (const h of this.accountRoutingHints) {
+            expanded.push(...getKnownClientAliases(h));
+        }
+        registerAccountPeersForSocket(peerInstance, expanded);
+        return peerInstance;
     }
 
     //
@@ -679,8 +792,9 @@ export class SocketWrapper {
             if (!this.isConnected) {
                 this.socket.disconnect();
                 socketWrapper.delete(this.socket);
-                internalNodeMap.delete(this.socketId);
-                deleteCachedNodeConnection(this.socketId);
+                const pid = this.peerInstanceId || this.socketId;
+                internalNodeMap.delete(pid);
+                deleteCachedNodeConnection(pid);
             }
         }, 1000);
     }
@@ -691,7 +805,9 @@ export class SocketWrapper {
         this.token = token;
         this.origin = formalizeOrigin((socket as any)?.address || (socket as any)?.origin || "");
         this.socket = socket;
-        this.peerId = "";
+        this.peerInstanceId = resolvePeerInstanceIdFromSocket(socket);
+        this.socketId = this.peerInstanceId;
+        this.peerId = this.peerInstanceId;
         socketWrapper.set(socket, this);
 
         const handlePacket = async (packet: Packet) => {
@@ -1112,7 +1228,8 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
             token,
             rejectUnauthorized,
             connectionType: "exchanger-initiator",
-            archetype: "server-v2"
+            archetype: "server-v2",
+            peerInstanceId: UUIDv4()
         });
         const rawSocket = io(normalizedOrigin, {
             auth: handshake.auth,
@@ -1180,14 +1297,16 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
 
 //
 export const findOrInitiateConnection = (id: string, selfId: string): SocketWrapper | Promise<SocketWrapper | undefined> | undefined => {
-    const cached = getCachedNodeConnection(id);
-    if (cached) {
+    const localPeers = resolveLocalSocketWrappersForTarget(id);
+    if (localPeers.length > 0) {
+        const first = localPeers[0];
         traceSocket("find-cache-hit", {
             from: selfId,
             target: id,
-            cachedType: cached instanceof SocketWrapper ? "socket" : "promise"
+            cachedType: first instanceof SocketWrapper ? "socket" : "promise",
+            localPeerCount: localPeers.length
         });
-        return cached;
+        return first;
     }
     const retryInMs = getFailedNodeRetryDelay(id);
     if (retryInMs > 0) {
