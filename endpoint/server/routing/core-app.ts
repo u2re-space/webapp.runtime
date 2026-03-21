@@ -12,6 +12,16 @@ import { registerAuthRoutes } from "./auth.ts";
 import { registerStorageRoutes } from "./storage.ts";
 import { registerGptRoutes } from "@protocol/http/routers/assistant/index.ts";
 import { loadEndpointDotenv } from "@protocol/http/routers/assistant/provider.ts";
+import {
+    PHOSPHOR_STYLES,
+    getPhosphorSvgCached,
+    isValidPhosphorIconName,
+    isValidPhosphorStyle,
+    phosphorCacheStats,
+    warmPhosphorIcons,
+    type PhosphorStyle,
+    type PhosphorWarmItem,
+} from "@protocol/http/lib/phosphor-upstream.ts";
 import { pickEnvBoolLegacy, pickEnvNumberLegacy } from "../lib/env.ts";
 import { parsePortableInteger } from "../lib/parsing.ts";
 import { registerCoreSettingsEndpoints,registerCoreSettingsRoutes } from "./userSettings.ts";
@@ -20,29 +30,9 @@ const BOOT_AT_MS = Date.now();
 const SERVICE_NAME = "cws";
 const SERVICE_VERSION = String(process.env.npm_package_version || "unknown");
 
-const PHOSPHOR_STYLES = ["thin", "light", "regular", "bold", "fill", "duotone"] as const;
-type PhosphorStyle = (typeof PHOSPHOR_STYLES)[number];
-
 const ADMIN_FALLBACK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
     <path fill="currentColor" d="M12 2a2.6 2.6 0 0 1 2.6 2.6V7.4l4.1 2.1c.6.3 1 1 1 1.7v4.6c0 .7-.4 1.4-1 1.7l-4.1 2.1v1.6c0 1.4-1.2 2.6-2.6 2.6H6.6C5.2 21 4 19.8 4 18.4V13.2c0-.7.4-1.4 1-1.7l4.2-2.1V4.6A2.6 2.6 0 0 1 11.8 2H12Zm-1 12.1v4.8c0 .5.4.9.9.9h6.1c.5 0 .9-.4.9-.9V13l-.2-.1l-3.6-1.8V11h-4v3.1Zm-1-8.5V19c0 .4-.3.7-.7.7h-.6c-.4 0-.7-.3-.7-.7v-1.6L4.4 14.7A.6.6 0 0 1 4 14.1V8.9a.6.6 0 0 1 .4-.6L10 5.3V8h2V3.6c0-.4-.3-.8-.8-.8H11.7c-.4 0-.7.3-.7.7Z"/>
 </svg>`;
-
-const isValidPhosphorStyle = (value: string): value is PhosphorStyle => {
-    return (PHOSPHOR_STYLES as readonly string[]).includes(value);
-};
-
-const isValidPhosphorIconName = (value: string): boolean => /^[a-z0-9-]+$/i.test(value);
-
-const withStyleSuffix = (style: PhosphorStyle, iconName: string): string => {
-    if (style === "duotone") return `${iconName}-duotone`;
-    if (style === "regular") return iconName;
-    return `${iconName}-${style}`;
-};
-
-const phosphorCdnUrl = (style: PhosphorStyle, iconName: string): string => {
-    const fileName = withStyleSuffix(style, iconName);
-    return `https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2/assets/${style}/${fileName}.svg`;
-};
 
 const proxyPhosphorIcon = async (reply: FastifyReply, style: string, iconRaw: string) => {
     const iconName = iconRaw.replace(/\.svg$/i, "").trim().toLowerCase();
@@ -55,23 +45,8 @@ const proxyPhosphorIcon = async (reply: FastifyReply, style: string, iconRaw: st
         return reply.code(400).send({ ok: false, error: `Invalid icon name: ${iconRaw}` });
     }
 
-    const upstreamUrl = phosphorCdnUrl(normalizedStyle, iconName);
     try {
-        const res = await fetch(upstreamUrl, {
-            method: "GET",
-            headers: { accept: "image/svg+xml,text/plain,*/*" }
-        });
-
-        if (!res.ok) {
-            return reply.code(res.status).send({
-                ok: false,
-                error: `Icon not found in upstream source`,
-                style: normalizedStyle,
-                icon: iconName
-            });
-        }
-
-        const svg = await res.text();
+        const svg = await getPhosphorSvgCached(normalizedStyle as PhosphorStyle, iconName);
         reply.header("Content-Type", "image/svg+xml; charset=utf-8");
         reply.header("Cache-Control", "public, max-age=604800");
         return reply.send(svg);
@@ -79,7 +54,7 @@ const proxyPhosphorIcon = async (reply: FastifyReply, style: string, iconRaw: st
         return reply.code(502).send({
             ok: false,
             error: "Failed to fetch upstream icon",
-            details: String(error)
+            details: String(error),
         });
     }
 };
@@ -450,9 +425,32 @@ export const registerCoreApp = async (app: FastifyInstance): Promise<void> => {
         aliases: {
             duotone: "/assets/icons/duotone/:icon",
             style: "/assets/icons/:style/:icon",
-            default: "/assets/icons/:icon"
-        }
+            default: "/assets/icons/:icon",
+        },
+        warm: "POST /api/assets/warm-phosphor",
     }));
+
+    app.post<{ Body: { items?: unknown[]; concurrency?: number } }>("/api/assets/warm-phosphor", async (request, reply) => {
+        const raw = request.body?.items;
+        if (!Array.isArray(raw)) {
+            return reply.code(400).send({ ok: false, error: "items[] required" });
+        }
+        const items: PhosphorWarmItem[] = [];
+        for (const row of raw) {
+            if (!row || typeof row !== "object") continue;
+            const rec = row as Record<string, unknown>;
+            const st = String(rec.style ?? "").trim().toLowerCase();
+            const ic = String(rec.icon ?? "")
+                .replace(/\.svg$/i, "")
+                .trim()
+                .toLowerCase();
+            if (!isValidPhosphorStyle(st) || !isValidPhosphorIconName(ic)) continue;
+            items.push({ style: st, icon: ic });
+        }
+        const conc = Number(request.body?.concurrency);
+        const result = await warmPhosphorIcons(items, Number.isFinite(conc) ? conc : undefined);
+        return { ok: true, ...result, cache: phosphorCacheStats() };
+    });
 
     app.get("/assets/icons/:style/:icon", async (request: FastifyRequest<{ Params: { style: string; icon: string } }>, reply) => {
         return proxyPhosphorIcon(reply, request.params.style, request.params.icon);

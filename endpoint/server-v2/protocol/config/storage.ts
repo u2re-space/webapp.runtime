@@ -246,10 +246,23 @@ const resolveBridgeConfig = () => {
 const resolveRuntimeDefaults = () => {
     const endpointRuntime = asRecord(PORTABLE_ENDPOINT.runtime);
     const coreRuntime = asRecord(PORTABLE_CORE.runtime);
+    const networkRuntime = asRecord(PORTABLE_NETWORK.runtime);
     const runtime = { ...coreRuntime, ...endpointRuntime };
+    const networkListen =
+        parsePortableInteger((PORTABLE_NETWORK as Record<string, unknown>).listenPort) ??
+        parsePortableInteger(networkRuntime.listenPort);
+    const networkHttp =
+        parsePortableInteger((PORTABLE_NETWORK as Record<string, unknown>).httpPort) ??
+        parsePortableInteger(networkRuntime.httpPort);
     return {
-        listenPort: pickEnvNumberLegacy("CWS_HTTPS_PORT", parsePortableInteger(runtime.listenPort) ?? 8443) ?? 8443,
-        httpPort: pickEnvNumberLegacy("CWS_HTTP_PORT", parsePortableInteger(runtime.httpPort) ?? 8080) ?? 8080,
+        listenPort:
+            pickEnvNumberLegacy(
+                "CWS_HTTPS_PORT",
+                parsePortableInteger(runtime.listenPort) ?? networkListen ?? 8443
+            ) ?? 8443,
+        httpPort:
+            pickEnvNumberLegacy("CWS_HTTP_PORT", parsePortableInteger(runtime.httpPort) ?? networkHttp ?? 8080) ??
+            8080,
         broadcastForceHttps: parsePortableBoolean(runtime.broadcastForceHttps) ?? true,
         peers: splitList(runtime.peers),
         broadcastTargets: splitList(runtime.broadcastTargets),

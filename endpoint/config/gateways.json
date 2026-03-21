@@ -21,10 +21,10 @@
             "conditions": ["clipboard-tunnel", "clipboard-write", "clipboard-read"]
         }],
         "ports": {
-            "wss": [8443, 8080],
+            "wss": [8443],
             "ws": [8080],
             "http": [8080],
-            "https": [8443, 8080]
+            "https": [8443]
         },
         "allowedForwards": ["*"],
         "allowedIncoming": ["*"],

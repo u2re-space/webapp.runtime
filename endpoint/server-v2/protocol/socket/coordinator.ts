@@ -5,6 +5,7 @@ import { buildServerV2SocketHandshake, normalizeWireNodeId } from "./client-cont
 import { normalizeInboundPacket } from "./packet.ts";
 import type { Packet } from "./types.ts";
 import { normalizeIpForMatch } from "../../utils/ip-match.ts";
+import { readServerV2ConfigSnapshot } from "../config/storage.ts";
 
 //
 export const SELF_DATA = {
@@ -1391,6 +1392,39 @@ export const formalizeSocketVisibleOrigin = (socket: SocketConnect | SocketClien
     return formalizeOrigin(String(s?.address || s?.origin || ""));
 };
 
+let cachedRuntimePorts: { listenPort: number; httpPort: number } | null = null;
+const getRuntimeSocketPorts = (): { listenPort: number; httpPort: number } => {
+    if (!cachedRuntimePorts) {
+        const snap = readServerV2ConfigSnapshot() as Record<string, unknown>;
+        const lp = Number(snap.listenPort);
+        const hp = Number(snap.httpPort);
+        cachedRuntimePorts = {
+            listenPort: Number.isFinite(lp) && lp > 0 ? lp : 8443,
+            httpPort: Number.isFinite(hp) && hp > 0 ? hp : 8080
+        };
+    }
+    return cachedRuntimePorts;
+};
+
+const mergeOrderedPorts = (primary: number, extra: Array<string | number | undefined>): number[] => {
+    const out: number[] = [];
+    const seen = new Set<number>();
+    const push = (value: number) => {
+        if (!Number.isFinite(value) || value <= 0) return;
+        const n = Math.trunc(value);
+        if (seen.has(n)) return;
+        seen.add(n);
+        out.push(n);
+    };
+    push(primary);
+    for (const raw of extra) {
+        if (raw === undefined || raw === null) continue;
+        const n = typeof raw === "number" ? raw : Number.parseInt(String(raw).trim(), 10);
+        if (Number.isFinite(n)) push(n);
+    }
+    return out;
+};
+
 const resolveTlsServername = (targetConfig: any, normalizedOrigin: string): string | undefined => {
     const explicit = normalizeNodeId(targetConfig?.tls?.servername || targetConfig?.tls?.serverName);
     if (explicit) return explicit;
@@ -1425,16 +1459,13 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
         return undefined;
     }
     const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
-    const securePorts = Array.from(new Set([
-        ...((Array.isArray(targetConfig?.ports?.https) ? targetConfig.ports.https : []) as Array<string | number>),
-        ...((Array.isArray(targetConfig?.ports?.wss) ? targetConfig.ports.wss : []) as Array<string | number>),
-        8443
-    ].map((value) => String(value || "").trim()).filter(Boolean)));
-    const plainPorts = Array.from(new Set([
-        ...((Array.isArray(targetConfig?.ports?.http) ? targetConfig.ports.http : []) as Array<string | number>),
-        ...((Array.isArray(targetConfig?.ports?.ws) ? targetConfig.ports.ws : []) as Array<string | number>),
-        8080
-    ].map((value) => String(value || "").trim()).filter(Boolean)));
+    const { listenPort: defaultSecurePort, httpPort: defaultPlainPort } = getRuntimeSocketPorts();
+    const policyHttps = (Array.isArray(targetConfig?.ports?.https) ? targetConfig.ports.https : []) as Array<string | number>;
+    const policyWss = (Array.isArray(targetConfig?.ports?.wss) ? targetConfig.ports.wss : []) as Array<string | number>;
+    const policyHttp = (Array.isArray(targetConfig?.ports?.http) ? targetConfig.ports.http : []) as Array<string | number>;
+    const policyWs = (Array.isArray(targetConfig?.ports?.ws) ? targetConfig.ports.ws : []) as Array<string | number>;
+    const securePorts = mergeOrderedPorts(defaultSecurePort, [...policyHttps, ...policyWss]);
+    const plainPorts = mergeOrderedPorts(defaultPlainPort, [...policyHttp, ...policyWs]);
     const configuredTokens = Array.isArray(targetConfig?.tokens) ? targetConfig.tokens.map((value) => String(value || "").trim()).filter(Boolean) : [];
     const token = configuredTokens[0] || SELF_DATA.ASSOCIATED_TOKEN || "";
     const rejectUnauthorized = String(process.env.CWS_BRIDGE_REJECT_UNAUTHORIZED || "").trim().toLowerCase() !== "false";
@@ -1494,7 +1525,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
             secure: handshake.secure,
             upgrade: false,
             reconnection: false,
-            timeout: 10000,
+            timeout: 6500,
             rejectUnauthorized,
             ...(tlsServername ? { servername: tlsServername } : {})
         });
@@ -1541,7 +1572,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
                 });
                 rawSocket.close();
                 finish(undefined);
-            }, 10000);
+            }, 6500);
             rawSocket.on("connect", onConnect);
             rawSocket.on("connect_error", onError);
             rawSocket.on("error", onError);

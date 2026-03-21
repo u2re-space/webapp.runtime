@@ -51,10 +51,10 @@
             "servername": "192.168.0.200"
         },
         "ports": {
-            "wss": [8443, 8080],
+            "wss": [8443],
             "ws": [8080],
             "http": [8080],
-            "https": [8443, 8080]
+            "https": [8443]
         },
         "allowedForwards": ["L-192.168.0.110", "self"],
         "allowedIncoming": ["*"],
@@ -85,10 +85,10 @@
         },
         "forward": ["self"],
         "ports": {
-            "wss": [8443, 8080],
+            "wss": [8443],
             "ws": [8080],
             "http": [8080],
-            "https": [8443, 8080]
+            "https": [8443]
         },
         "tls": {
             "enabled": true,
@@ -149,10 +149,10 @@
             "key": "fs:../https/local/multi.key"
         },
         "ports": {
-            "wss": [8443, 8080],
+            "wss": [8443],
             "ws": [8080],
             "http": [8080],
-            "https": [8443, 8080]
+            "https": [8443]
         },
         "protocols": {
             "websocket": {
@@ -201,10 +201,10 @@
             "key": "fs:../https/local/multi.key"
         },
         "ports": {
-            "wss": [8443, 8080],
+            "wss": [8443],
             "ws": [8080],
             "http": [8080],
-            "https": [8443, 8080]
+            "https": [8443]
         },
         "protocols": {
             "websocket": {
@@ -253,10 +253,10 @@
             "key": "fs:../https/local/multi.key"
         },
         "ports": {
-            "wss": [8443, 8080],
+            "wss": [8443],
             "ws": [8080],
             "http": [8080],
-            "https": [8443, 8080]
+            "https": [8443]
         },
         "protocols": {
             "websocket": {

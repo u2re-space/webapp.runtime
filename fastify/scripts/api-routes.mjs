@@ -7,6 +7,8 @@
 import fs from "fs/promises";
 import path from "node:path";
 
+import { fetchIconProxyCached, getCachedPhosphorAsset, warmPhosphorItems } from "./lib/phosphor-upstream.mjs";
+
 const BOOT_AT_MS = Date.now();
 const SERVICE_NAME = "runtime-fastify";
 const SERVICE_VERSION = String(process.env.npm_package_version || "unknown");
@@ -357,12 +359,11 @@ Keep the response concise but informative.
     // PHOSPHOR ICONS PROXY (for CORS-free icon loading)
     // ========================================================================
 
-    // Proxy Phosphor icons to avoid CORS issues during development
+    // Proxy Phosphor icons (in-process LRU + parallel jsDelivr/unpkg racing)
     fastify.get('/assets/icons/phosphor/*', async (req, reply) => {
         try {
-            const iconPath = req.params['*']; // Get the wildcard path
+            const iconPath = req.params['*'];
 
-            // Fix the icon filename - add the style suffix for duotone and other styles
             let fixedIconPath = iconPath;
             const pathParts = iconPath.split('/');
             if (pathParts.length >= 2) {
@@ -372,55 +373,36 @@ Keep the response concise but informative.
                 if (iconStyle === 'duotone' && !iconFile.includes('-duotone')) {
                     fixedIconPath = `${iconStyle}/${iconFile.replace('.svg', '-duotone.svg')}`;
                 } else if (iconStyle !== 'regular' && !iconFile.includes(`-${iconStyle}`)) {
-                    // For other styles like bold, fill, etc., add the style suffix if not present
                     fixedIconPath = `${iconStyle}/${iconFile.replace('.svg', `-${iconStyle}.svg`)}`;
                 }
             }
 
-            // Construct the full CDN URL
-            const cdnUrl = `https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2/assets/${fixedIconPath}`;
+            const { body, contentType } = await getCachedPhosphorAsset(fixedIconPath);
 
-            console.log(`[Phosphor Icons] Request received: ${req.method} ${req.url}`);
-            console.log(`[Phosphor Icons] Icon path: ${iconPath}`);
-            console.log(`[Phosphor Icons] Proxying to: ${cdnUrl}`);
-
-            // Fetch from CDN with proper headers
-            const response = await fetch(cdnUrl, {
-                method: 'GET',
-                headers: {
-                    'User-Agent': 'CrossWord-PWA/1.0',
-                    'Accept': '*/*'
-                }
-            });
-
-            if (!response.ok) {
-                console.warn(`[Phosphor Icons] CDN request failed: ${response.status} ${response.statusText}`);
-                return reply.code(response.status).send({
-                    error: 'Icon not found',
-                    status: response.status,
-                    url: cdnUrl
-                });
-            }
-
-            // Get content type and body
-            const contentType = response.headers.get('content-type') || 'application/octet-stream';
-            const body = await response.arrayBuffer();
-
-            // Set appropriate headers
             reply.header('Content-Type', contentType);
-            reply.header('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+            reply.header('Cache-Control', 'public, max-age=86400');
             reply.header('Access-Control-Allow-Origin', '*');
             reply.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
             reply.header('Access-Control-Allow-Headers', '*');
 
-            return reply.send(Buffer.from(body));
+            return reply.send(body);
         } catch (error) {
-            console.error('[Phosphor Icons] Proxy error:', error.message);
+            console.error('[Phosphor Icons] Proxy error:', error?.message || error);
             return reply.code(502).type('application/json').send({
                 error: 'Failed to fetch icon',
-                message: error.message
+                message: error?.message || String(error)
             });
         }
+    });
+
+    fastify.post('/api/assets/warm-phosphor', async (req, reply) => {
+        const items = req.body?.items;
+        if (!Array.isArray(items)) {
+            return reply.code(400).send({ ok: false, error: 'items[] required' });
+        }
+        const conc = Number(req.body?.concurrency);
+        const result = await warmPhosphorItems(items, Number.isFinite(conc) ? conc : undefined);
+        return { ok: true, ...result };
     });
 
     // Same-origin SVG proxy for icons (fixes CSS CORS issues with external CDNs).
@@ -457,33 +439,13 @@ Keep the response concise but informative.
         }
 
         try {
-            const upstream = await fetch(target.href, {
-                redirect: 'follow',
-                headers: {
-                    'accept': 'image/svg+xml,*/*;q=0.8',
-                    'user-agent': 'u2re-icon-proxy/1.0',
-                },
-            });
-
-            if (!upstream.ok) {
-                return reply
-                    .code(502)
-                    .type('text/plain; charset=utf-8')
-                    .send(`Upstream error: ${upstream.status} ${upstream.statusText}`);
-            }
-
-            const arrayBuffer = await upstream.arrayBuffer();
-            const contentType = upstream.headers.get('content-type') || 'image/svg+xml; charset=utf-8';
-            const etag = upstream.headers.get('etag');
+            const { body, contentType } = await fetchIconProxyCached(target);
 
             reply.header('Content-Type', contentType);
             reply.header('Cache-Control', 'public, max-age=31536000, immutable');
             reply.header('Vary', 'Accept-Encoding');
-            if (etag) {
-                reply.header('ETag', etag);
-            }
 
-            return reply.send(Buffer.from(arrayBuffer));
+            return reply.send(body);
         } catch (e) {
             return reply.code(502).type('text/plain; charset=utf-8').send(`Proxy fetch failed: ${e?.message || e}`);
         }
