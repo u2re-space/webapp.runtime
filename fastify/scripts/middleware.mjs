@@ -18,6 +18,9 @@ const parseCsv = (value) =>
         .map((item) => item.trim())
         .filter(Boolean);
 
+const NON_HASHED_SCRIPT_STYLE_RE = /\.(js|mjs|css)$/i;
+const HASHED_ASSET_RE = /\.[a-f0-9]{8,}\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/i;
+
 /** Browsers usually send http(s) Origin for pages; some clients echo wss/ws for the socket URL. */
 const matchesExactAllowed = (origin, exactAllowed) => {
     if (exactAllowed.has(origin)) return true;
@@ -179,7 +182,14 @@ export async function registerMiddleware(fastify, options = {}) {
                 "serial=*",
             ].join(", ")
         );
-        if (!reply.getHeader("Cache-Control")) {
+        const pathname = String(req?.url || "").split("?")[0];
+        const forceNoStoreForNonHashedScripts =
+            NON_HASHED_SCRIPT_STYLE_RE.test(pathname) && !HASHED_ASSET_RE.test(pathname);
+        if (forceNoStoreForNonHashedScripts) {
+            reply.header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            reply.header("Pragma", "no-cache");
+            reply.header("Expires", "0");
+        } else if (!reply.getHeader("Cache-Control")) {
             reply.header("Cache-Control", cacheControl);
         }
         reply.header("Service-Worker-Allowed", "/");

@@ -27,6 +27,23 @@ const isStaticFilePath = (pathname) => {
     return ext && ext.length > 1 && !pathname.endsWith('/');
 };
 
+const ROOT_ASSET_PREFIXES = [
+    '/index.js',
+    '/assets/',
+    '/chunks/',
+    '/vendor/',
+    '/views/',
+    '/shells/',
+    '/fest/',
+    '/core/',
+    '/com/',
+    '/workers/',
+    '/pwa/',
+];
+
+const NON_HASHED_SCRIPT_STYLE_RE = /\.(js|mjs|css)$/i;
+const HASHED_ASSET_RE = /\.[a-f0-9]{8,}\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/i;
+
 /**
  * Resolve asset paths with app and fallback lookup
  */
@@ -155,8 +172,11 @@ const setStaticHeaders = (res, filePath) => {
         if (/\.(js|mjs)$/.test(filePath)) res.setHeader('Priority', 'u=1');
         if (/\.(woff2)$/.test(filePath)) res.setHeader('Priority', 'u=2');
     } else if (/\.(js|mjs|css)$/.test(filePath)) {
-        // Non-hashed scripts/styles: shorter cache
-        res.setHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400');
+        // Non-hashed scripts/styles can change between deploys/chunk strategies.
+        // Keep them uncached to avoid stale entry/chunk URL mismatches (e.g. old index.js -> missing core/main.js).
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
     } else if (/\.(png|webp|svg|jpg|jpeg|gif|ico|woff2|woff|ttf|otf)$/.test(filePath)) {
         // Static assets: moderate cache
         res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -186,6 +206,19 @@ export async function registerStaticServing(fastify, options = {}) {
         });
     });
 
+    // Final cache-header guard: when serving non-hashed JS/CSS, always disable HTTP caching.
+    // This prevents stale entry/chunk URL mismatches after deploys/chunk-layout changes.
+    fastify.addHook("onSend", async (req, reply, payload) => {
+        const pathname = String(req.url || "").split("?")[0];
+        if (!NON_HASHED_SCRIPT_STYLE_RE.test(pathname) || HASHED_ASSET_RE.test(pathname)) {
+            return payload;
+        }
+        reply.raw.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        reply.raw.setHeader('Pragma', 'no-cache');
+        reply.raw.setHeader('Expires', '0');
+        return payload;
+    });
+
     // Custom asset lookup middleware (before static serving)
     fastify.addHook("preHandler", async (req, reply) => {
         // Only intercept static file requests
@@ -195,7 +228,7 @@ export async function registerStaticServing(fastify, options = {}) {
 
         // For root-level requests, try multiple fallback locations
         const pathname = req.url.split('?')[0]; // Remove query string
-        if (pathname.startsWith('/index.js') || pathname.startsWith('/assets/') || pathname.startsWith('/modules/') || pathname.startsWith('/pwa/')) {
+        if (ROOT_ASSET_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
             const appRelativePath = pathname.slice(1); // Remove leading /
 
             // Priority order for root-level assets:
@@ -247,6 +280,7 @@ export async function registerStaticServing(fastify, options = {}) {
     await fastify.register(fastifyStatic, {
         decorateReply: true,
         list: false,
+        cacheControl: false,
         root: path.resolve(__frontendDir, './'),
         prefix: '/',
         setHeaders: (res, filePath) => {
@@ -263,6 +297,7 @@ export async function registerStaticServing(fastify, options = {}) {
         await fastify.register(fastifyStatic, {
             decorateReply: false, // Don't decorate again, already done above
             list: false,
+            cacheControl: false,
             root: path.resolve(__appDir, './'),
             prefix: '/',
             setHeaders: (res, filePath) => {
@@ -279,6 +314,7 @@ export async function registerStaticServing(fastify, options = {}) {
     await fastify.register(fastifyStatic, {
         decorateReply: false,
         list: false,
+        cacheControl: false,
         root: APPS_DIR,
         prefix: '/apps/',
         setHeaders: (res, filePath) => {
