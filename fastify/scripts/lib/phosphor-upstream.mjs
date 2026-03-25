@@ -1,7 +1,11 @@
 /**
- * Phosphor CDN fetch: LRU cache + parallel mirror racing (jsDelivr + unpkg, 2 at a time).
- * Keep behavior aligned with server-v2/protocol/http/lib/phosphor-upstream.ts
+ * Phosphor icons: read `@phosphor-icons/core` from disk first (offline / no CDN), then CDN + LRU cache.
+ * Aligned with runtime/endpoint `server-v2/protocol/http/lib/phosphor-upstream.ts`.
  */
+
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import path from "node:path";
 
 const MAX_CACHE_ENTRIES = 512;
 const FETCH_TIMEOUT_MS = 8000;
@@ -72,6 +76,62 @@ async function fetchFirstWave(urls) {
     throw new Error("All phosphor upstream mirrors failed");
 }
 
+/** @type {string | null | undefined} */
+let cachedPhosphorAssetsRoot;
+
+function getPhosphorAssetsRoot() {
+    if (cachedPhosphorAssetsRoot !== undefined) return cachedPhosphorAssetsRoot;
+    try {
+        const require = createRequire(import.meta.url);
+        const pkgJson = require.resolve("@phosphor-icons/core/package.json");
+        cachedPhosphorAssetsRoot = path.join(path.dirname(pkgJson), "assets");
+        return cachedPhosphorAssetsRoot;
+    } catch {
+        cachedPhosphorAssetsRoot = null;
+        return null;
+    }
+}
+
+/**
+ * @param {string} relativeNormLower e.g. duotone/copy-duotone.svg
+ * @returns {Promise<{ body: Buffer, contentType: string } | null>}
+ */
+async function readPhosphorFromDisk(relativeNormLower) {
+    const root = getPhosphorAssetsRoot();
+    if (!root) return null;
+    const abs = path.resolve(path.join(root, relativeNormLower));
+    const rootResolved = path.resolve(root);
+    if (!abs.startsWith(rootResolved + path.sep) && abs !== rootResolved) return null;
+    try {
+        const buf = await readFile(abs);
+        if (buf.length === 0 || !buf.includes("<svg")) return null;
+        return { body: buf, contentType: "image/svg+xml; charset=utf-8" };
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * @param {URL} targetUrl
+ * @returns {string | null}
+ */
+function relativePathFromPhosphorProxyUrl(targetUrl) {
+    try {
+        const p = targetUrl.pathname;
+        if (targetUrl.hostname === "cdn.jsdelivr.net" && p.includes("/npm/@phosphor-icons/core@2/assets/")) {
+            const rel = p.split("/npm/@phosphor-icons/core@2/assets/")[1];
+            return rel ? rel.toLowerCase() : null;
+        }
+        if (targetUrl.hostname === "unpkg.com" && p.startsWith("/@phosphor-icons/core@2/assets/")) {
+            const rel = p.slice("/@phosphor-icons/core@2/assets/".length);
+            return rel ? rel.toLowerCase() : null;
+        }
+    } catch {
+        /* noop */
+    }
+    return null;
+}
+
 /**
  * @param {string} fixedIconPath e.g. duotone/house-duotone.svg
  */
@@ -79,6 +139,13 @@ export async function getCachedPhosphorAsset(fixedIconPath) {
     const key = String(fixedIconPath || "").replace(/^\/+/, "").toLowerCase();
     const hit = touchGet(key);
     if (hit) return hit;
+
+    const local = await readPhosphorFromDisk(key);
+    if (local) {
+        touchSet(key, local);
+        return local;
+    }
+
     const urls = phosphorUrlsFromFixedPath(key);
     const out = await fetchFirstWave(urls);
     touchSet(key, out);
@@ -115,10 +182,20 @@ const normalizePhosphorProxyKey = (targetUrl) => {
 };
 
 export async function fetchIconProxyCached(targetUrl) {
-    const urls = mirrorUrlsForIconProxy(targetUrl);
     const key = normalizePhosphorProxyKey(targetUrl);
     const hit = touchGet(key);
     if (hit) return hit;
+
+    const rel = relativePathFromPhosphorProxyUrl(targetUrl);
+    if (rel) {
+        const local = await readPhosphorFromDisk(rel);
+        if (local) {
+            touchSet(key, local);
+            return local;
+        }
+    }
+
+    const urls = mirrorUrlsForIconProxy(targetUrl);
     const out = await fetchFirstWave(urls);
     touchSet(key, out);
     return out;

@@ -381,6 +381,7 @@ Keep the response concise but informative.
 
             reply.header('Content-Type', contentType);
             reply.header('Cache-Control', 'public, max-age=86400');
+            reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
             reply.header('Access-Control-Allow-Origin', '*');
             reply.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
             reply.header('Access-Control-Allow-Headers', '*');
@@ -443,7 +444,9 @@ Keep the response concise but informative.
 
             reply.header('Content-Type', contentType);
             reply.header('Cache-Control', 'public, max-age=31536000, immutable');
-            reply.header('Vary', 'Accept-Encoding');
+            reply.header('Cross-Origin-Resource-Policy', 'cross-origin');
+            reply.header('Access-Control-Allow-Origin', '*');
+            reply.header('Vary', 'Accept-Encoding, Origin');
 
             return reply.send(body);
         } catch (e) {

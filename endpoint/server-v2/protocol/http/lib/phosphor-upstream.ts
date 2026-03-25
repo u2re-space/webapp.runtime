@@ -1,7 +1,10 @@
 /**
- * Phosphor icon upstream: parallel mirror fetch + in-process LRU cache + batch warm.
- * Mirrors client/icon.ts strategy (jsDelivr + unpkg, waves of 2).
+ * Phosphor icon upstream: local `@phosphor-icons/core` assets first (offline / no CDN), then CDN mirrors + LRU cache.
  */
+
+import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import path from "node:path";
 
 export const PHOSPHOR_STYLES = ["thin", "light", "regular", "bold", "fill", "duotone"] as const;
 export type PhosphorStyle = (typeof PHOSPHOR_STYLES)[number];
@@ -98,10 +101,49 @@ async function fetchFirstFromMirrors(urls: string[]): Promise<string> {
     throw new Error("All phosphor upstream mirrors failed");
 }
 
+let cachedPhosphorAssetsRoot: string | null | undefined;
+
+/** Resolved once: `.../node_modules/@phosphor-icons/core/assets` or `null` if package missing. */
+function getPhosphorAssetsRoot(): string | null {
+    if (cachedPhosphorAssetsRoot !== undefined) return cachedPhosphorAssetsRoot;
+    try {
+        const require = createRequire(import.meta.url);
+        const pkgJson = require.resolve("@phosphor-icons/core/package.json");
+        cachedPhosphorAssetsRoot = path.join(path.dirname(pkgJson), "assets");
+        return cachedPhosphorAssetsRoot;
+    } catch {
+        cachedPhosphorAssetsRoot = null;
+        return null;
+    }
+}
+
+async function readPhosphorSvgFromPackage(style: PhosphorStyle, iconName: string): Promise<string | undefined> {
+    const root = getPhosphorAssetsRoot();
+    if (!root) return undefined;
+    const file = `${withStyleSuffix(style, iconName)}.svg`;
+    const abs = path.resolve(path.join(root, style, file));
+    const rootResolved = path.resolve(root);
+    if (!abs.startsWith(rootResolved + path.sep) && abs !== rootResolved) return undefined;
+    try {
+        const text = await readFile(abs, "utf8");
+        if (!text.includes("<svg")) return undefined;
+        return text;
+    } catch {
+        return undefined;
+    }
+}
+
 export async function getPhosphorSvgCached(style: PhosphorStyle, iconName: string): Promise<string> {
     const key = cacheKey(style, iconName);
     const hit = touchGet(key);
     if (hit !== undefined) return hit;
+
+    const fromDisk = await readPhosphorSvgFromPackage(style, iconName);
+    if (fromDisk !== undefined) {
+        touchSet(key, fromDisk);
+        return fromDisk;
+    }
+
     const urls = phosphorMirrorUrls(style, iconName);
     const svg = await fetchFirstFromMirrors(urls);
     touchSet(key, svg);
@@ -112,6 +154,24 @@ export async function getPhosphorSvgByRelativePathCached(relativePath: string): 
     const norm = relativePath.replace(/^\/+/, "").toLowerCase();
     const hit = touchGet(`path:${norm}`);
     if (hit !== undefined) return hit;
+
+    const root = getPhosphorAssetsRoot();
+    if (root) {
+        const abs = path.resolve(path.join(root, norm));
+        const rootResolved = path.resolve(root);
+        if ((abs.startsWith(rootResolved + path.sep) || abs === rootResolved) && norm.length > 0) {
+            try {
+                const text = await readFile(abs, "utf8");
+                if (text.includes("<svg")) {
+                    touchSet(`path:${norm}`, text);
+                    return text;
+                }
+            } catch {
+                /* fall through to CDN */
+            }
+        }
+    }
+
     const urls = phosphorMirrorUrlsFromRelativePath(norm);
     const svg = await fetchFirstFromMirrors(urls);
     touchSet(`path:${norm}`, svg);
