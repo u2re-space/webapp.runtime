@@ -4,6 +4,7 @@ import type { IncomingMessage } from "node:http";
 import { parsePayload, verifyWithoutDecrypt } from "../network/stack/crypto-utils.ts";
 import { normalizeSocketFrame } from "../network/stack/messages.ts";
 import { pickEnvBoolLegacy, pickEnvStringLegacy } from "../lib/env.ts";
+import { normalizeAirpadProtocolFrame, toLegacyAirpadProtocolFrame } from "./protocol.ts";
 
 export type AirpadClipHistoryEntry = {
     from: string;
@@ -238,7 +239,7 @@ export type AirpadObjectMessageDeps = {
 
 export const createAirpadObjectMessageHandler = (socket: Socket, deps: AirpadObjectMessageDeps) => {
     return async (msg: any): Promise<void> => {
-        const normalized = normalizeSocketFrame(msg, deps.getSourceId(socket));
+        const normalized = normalizeAirpadProtocolFrame(normalizeSocketFrame(msg, deps.getSourceId(socket)));
         const signed = hasSignedEnvelope(normalized.payload);
         const envelopeRequired = deps.requiresAirpadMessageAuth || normalized.mode === "secure";
 
@@ -275,7 +276,7 @@ export const createAirpadObjectMessageHandler = (socket: Socket, deps: AirpadObj
                     }
                 }
 
-                deps.routeMessage(socket, normalized);
+                deps.routeMessage(socket, toLegacyAirpadProtocolFrame(normalized));
                 return;
             }
 
@@ -293,7 +294,7 @@ export const createAirpadObjectMessageHandler = (socket: Socket, deps: AirpadObj
                     if (deps.clipHistory.length > deps.maxHistory) deps.clipHistory.shift();
                 }
 
-                deps.routeMessage(socket, normalized);
+                deps.routeMessage(socket, toLegacyAirpadProtocolFrame(normalized));
                 return;
             }
 
