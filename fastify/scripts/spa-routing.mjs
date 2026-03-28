@@ -40,6 +40,9 @@ const RESERVED_ROOT_SEGMENTS = new Set([
     "favicon.png",
     "favicon.svg",
 ]);
+const VIEW_API_SEGMENTS = new Set([
+    "viewer", "workcenter", "settings", "explorer", "history", "editor", "airpad", "print", "home"
+]);
 
 const toEarlyHintHref = (hrefRaw) => {
     const href = (hrefRaw || "").trim();
@@ -240,12 +243,95 @@ export async function registerSPARouting(fastify, options = {}) {
         return true;
     };
 
+    const shouldHandleAsViewApiRoute = (view) => {
+        const normalized = (view || "").trim().toLowerCase();
+        return VIEW_API_SEGMENTS.has(normalized);
+    };
+
+    const parseViewApiQuery = (req) => {
+        const query = req?.query || {};
+        return {
+            target: String(query?.target || "shell"),
+            frame: String(query?.frame || ""),
+            format: String(query?.format || "json").toLowerCase()
+        };
+    };
+
+    const respondViewApiMeta = (req, reply, view) => {
+        const { target, frame, format } = parseViewApiQuery(req);
+        noStore(reply);
+        reply.header("X-Source", "runtime-fastify-view-api");
+        if (format === "text") {
+            return reply
+                .code(200)
+                .type("text/plain; charset=utf-8")
+                .send(`view=${view}\nmethod=${req.method}\ntarget=${target}\nframe=${frame}\nruntime=fastify\n`);
+        }
+        return reply.code(200).send({
+            ok: true,
+            viewId: view,
+            method: req.method,
+            target,
+            frame,
+            query: req?.query || {},
+            runtime: "fastify"
+        });
+    };
+
     fastify.get('/:view', async (req, reply) => {
         const view = req?.params?.view;
         if (!shouldHandleAsViewRoute(view)) {
             return reply.callNotFound();
         }
+        if (shouldHandleAsViewApiRoute(view)) {
+            const accept = String(req?.headers?.accept || "").toLowerCase();
+            const wantsJson = accept.includes("application/json") || String(req?.query?.format || "").toLowerCase() === "json";
+            if (wantsJson) {
+                return respondViewApiMeta(req, reply, view);
+            }
+        }
         return serveIndexHtml(req, reply);
+    });
+
+    fastify.head('/:view', async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewRoute(view)) {
+            return reply.callNotFound();
+        }
+        if (shouldHandleAsViewApiRoute(view)) {
+            noStore(reply);
+            reply.header("X-Source", "runtime-fastify-view-api");
+            return reply.code(200).send();
+        }
+        return serveIndexHtml(req, reply);
+    });
+
+    fastify.options("/:view", async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewApiRoute(view)) return reply.callNotFound();
+        noStore(reply);
+        reply.header("Access-Control-Allow-Methods", "GET,HEAD,POST,OPTIONS");
+        reply.header("Access-Control-Allow-Headers", "Content-Type, Accept");
+        return reply.code(204).send();
+    });
+
+    fastify.post("/:view", async (req, reply) => {
+        const view = req?.params?.view;
+        if (!shouldHandleAsViewApiRoute(view)) return reply.callNotFound();
+        const bodyText = typeof req.body === "string" ? req.body : JSON.stringify(req.body ?? {});
+        const { target, frame } = parseViewApiQuery(req);
+        noStore(reply);
+        reply.header("X-Source", "runtime-fastify-view-api");
+        return reply.code(200).send({
+            ok: true,
+            viewId: view,
+            method: "POST",
+            target,
+            frame,
+            bodyText,
+            contentType: String(req?.headers?.["content-type"] || ""),
+            query: req?.query || {}
+        });
     });
 
     fastify.get('/:view/*', async (req, reply) => {
