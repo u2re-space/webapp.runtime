@@ -59,6 +59,6 @@ export class CwAirpadActionRailElement extends HTMLElement {
 
 export function ensureCwAirpadActionRailDefined(): void {
     if (typeof customElements === "undefined") return;
-    if (customElements.get(TAG)) return;
-    customElements.define(TAG, CwAirpadActionRailElement);
+    if (customElements?.get?.(TAG)) return;
+    customElements?.define?.(TAG, CwAirpadActionRailElement);
 }

@@ -104,6 +104,6 @@ export class CwAirpadSidePanelsElement extends HTMLElement {
 
 export function ensureCwAirpadSidePanelsDefined(): void {
     if (typeof customElements === "undefined") return;
-    if (customElements.get(TAG)) return;
-    customElements.define(TAG, CwAirpadSidePanelsElement);
+    if (customElements?.get?.(TAG)) return;
+    customElements?.define?.(TAG, CwAirpadSidePanelsElement);
 }

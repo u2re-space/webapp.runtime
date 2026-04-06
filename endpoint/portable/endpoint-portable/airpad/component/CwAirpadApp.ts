@@ -77,8 +77,8 @@ class CwAirpadAppElement extends HTMLElement {
 
 export function ensureCwAirpadAppDefined(): void {
     if (typeof customElements === "undefined") return;
-    if (customElements.get(TAG)) return;
-    customElements.define(TAG, CwAirpadAppElement);
+    if (customElements?.get?.(TAG)) return;
+    customElements?.define?.(TAG, CwAirpadAppElement);
 }
 
 export type CwAirpadApp = CwAirpadAppElement;
