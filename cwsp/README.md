@@ -24,3 +24,8 @@ Early runned by:
 ```
 
 And located in `scripts` instead of `fastify-js`.
+
+## TODO
+
+- Add full support for lightweight <https://www.npmjs.com/package/@webviewjs/webview>.
+- Building into `dist/webview`.
