@@ -1,36 +1,26 @@
 import { cp, mkdir, writeFile, readFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
+import { stageCwspServerRuntime } from "./stage-cwsp-server-runtime.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolveCwspPackageRoot(__dirname);
 const electronSrc = resolve(pkgRoot, "electron");
 const outElectron = resolve(pkgRoot, "dist/electron");
-const portableBuilt = resolve(pkgRoot, "dist/portable");
-
-const runPortable = () => {
-    const r = spawnSync(process.execPath, [resolve(__dirname, "build-portable.mjs")], {
-        cwd: pkgRoot,
-        stdio: "inherit"
-    });
-    if (r.status !== 0) process.exit(r.status ?? 1);
-};
+const cwspRuntimeOut = resolve(outElectron, "cwsp-runtime");
 
 async function runBuild() {
-    runPortable();
-
     await mkdir(outElectron, { recursive: true });
     await mkdir(resolve(outElectron, "build-resources"), { recursive: true });
+
+    const names = await stageCwspServerRuntime(pkgRoot, cwspRuntimeOut);
+    console.log(`[build:electron] Staged TS server runtime (${names.length} items) -> ${cwspRuntimeOut}`);
 
     for (const name of ["index.mjs", "browser.mjs", "injector.mjs"]) {
         await cp(resolve(electronSrc, name), resolve(outElectron, name));
     }
-
-    await cp(portableBuilt, resolve(outElectron, "portable"), { recursive: true, force: true });
-    console.log(`[build:electron] bundled portable -> ${resolve(outElectron, "portable")}`);
 
     const rootPkg = JSON.parse(await readFile(resolve(pkgRoot, "package.json"), "utf8"));
     const electronVer = rootPkg.devDependencies?.electron || ">=42.0.0";
@@ -41,7 +31,7 @@ async function runBuild() {
         private: true,
         type: "module",
         main: "index.mjs",
-        description: "CWSP desktop shell (generated)",
+        description: "CWSP desktop shell (generated); backend = tsx server/index.ts in cwsp-runtime/",
         scripts: {
             start: "electron .",
             dist: "electron-builder --publish never",
@@ -69,8 +59,8 @@ async function runBuild() {
             ],
             asar: true,
             asarUnpack: [
-                "portable/node_modules/**",
-                "portable/**/*.node",
+                "cwsp-runtime/node_modules/**",
+                "cwsp-runtime/**/*.node",
                 "**/*.node"
             ],
             publish: null,
@@ -104,7 +94,9 @@ async function runBuild() {
     await writeFile(resolve(outElectron, "package.json"), `${JSON.stringify(pkg, null, 2)}\n`, "utf8");
 
     console.log(`[build:electron] Staged Electron app: ${outElectron}`);
-    console.log("[build:electron] Run shell: cd dist/electron && npm install && npm start");
+    console.log(
+        "[build:electron] Run: cd dist/electron && npm install && cd cwsp-runtime && npm install --include=dev && cd .. && npm start"
+    );
     console.log(
         "[build:electron] Native installers → dist/electron/out/: npm run build:electron:native | :windows | :linux | :mac"
     );

@@ -178,16 +178,71 @@ export const createServerV2Runtime = async (options: ServerV2StartOptions = {}) 
             const httpsPort = engine.profile.httpsPort;
             const httpPort = engine.profile.httpPort;
             const isHttps = built.app.server instanceof HttpsServer;
-            const port = isHttps ? httpsPort || httpPort || 8443 : httpPort || httpsPort || 8080;
-            await built.app.listen({
-                host: "0.0.0.0",
-                port
-            });
+            const primaryPort = isHttps ? httpsPort || httpPort || 8443 : httpPort || httpsPort || 8080;
+
+            const parseListenFallbackPorts = (): number[] => {
+                const raw = String(process.env.CWS_LISTEN_FALLBACK_PORTS || process.env.CWS_ADMIN_FALLBACK_PORTS || "").trim();
+                if (raw) {
+                    return raw
+                        .split(/[,;\s]+/)
+                        .map((s) => parseInt(s.trim(), 10))
+                        .filter((n) => Number.isFinite(n) && n > 0 && n < 65536);
+                }
+                return isHttps ? [8445, 18443, 9444, 7444] : [8082, 18080, 8889, 9090];
+            };
+
+            const fallbacks = parseListenFallbackPorts();
+            const portsToTry: number[] = [];
+            const seen = new Set<number>();
+            for (const p of [primaryPort, ...fallbacks]) {
+                if (!seen.has(p) && Number.isFinite(p) && p > 0 && p < 65536) {
+                    seen.add(p);
+                    portsToTry.push(p);
+                }
+            }
+
+            const listenHost = String(process.env.CWS_LISTEN_HOST || process.env.CWS_BIND_HOST || "0.0.0.0").trim() || "0.0.0.0";
+            let boundPort = primaryPort;
+            let listenOk = false;
+            let lastErr: unknown;
+            for (const port of portsToTry) {
+                try {
+                    await built.app.listen({
+                        host: listenHost,
+                        port
+                    });
+                    boundPort = port;
+                    listenOk = true;
+                    break;
+                } catch (error: unknown) {
+                    lastErr = error;
+                    const code =
+                        error && typeof error === "object" && "code" in error
+                            ? String((error as NodeJS.ErrnoException).code)
+                            : "";
+                    if (code === "EADDRINUSE") {
+                        console.error(`[server-v2] port ${port} in use (EADDRINUSE), trying next…`);
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+            if (!listenOk) {
+                const err = lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? "listen failed"));
+                throw err;
+            }
+
             const protocol = isHttps ? "https" : "http";
             console.log(
-                `[server-v2] listening on ${protocol}://0.0.0.0:${port} — Engine.IO/Socket.IO on same port (/socket.io/). ` +
+                `[server-v2] listening on ${protocol}://${listenHost}:${boundPort} — Engine.IO/Socket.IO on same port (/socket.io/). ` +
                     `Public :443 must reverse-proxy WebSocket+long-poll to this port if clients use standard HTTPS.`
             );
+            if (boundPort !== primaryPort) {
+                console.warn(
+                    `[server-v2] Bound on ${boundPort} (primary ${primaryPort} was busy). ` +
+                        `Stop duplicate PM2 apps or CWSP on the same host, or set listenPort / CWS_LISTEN_FALLBACK_PORTS.`
+                );
+            }
             return built;
         }
     };

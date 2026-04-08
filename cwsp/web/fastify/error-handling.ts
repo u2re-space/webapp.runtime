@@ -129,6 +129,10 @@ export function registerErrorHandling(fastify, options = {}) {
     // Custom error handler for 500s and other errors
     fastify.setErrorHandler(async (error, req, reply) => {
         const statusCode = error.statusCode || 500;
+        if (reply.sent || reply.raw?.headersSent) {
+            console.error(`[Error ${statusCode}] (response already started, not sending body)`, error.message, req.url);
+            return;
+        }
         console.error(`[Error ${statusCode}]`, error.message, req.url);
 
         if (statusCode === 404) {

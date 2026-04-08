@@ -13,6 +13,7 @@ import { looksLikeViteDevIndexHtml } from "./vite-dev-detect.ts"
 
 // AI Proxy routes (fallback when service worker unavailable)
 import { registerAIProxyRoutes } from "./ai-proxy.ts"
+import { findPortableConfigRoot } from "../../server/utils/runtime.ts"
 
 // ============================================================================
 // DIRECTORY & FILE RESOLUTION
@@ -22,7 +23,15 @@ const DIRNAME = "webapp.runtime";
 // Probe for frontend directory and app directories
 const APP_NAME = "cw";
 
-const cwspRoot = path.resolve(import.meta.dirname, "../..");
+/**
+ * `portable.config.json` lives at the cwsp **package root**. TS modules live under `web/fastify/`, `server/`, …
+ * so we must walk up — not only check `import.meta.dirname` (that broke deployed `tsx server` + Fastify static on :80/:443).
+ */
+const bundleOrModuleDir = import.meta.dirname;
+/** Directory that contains `web/` and `server/` (always `web/fastify/../..`), regardless of `portable.config.json`. */
+const moduleCwspRoot = path.resolve(bundleOrModuleDir, "../..");
+const portableRoot = findPortableConfigRoot(bundleOrModuleDir);
+const cwspPackageRoot = portableRoot ?? moduleCwspRoot;
 const pathLooksAbsolute = (p) => p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p);
 
 /** Explicit dirs (highest priority): CWS_FRONTEND_DIR, then each path in CWS_FRONTEND_SRC (same as sync-frontend). */
@@ -35,25 +44,38 @@ const envFrontendDirs = () => {
         for (const part of String(src).split(/[:;]/)) {
             const t = part.trim();
             if (!t) continue;
-            out.push(pathLooksAbsolute(t) ? path.resolve(t) : path.resolve(cwspRoot, t));
+            out.push(pathLooksAbsolute(t) ? path.resolve(t) : path.resolve(cwspPackageRoot, t));
         }
     }
     return out;
 };
 
+const devMonorepoFrontendCandidates = [
+    "../../.dev-frontend/frontend",
+    "../../dist/portable/frontend",
+    "../../frontend",
+    "../frontend",
+    "./frontend",
+    "../../" + DIRNAME + "/frontend",
+    "../" + DIRNAME + "/frontend",
+    "./" + DIRNAME + "/frontend"
+];
+
+/**
+ * Absolute roots under the cwsp package. SSH / TS deploy stages `web/` with materialized copies of PWA files
+ * (`index.html`, `load.mjs`, …). Without `portable.config.json`, relative `../../frontend` probes missed `web/`
+ * and fell back to a non-existent path → 404 for all static assets.
+ */
+const cwspRootFrontendCandidates = [
+    path.join(moduleCwspRoot, "web"),
+    path.join(moduleCwspRoot, "frontend"),
+    path.join(moduleCwspRoot, "dist", "portable", "frontend"),
+    path.join(moduleCwspRoot, DIRNAME, "frontend")
+];
+
 // First, find the main frontend directory (for shared assets)
 const __frontendDir = await probeDirectory(
-    [
-        ...envFrontendDirs(),
-        "../../.dev-frontend/frontend",
-        "../../dist/portable/frontend",
-        "../../frontend",
-        "../frontend",
-        "./frontend",
-        "../../" + DIRNAME + "/frontend",
-        "../" + DIRNAME + "/frontend",
-        "./" + DIRNAME + "/frontend"
-    ],
+    [...envFrontendDirs(), ...cwspRootFrontendCandidates, ...devMonorepoFrontendCandidates],
     "",
     "index.html"
 );
@@ -83,25 +105,36 @@ try {
     /* already logged access error */
 }
 
-// Then, try to find app-specific directory (relative to found frontend directory)
-const __appDir = (await probeDirectory([
-    path.resolve(__frontendDir, "apps", APP_NAME),
+const devMonorepoAppCandidates = [
     "../../.dev-frontend/frontend/apps/" + APP_NAME,
     "../../dist/portable/frontend/apps/" + APP_NAME,
     "../../frontend/apps/" + APP_NAME,
     "../frontend/apps/" + APP_NAME,
     "./frontend/apps/" + APP_NAME,
-    "../../"+DIRNAME+"/frontend/apps/" + APP_NAME,
-    "../"+DIRNAME+"/frontend/apps/" + APP_NAME,
-    "./"+DIRNAME+"/frontend/apps/" + APP_NAME,
-    // Ultimate fallback to main frontend if no app directory found
+    "../../" + DIRNAME + "/frontend/apps/" + APP_NAME,
+    "../" + DIRNAME + "/frontend/apps/" + APP_NAME,
+    "./" + DIRNAME + "/frontend/apps/" + APP_NAME,
     "../../frontend",
     "../frontend",
     "./frontend",
-    "../../"+DIRNAME+"/frontend",
-    "../"+DIRNAME+"/frontend",
-    "./"+DIRNAME+"/frontend"
-], "", "index.js"));
+    "../../" + DIRNAME + "/frontend",
+    "../" + DIRNAME + "/frontend",
+    "./" + DIRNAME + "/frontend"
+];
+
+const cwspRootAppCandidates = [
+    path.join(moduleCwspRoot, "web", "apps", APP_NAME),
+    path.join(moduleCwspRoot, "frontend", "apps", APP_NAME),
+    path.join(moduleCwspRoot, "dist", "portable", "frontend", "apps", APP_NAME),
+    path.join(moduleCwspRoot, DIRNAME, "frontend", "apps", APP_NAME)
+];
+
+// Then, try to find app-specific directory (relative to found frontend directory)
+const __appDir = await probeDirectory(
+    [path.resolve(__frontendDir, "apps", APP_NAME), ...cwspRootAppCandidates, ...devMonorepoAppCandidates],
+    "",
+    "index.js"
+);
 
 console.log(`[Router] App directory resolved to: ${__appDir}`);
 

@@ -228,11 +228,7 @@ export const serveIndexHtml = async (req, reply) => {
         return reply.code(304).send();
     }
 
-    return reply
-        ?.code(200)
-        ?.header?.('Content-Type', 'text/html; charset=utf-8')
-        ?.type?.('text/html')
-        ?.send?.(content);
+    return reply.code(200).header("Content-Type", "text/html; charset=utf-8").type("text/html").send(content);
 };
 
 /**
@@ -315,7 +311,11 @@ export async function registerSPARouting(fastify, options = {}) {
                 return reply.code(200).send();
             }
             const accept = String(req?.headers?.accept || "").toLowerCase();
-            const wantsJson = accept.includes("application/json") || String(req?.query?.format || "").toLowerCase() === "json";
+            const formatQ = String(req?.query?.format || "").toLowerCase();
+            // Document navigations and typical browser Accept lines include `text/html` — serve the SPA shell, not JSON.
+            const wantsJson =
+                formatQ === "json" ||
+                (accept.includes("application/json") && !accept.includes("text/html") && !isDocumentNavigation(req));
             if (wantsJson) {
                 return respondViewApiMeta(req, reply, view);
             }

@@ -1,6 +1,7 @@
 //import module from 'module-alias';
 import electron from 'electron';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import BrowserApp from './browser.mjs';
@@ -82,28 +83,46 @@ async function waitForPublicUrl(timeoutMs = 90000) {
     return defaultPublicUrl();
 }
 
-function startPortableServer() {
-    const portableDir = path.join(__dirname, 'portable');
-    const script = path.join(portableDir, 'cwsp.mjs');
+function startCwspServer() {
+    const cwspRoot = path.join(__dirname, 'cwsp-runtime');
+    const tsxCli = path.join(cwspRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+    const entry = path.join(cwspRoot, 'server', 'index.ts');
+    if (!existsSync(entry)) {
+        console.error('[Electron] Missing', entry, '— run npm run build:electron and npm install in dist/electron + cwsp-runtime');
+        return;
+    }
+    if (!existsSync(tsxCli)) {
+        console.error(
+            '[Electron] Missing tsx at',
+            tsxCli,
+            '— run: cd cwsp-runtime && npm install --include=dev (or npm run build:electron:native from cwsp)'
+        );
+        return;
+    }
     const useElectronAsNode =
         Boolean(process.versions.electron) && String(process.env.CWS_FORCE_NODE_BINARY || '').trim() !== '1';
     const cmd = useElectronAsNode ? process.execPath : 'node';
-    const args = [script];
+    const args = [tsxCli, 'server/index.ts'];
+    const portableConfig = process.env.CWS_PORTABLE_CONFIG_PATH || path.join(cwspRoot, 'portable.config.json');
+    const portableData = process.env.CWS_PORTABLE_DATA_PATH || path.join(cwspRoot, '.data');
     const env = {
         ...process.env,
         NODE_ENV: process.env.NODE_ENV || 'production',
         CWS_CLIPBOARD_ENABLED: process.env.CWS_CLIPBOARD_ENABLED || 'true',
+        CWS_PORTABLE_CONFIG_PATH: portableConfig,
+        CWS_PORTABLE_DATA_PATH: portableData,
         ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
     };
+    console.log('[Electron] Starting CWSP TS server (tsx) cwd=', cwspRoot);
     cwspChild = spawn(cmd, args, {
-        cwd: portableDir,
+        cwd: cwspRoot,
         env,
         stdio: 'inherit',
         shell: process.platform === 'win32' && !useElectronAsNode
     });
-    cwspChild.on('error', (err) => console.error('[Electron] Failed to spawn CWSP portable:', err));
+    cwspChild.on('error', (err) => console.error('[Electron] Failed to spawn CWSP server:', err));
     cwspChild.on('close', (code) => {
-        console.log(`[Electron] CWSP portable exited with code ${code}`);
+        console.log(`[Electron] CWSP server exited with code ${code}`);
         cwspChild = null;
     });
 }
@@ -155,7 +174,7 @@ export const main = (async () => {
 
     await app.whenReady().catch(console.warn.bind(console));
 
-    startPortableServer();
+    startCwspServer();
     await waitForAdmin(defaultAdminBase());
     await restart();
 

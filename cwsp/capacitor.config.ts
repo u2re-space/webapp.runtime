@@ -1,7 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /**
- * Web assets are staged under dist/capacitor (same merged frontend as portable/Electron).
+ * Web assets under dist/capacitor — merged via `sync-frontend` (no esbuild portable bundle).
+ * Backend on device is separate (Node `server/` or relay); this tree is static web only.
  * @see scripts/build-capacitor-web.mjs
  *
  * Android (Capacitor WebView) + CrossWord Settings → Server:

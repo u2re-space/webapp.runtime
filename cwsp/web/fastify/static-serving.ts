@@ -121,6 +121,38 @@ const lookupAssetWithFallback = async (pathname, reply) => {
         console.log(`[Asset] Fallback file not found: ${paths.fallbackPath}`);
     }
 
+    // PWA manifest: HTML often requests `/apps/<name>/pwa/manifest.json` while Vite puts it under `dist/pwa/` or `public/pwa/`.
+    const rel = String(paths.appRelativePath || "");
+    if (rel === "pwa/manifest.json" || rel.endsWith("/pwa/manifest.json")) {
+        const { appName } = paths;
+        const manifestExtras = [
+            path.resolve(APPS_DIR, appName, "dist", "pwa", "manifest.json"),
+            path.resolve(APPS_DIR, appName, "public", "pwa", "manifest.json"),
+            path.resolve(APPS_DIR, appName, "src", "pwa", "manifest.json"),
+            path.resolve(__appDir, "pwa", "manifest.json"),
+            path.resolve(__appDir, "dist", "pwa", "manifest.json"),
+            path.resolve(__appDir, "public", "pwa", "manifest.json"),
+            path.resolve(__appDir, "src", "pwa", "manifest.json"),
+            path.resolve(__appDir, "pwa", "manifest.webmanifest"),
+            path.resolve(__appDir, "dist", "pwa", "manifest.webmanifest"),
+            path.resolve(__frontendDir, "pwa", "manifest.json"),
+            path.resolve(__frontendDir, "dist", "pwa", "manifest.json")
+        ];
+        for (const candidate of manifestExtras) {
+            try {
+                const st = await fs.stat(candidate);
+                if (st.isFile()) {
+                    console.log(`[Asset] Serving manifest from extra path: ${candidate}`);
+                    const fileStream = await fs.readFile(candidate);
+                    setStaticHeaders(reply.raw, candidate);
+                    return reply.send(fileStream);
+                }
+            } catch {
+                /* try next */
+            }
+        }
+    }
+
     // Neither app nor fallback found
     return null;
 };
@@ -225,9 +257,17 @@ export async function registerStaticServing(fastify, options = {}) {
         if (!NON_HASHED_SCRIPT_STYLE_RE.test(pathname) || HASHED_ASSET_RE.test(pathname)) {
             return payload;
         }
-        reply.raw.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-        reply.raw.setHeader('Pragma', 'no-cache');
-        reply.raw.setHeader('Expires', '0');
+        const raw = reply.raw;
+        if (raw.headersSent) {
+            return payload;
+        }
+        try {
+            raw.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+            raw.setHeader("Pragma", "no-cache");
+            raw.setHeader("Expires", "0");
+        } catch {
+            /* ignore — avoid ERR_HTTP_HEADERS_SENT crashing the process */
+        }
         return payload;
     });
 

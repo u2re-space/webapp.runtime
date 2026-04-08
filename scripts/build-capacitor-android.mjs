@@ -8,7 +8,7 @@
  *   CWS_CAPACITOR_DIST_OUT       Relative to cwsp: APK copy dest (default dist/capacitor/android)
  *   CWS_SKIP_CAPACITOR_DIST_COPY Set to 1 to skip APK mirror
  * Options:
- *   --skip-portable   Passed to web sync (reuse dist/portable/frontend)
+ *   --skip-portable   Passed to web sync (reuse dist/portable/frontend or existing dist/capacitor)
  *   --skip-sync       Skip build-capacitor.mjs; only Gradle + copy (android/ and dist/capacitor must exist)
  */
 import { spawnSync } from "node:child_process";

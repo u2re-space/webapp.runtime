@@ -1,31 +1,49 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
+const { existsSync } = require('node:fs');
 
 let mainWindow;
 let cwspProcess;
 
 function startCWSP() {
-  const portableDir = path.join(__dirname, 'dist', 'portable');
-  const portablePath = path.join(portableDir, 'cwsp.mjs');
-  console.log('[Electron] Starting CWSP Portable from:', portablePath);
+  const cwspRoot = path.join(__dirname, 'cwsp-runtime');
+  const tsxCli = path.join(cwspRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+  const entry = path.join(cwspRoot, 'server', 'index.ts');
+  if (!existsSync(entry)) {
+    console.error(
+      '[Electron] Missing',
+      entry,
+      '— use dist/electron layout (npm run build:electron) and npm install in cwsp-runtime'
+    );
+    process.exit(1);
+  }
+  if (!existsSync(tsxCli)) {
+    console.error('[Electron] Missing tsx — run npm install --include=dev in', cwspRoot);
+    process.exit(1);
+  }
+  console.log('[Electron] Starting CWSP TS server (tsx) cwd=', cwspRoot);
   const useElectronAsNode =
     Boolean(process.versions.electron) && String(process.env.CWS_FORCE_NODE_BINARY || '').trim() !== '1';
   const cmd = useElectronAsNode ? process.execPath : 'node';
+  const portableConfig = process.env.CWS_PORTABLE_CONFIG_PATH || path.join(cwspRoot, 'portable.config.json');
+  const portableData = process.env.CWS_PORTABLE_DATA_PATH || path.join(cwspRoot, '.data');
   const env = {
     ...process.env,
     CWS_CLIPBOARD_ENABLED: 'true',
+    CWS_PORTABLE_CONFIG_PATH: portableConfig,
+    CWS_PORTABLE_DATA_PATH: portableData,
     ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
   };
-  cwspProcess = spawn(cmd, [portablePath], {
-    cwd: portableDir,
+  cwspProcess = spawn(cmd, [tsxCli, 'server/index.ts'], {
+    cwd: cwspRoot,
     env,
     stdio: 'inherit',
     shell: process.platform === 'win32' && !useElectronAsNode
   });
 
   cwspProcess.on('close', (code) => {
-    console.log(`[Electron] CWSP process exited with code ${code}`);
+    console.log(`[Electron] CWSP server exited with code ${code}`);
   });
 }
 

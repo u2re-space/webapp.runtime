@@ -3,6 +3,7 @@ import path from "node:path";
 import { hostname as getHostname, networkInterfaces } from "node:os";
 
 import { CONFIG_DIR, SETTINGS_FILE, ensureDataDirs } from "@utils/paths.ts";
+import { defaultPublicHttpPortForPlatform, defaultPublicHttpsPortForPlatform } from "@utils/runtime.ts";
 import { parsePortableBoolean, parsePortableInteger, resolvePortablePayload, safeJsonParse } from "@utils/parsing.ts";
 import { pickEnvBoolLegacy, pickEnvListLegacy, pickEnvNumberLegacy, pickEnvStringLegacy } from "@utils/env.ts";
 
@@ -290,13 +291,17 @@ const resolveRuntimeDefaults = () => {
         publicListenPort:
             pickEnvNumberLegacy(
                 "CWS_PUBLIC_HTTPS_PORT",
-                parsePortableInteger(runtime.publicListenPort) ?? networkPublicListen ?? 443
-            ) ?? 443,
+                parsePortableInteger(runtime.publicListenPort) ??
+                    networkPublicListen ??
+                    defaultPublicHttpsPortForPlatform()
+            ) ?? defaultPublicHttpsPortForPlatform(),
         publicHttpPort:
             pickEnvNumberLegacy(
                 "CWS_PUBLIC_HTTP_PORT",
-                parsePortableInteger(runtime.publicHttpPort) ?? networkPublicHttp ?? 80
-            ) ?? 80,
+                parsePortableInteger(runtime.publicHttpPort) ??
+                    networkPublicHttp ??
+                    defaultPublicHttpPortForPlatform()
+            ) ?? defaultPublicHttpPortForPlatform(),
         broadcastForceHttps: parsePortableBoolean(runtime.broadcastForceHttps) ?? true,
         peers: splitList(runtime.peers),
         broadcastTargets: splitList(runtime.broadcastTargets),

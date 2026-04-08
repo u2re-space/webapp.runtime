@@ -5,6 +5,9 @@
  *
  * Reads `launcherEnv` from `cwsp/dist/portable/portable.config.json` (or `CWS_PORTABLE_CONFIG_PATH`)
  * so TLS (`CWS_HTTPS_*`) and bridge/Airpad flags match legacy endpoint behavior.
+ *
+ * Avoid running this app together with legacy endpoint `cws` / `server-v2` on the same machine unless
+ * you change ports: both default to HTTPS admin :8443 (CWSP also serves public UI on another port).
  */
 const fs = require("fs");
 const path = require("path");
@@ -97,6 +100,23 @@ for (const [key, value] of Object.entries(envFromFile)) {
 /** Default TLS on when `launcherEnv` omits it (same spirit as shipped `endpoint` portable.config). Set `CWS_HTTPS_ENABLED=false` to force HTTP. */
 if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_HTTPS_ENABLED")) {
     envFromFile.CWS_HTTPS_ENABLED = "true";
+}
+
+/** So `https://<LAN>/` (implicit :443) matches config when portable JSON omits `runtime.publicListenPort`. */
+if (!resolveValue(envFromFile.CWS_PUBLIC_HTTPS_PORT)) {
+    envFromFile.CWS_PUBLIC_HTTPS_PORT = "443";
+}
+if (!resolveValue(envFromFile.CWS_PUBLIC_HTTP_PORT)) {
+    envFromFile.CWS_PUBLIC_HTTP_PORT = "80";
+}
+
+/**
+ * Default TSX launch: same Fastify + `web/` static as `npm run dev` (cwd `cwsp/`).
+ * Set `CWS_LAUNCH_TSX=0` in `launcherEnv` to use `dist/portable/cwsp.mjs` instead.
+ * If PM2 logs show `[server-v2]` and `endpoint/.../portable.config.json`, this app is not CWSP — fix script/cwd.
+ */
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_LAUNCH_TSX")) {
+    envFromFile.CWS_LAUNCH_TSX = "1";
 }
 
 module.exports = {

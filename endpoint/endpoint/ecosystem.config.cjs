@@ -1,4 +1,7 @@
-/** PM2 for legacy `endpoint` server-v2. For CWSP portable see `runtime/ecosystem.config.cjs`. */
+/**
+ * PM2 for legacy `endpoint` server-v2 (NOT unified CWSP).
+ * App name must not be `cwsp` — that name is reserved for `runtime/ecosystem.config.cjs` (launcher → cwsp package).
+ */
 const NODE_BIN = process.execPath;
 const fs = require("fs");
 const path = require("path");

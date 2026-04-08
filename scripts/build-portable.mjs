@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
 import { syncFrontendResources } from "./sync-frontend.mjs";
@@ -20,10 +20,17 @@ const { build } = requireFromCwsp("esbuild");
 
 const outDir = resolve(pkgRoot, "dist/portable");
 
+const readableBundle =
+    process.argv.includes("--readable") ||
+    process.argv.includes("--no-minify") ||
+    process.env.CWS_PORTABLE_READABLE_BUNDLE === "1";
+
 async function runBuild() {
     await mkdir(outDir, { recursive: true });
     const entry = resolve(pkgRoot, "server/index.ts");
-    console.log("[build:portable] Bundling CWSP server entry...");
+    console.log(
+        `[build:portable] Bundling CWSP server entry${readableBundle ? " (readable: sourcemap + keepNames, no minify)" : ""}...`
+    );
     try {
         await build({
             entryPoints: [entry],
@@ -32,6 +39,15 @@ async function runBuild() {
             /** Emit for Node 24. TS `compilerOptions.target` in tsconfig.json is for tsc/editor only. */
             target: "node24",
             outfile: resolve(outDir, "cwsp.mjs"),
+            minify: false,
+            keepNames: readableBundle,
+            sourcemap: readableBundle ? "linked" : false,
+            legalComments: readableBundle ? "inline" : "eof",
+            /**
+             * Keep Socket.IO + Fastify external: bundling them into one ESM file breaks on Node
+             * (nested CJS uses `require("http")` / `require("crypto")`). Portable **must** run
+             * `install.cmd` / `npm install --omit=dev` so `node_modules` is complete.
+             */
             external: [
                 "clipboardy",
                 "fastify",
@@ -49,6 +65,7 @@ async function runBuild() {
             format: "esm"
         });
         console.log(`[build:portable] Done: ${resolve(outDir, "cwsp.mjs")}`);
+        await import(pathToFileURL(resolve(__dirname, "verify-portable.mjs")).href);
         await syncFrontendResources({ pkgRoot, destDir: outDir });
         await bundlePortableExtra(pkgRoot, outDir);
     } catch (err) {

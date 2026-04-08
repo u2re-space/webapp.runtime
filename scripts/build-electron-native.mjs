@@ -53,6 +53,13 @@ const run = (cmd, args, opts = {}) => {
 let st = run(npm, ["install", "--no-audit", "--no-fund"]);
 if (st !== 0) process.exit(st);
 
+const cwspRuntime = resolve(appDir, "cwsp-runtime");
+if (existsSync(resolve(cwspRuntime, "package.json"))) {
+    console.log("[build:electron:native] npm install in cwsp-runtime (tsx + CWSP deps)…");
+    st = run(npm, ["install", "--include=dev", "--no-audit", "--no-fund"], { cwd: cwspRuntime });
+    if (st !== 0) process.exit(st);
+}
+
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 const hasPublishFlag = argv.some((a) => a === "--publish" || a.startsWith("--publish="));
 const ebArgs = ["electron-builder", ...argv];

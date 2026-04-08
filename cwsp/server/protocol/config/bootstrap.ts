@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { resolvePortableTextValuePath, safeJsonParse } from "../utils/parsing.ts";
-import { moduleDirname, runtimeArgs } from "../utils/runtime.ts";
+import { findPortableConfigRoot, moduleDirname, runtimeArgs } from "../utils/runtime.ts";
 
 export type ServerV2BootstrapOptions = {
     argv?: string[];
@@ -19,7 +19,7 @@ export type ServerV2BootstrapResult = {
     launcherEnvKeys: string[];
 };
 
-const ROOT = moduleDirname(import.meta);
+const MODULE_DIR = moduleDirname(import.meta);
 
 const resolveArgValue = (value: unknown): string => {
     if (Array.isArray(value)) return value.map((item) => String(item ?? "").trim()).filter(Boolean).join(",");
@@ -53,12 +53,20 @@ const resolvePortableConfigPath = (args: string[], override?: string): string =>
         resolveArgValue(process.env.ENDPOINT_CONFIG_JSON_PATH) ||
         resolveArgValue(process.env.PORTABLE_CONFIG_PATH);
     const cwdCandidate = path.resolve(process.cwd(), "portable.config.json");
-    const legacyCandidate = path.resolve(ROOT, "../../portable.config.json");
-    const defaultCandidate = fs.existsSync(cwdCandidate)
-        ? cwdCandidate
-        : fs.existsSync(legacyCandidate)
-          ? legacyCandidate
-          : cwdCandidate;
+    /** Nearest ancestor with `portable.config.json` (cwsp root for TS; bundle dir for `cwsp.mjs`). */
+    const portableRootFromModule = findPortableConfigRoot(MODULE_DIR);
+    const bundleCandidate = path.join(
+        portableRootFromModule || MODULE_DIR,
+        "portable.config.json"
+    );
+    const legacyCandidate = path.resolve(MODULE_DIR, "../../portable.config.json");
+    const defaultCandidate = fs.existsSync(bundleCandidate)
+        ? bundleCandidate
+        : fs.existsSync(cwdCandidate)
+          ? cwdCandidate
+          : fs.existsSync(legacyCandidate)
+            ? legacyCandidate
+            : cwdCandidate;
     const candidate = explicit || defaultCandidate;
     if (!candidate) return "";
     return resolvePortableTextValuePath(candidate, process.cwd());

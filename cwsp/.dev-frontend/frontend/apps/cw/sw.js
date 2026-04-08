@@ -10249,6 +10249,76 @@ var init_Binding = __esmMin((() => {
 	};
 }));
 //#endregion
+//#region shared/fest/lure/lure/misc/Styles.ts
+var isEffectivelyEmptyStyleText, pruneEmptyStyleAttribute, applyNormalizedInlineStyle, S, css;
+var init_Styles = __esmMin((() => {
+	init_Binding();
+	init_dom();
+	isEffectivelyEmptyStyleText = (cssText) => {
+		const s = typeof cssText == "string" ? cssText.trim() : "";
+		if (!s) return true;
+		for (const chunk of s.split(";")) {
+			const t = chunk.trim();
+			if (!t) continue;
+			const ci = t.indexOf(":");
+			if (ci < 0) return false;
+			if (t.slice(ci + 1).trim().length > 0) return false;
+		}
+		return true;
+	};
+	pruneEmptyStyleAttribute = (element) => {
+		if (element == null) return;
+		const raw = element.getAttribute("style");
+		if (raw == null) return;
+		if (isEffectivelyEmptyStyleText(raw)) {
+			element.removeAttribute("style");
+			element.style.cssText = "";
+		}
+	};
+	applyNormalizedInlineStyle = (element, cssText) => {
+		if (isEffectivelyEmptyStyleText(cssText)) {
+			element.style.cssText = "";
+			element.removeAttribute("style");
+		} else element.style.cssText = cssText;
+	};
+	S = (strings, ...values) => {
+		let props = [], vars = /* @__PURE__ */ new Map();
+		let index = 0, counter = 0;
+		const parts = [];
+		for (const string of strings) {
+			parts.push(string);
+			const $value = values?.[index];
+			if (strings[index + 1]?.trim?.()?.includes?.(";")) {
+				if (typeof $value == "object" && ($value?.value != null || "value" in $value)) {
+					const varName = `--ref-${counter}`;
+					parts.push(`var(${varName})`);
+					props.push(`@property ${varName} { syntax: "<number>"; initial-value: ${$value?.value ?? 0}; inherits: true; };`);
+					vars.set(varName, $value);
+					counter++;
+				} else if (typeof $value != "object" && typeof $value != "function") {
+					if ($value != null && String($value).trim() !== "") parts.push(String($value));
+				}
+			}
+			index++;
+		}
+		return [
+			(element) => {
+				applyNormalizedInlineStyle(element, parts?.join?.(";") ?? "");
+				const subs = [];
+				for (const [name, value] of vars) subs.push(bindWith(element, name, value, handleStyleChange));
+				return () => {
+					for (const sub of subs) sub?.();
+				};
+			},
+			props,
+			vars
+		];
+	};
+	css = (strings, ...values) => {
+		return S(strings, ...values);
+	};
+}));
+//#endregion
 //#region shared/fest/lure/lure/node/Queried.ts
 var existsQueries, alreadyUsed, queryExtensions, UniversalElementHandler, Q, extendQueryPrototype;
 var init_Queried = __esmMin((() => {
@@ -10547,6 +10617,7 @@ var init_Reflect = __esmMin((() => {
 	init_core$3();
 	init_Binding();
 	init_dom();
+	init_Styles();
 	init_Queried();
 	$entries = (obj) => {
 		if (isPrimitive(obj)) return [];
@@ -10604,9 +10675,9 @@ var init_Reflect = __esmMin((() => {
 	};
 	reflectStyles = (element, styles) => {
 		if (!styles) return element;
-		if (typeof styles == "string") element.style.cssText = styles;
+		if (typeof styles == "string") applyNormalizedInlineStyle(element, styles);
 		else if (typeof styles?.value == "string") affected([styles, "value"], (val) => {
-			element.style.cssText = val;
+			applyNormalizedInlineStyle(element, val ?? "");
 		});
 		else if (typeof styles == "object" || typeof styles == "function") {
 			const weak = new WeakRef(styles), wel = new WeakRef(element);
@@ -11273,6 +11344,8 @@ var init_Bindings = __esmMin((() => {
 			if (params.mixins != null) reflectMixins(element, params.mixins);
 			if (params.style != null) reflectStyles(element, params.style);
 			if (params.aria != null) reflectARIA(element, params.aria);
+			if ("value" in params) bindWith(element, "value", params.value, handleProperty, params, true);
+			if ("placeholder" in params) bindWith(element, "placeholder", params.placeholder, handleProperty, params, true);
 			if (params.is != null) bindWith(element, "is", params.is, handleAttribute, params, true);
 			if (params.role != null) bindWith(element, "role", params.role, handleProperty, params);
 			if (params.slot != null) bindWith(element, "slot", params.slot, handleProperty, params);
@@ -11661,6 +11734,7 @@ var init_Syntax = __esmMin((() => {
 	init_Mapped();
 	init_dom();
 	init_Normalizer();
+	init_Styles();
 	EMap = /* @__PURE__ */ new WeakMap(), parseTag = (str) => {
 		const match = str.match(/^([a-zA-Z0-9\-]+)?(?:#([a-zA-Z0-9\-_]+))?((?:\.[a-zA-Z0-9\-_]+)*)$/);
 		if (!match) return {
@@ -11677,8 +11751,10 @@ var init_Syntax = __esmMin((() => {
 	};
 	parseIndex = (value) => {
 		if (typeof value != "string" || !value?.trim?.()) return -1;
-		const match = value.match(/^#{(\d+)}$/);
-		return match ? parseInt(match?.[1] ?? "-1") : -1;
+		const exact = value.match(/^#\{(\d+)\}$/);
+		if (exact) return parseInt(exact[1] ?? "-1", 10);
+		const embedded = value.match(/#\{(\d+)\}/);
+		return embedded ? parseInt(embedded[1] ?? "-1", 10) : -1;
 	};
 	connectElement = (el, atb, psh, mapped) => {
 		if (!el) return el;
@@ -11700,6 +11776,7 @@ var init_Syntax = __esmMin((() => {
 				"visible",
 				"aria",
 				"value",
+				"placeholder",
 				"ref"
 			].forEach((name) => addEntryIfExists(name));
 			const makeEntries = (startsWith, except) => {
@@ -11733,7 +11810,11 @@ var init_Syntax = __esmMin((() => {
 				}
 				return Array.from(entriesMap.entries());
 			};
-			let attributesEntries = makeEntries(["attr:", ""], ["ref"]);
+			let attributesEntries = makeEntries(["attr:", ""], [
+				"ref",
+				"value",
+				"placeholder"
+			]);
 			let propertiesEntries = makeEntries(["prop:"], []);
 			let onEntries = makeCumulativeEntries(["on:", "@"], [], "");
 			let refEntries = makeCumulativeEntries(["ref:"], [], ["ref"]);
@@ -11756,11 +11837,13 @@ var init_Syntax = __esmMin((() => {
 			const clearPlaceholdersFromAttributesOfElement = (el) => {
 				if (el == null) return;
 				const attributeIsInRegistry = (name) => {
-					return attributesEntries?.some?.((pair) => pair[0] == name) || name?.startsWith?.("ref:") || name == "ref";
+					return attributesEntries?.some?.((pair) => pair[0] == name) || entriesIdc?.some?.((pair) => pair[0] == name) || name?.startsWith?.("ref:") || name == "ref";
 				};
 				for (const attr of Array.from(el?.attributes || [])) if (attr.value?.includes?.("#{") && attr.value?.includes?.("}") && attributeIsInRegistry(attr.name) || attr.value?.startsWith?.("#{") && attr.value?.endsWith?.("}") || attr.name?.includes?.(":") || attr.name?.includes?.("ref:") || attr.name == "ref") el?.removeAttribute?.(attr.name);
+				for (const attr of Array.from(el?.attributes || [])) if (typeof attr.value == "string" && /#\{\d+\}/.test(attr.value)) el?.removeAttribute?.(attr.name);
 			};
 			clearPlaceholdersFromAttributesOfElement(el);
+			pruneEmptyStyleAttribute(el);
 			if (!EMap?.has?.(el)) EMap?.set?.(el, E(el, bindings));
 		}
 		return EMap?.get?.(el) ?? el;
@@ -13259,47 +13342,6 @@ var init_Glit = __esmMin((() => {
 		return !(el instanceof HTMLDivElement || el instanceof HTMLImageElement || el instanceof HTMLVideoElement || el instanceof HTMLCanvasElement) && !(el?.hasAttribute?.("is") || el?.getAttribute?.("is") != null);
 	};
 	customElement = defineElement;
-}));
-//#endregion
-//#region shared/fest/lure/lure/misc/Styles.ts
-var S, css;
-var init_Styles = __esmMin((() => {
-	init_Binding();
-	init_dom();
-	S = (strings, ...values) => {
-		let props = [], vars = /* @__PURE__ */ new Map();
-		let index = 0, counter = 0;
-		const parts = [];
-		for (const string of strings) {
-			parts.push(string);
-			const $value = values?.[index];
-			if (strings[index + 1]?.trim?.()?.includes?.(";")) {
-				if (typeof $value == "object" && ($value?.value != null || "value" in $value)) {
-					const varName = `--ref-${counter}`;
-					parts.push(`var(${varName})`);
-					props.push(`@property ${varName} { syntax: "<number>"; initial-value: ${$value?.value ?? 0}; inherits: true; };`);
-					vars.set(varName, $value);
-					counter++;
-				} else if (typeof $value != "object" && typeof $value != "function") parts.push(`${$value}`);
-			}
-			index++;
-		}
-		return [
-			(element) => {
-				element.style.cssText = parts?.join?.(";") ?? element.style.cssText;
-				const subs = [];
-				for (const [name, value] of vars) subs.push(bindWith(element, name, value, handleStyleChange));
-				return () => {
-					for (const sub of subs) sub?.();
-				};
-			},
-			props,
-			vars
-		];
-	};
-	css = (strings, ...values) => {
-		return S(strings, ...values);
-	};
 }));
 //#endregion
 //#region shared/fest/lure/extension/tasking/Manager.ts
@@ -28657,6 +28699,7 @@ var lure_exports = /* @__PURE__ */ __exportAll({
 	appendAsOverlay: () => appendAsOverlay,
 	appendChild: () => appendChild,
 	appendScrollbarOverlay: () => appendScrollbarOverlay,
+	applyNormalizedInlineStyle: () => applyNormalizedInlineStyle,
 	asinRef: () => asinRef,
 	atan2Ref: () => atan2Ref,
 	atanRef: () => atanRef,
@@ -28818,6 +28861,7 @@ var lure_exports = /* @__PURE__ */ __exportAll({
 	isChromeExtension: () => isChromeExtension,
 	isClipboardAvailable: () => isClipboardAvailable,
 	isClipboardWriteAvailable: () => isClipboardWriteAvailable,
+	isEffectivelyEmptyStyleText: () => isEffectivelyEmptyStyleText,
 	isNotExtended: () => isNotExtended,
 	isSpeechRecognitionAvailable: () => isSpeechRecognitionAvailable,
 	itemClickHandle: () => itemClickHandle,
@@ -28889,6 +28933,7 @@ var lure_exports = /* @__PURE__ */ __exportAll({
 	progress: () => progress,
 	property: () => property,
 	provide: () => provide,
+	pruneEmptyStyleAttribute: () => pruneEmptyStyleAttribute,
 	reactiveInputHandleTransform: () => reactiveInputHandleTransform,
 	reactiveInputPosition: () => reactiveInputPosition,
 	reactiveScrollbarSize: () => reactiveScrollbarSize,
@@ -33606,8 +33651,11 @@ var toCacheRequestInfo = (requestLike) => {
 var safeCacheMatch = async (cache, requestLike) => {
 	const request = toCacheRequestInfo(requestLike);
 	if (!cache || !request) return void 0;
+	/** Cache#match rejects non-Request / non-string (minified callers may pass plain objects). */
+	const key = typeof request === "string" ? request : request instanceof Request ? request : void 0;
+	if (!key) return void 0;
 	try {
-		return await cache.match(request);
+		return await cache.match(key);
 	} catch (error) {
 		console.warn("[SW] Cache.match failed:", request, error);
 		return;
@@ -33775,7 +33823,7 @@ async function broadcastToClients(type, data) {
 		console.warn("[SW-Broadcast] Failed to broadcast to clients:", error);
 	}
 }
-var manifest = [{"revision":"f753419b376eb987d0be8743651b64ed","url":"index.js"},{"revision":"fac982cb9c8d4f83a31cb75344015a86","url":"views/workcenter.js"},{"revision":"efd1b089d47d46102e9be22d974be652","url":"views/settings.js"},{"revision":"bc6c0b77291eac18b4e51ae8d73d6bef","url":"views/home.js"},{"revision":"fc0a0b6593d1541970d881c9f2ee5f2b","url":"views/history.js"},{"revision":"5b1c7e97224d3a09ad11db27889ca9c8","url":"views/explorer.js"},{"revision":"fefe8048f1c1a24fa907c70dad1aba6f","url":"views/editor.js"},{"revision":"cec774e272b1176215ac5b3eec807817","url":"views/airpad.js"},{"revision":"69ab23017456f8cb926eb4b6c7f38511","url":"vendor/socket.io-client.js"},{"revision":"cbb3b9e0b2a263bd702e343603f14765","url":"vendor/quill.js"},{"revision":"7e88756390f46618107efb0f8f7cbcaf","url":"vendor/parchment.js"},{"revision":"bbc6dc43ef991c2ee87877452c871921","url":"vendor/lodash.isequal.js"},{"revision":"65966eaf2927aafce866a54bd1c3aea5","url":"vendor/lodash.clonedeep.js"},{"revision":"fe9f9b9df2001b6d94d4293367d6c847","url":"vendor/lodash-es.js"},{"revision":"b4ff75363de50b97e9ccc230f30cb4e6","url":"vendor/fast-diff.js"},{"revision":"9e979c9b04554315d82c9ebaab7e84ed","url":"vendor/eventemitter3.js"},{"revision":"19f3da8be5045fac02f347e084d8d75e","url":"vendor/engine.io-client.js"},{"revision":"86dd05ab2c01b563395f9e1098ccc52f","url":"vendor/@socket.io_component-emitter.js"},{"revision":"976bffedd499320767003a59691277c1","url":"shells/tabbed-index.js"},{"revision":"9d3735b25ceffb1771f561d60f903b4c","url":"shells/print-index.js"},{"revision":"37742b7fc03ad2988761600b922085aa","url":"shells/minimal.js"},{"revision":"3364436e05a0affa68bf08455485721e","url":"shells/environment-index.js"},{"revision":"7e625c47d69798419e96142c3b390f9e","url":"shells/content-index.js"},{"revision":"ac0ac3395040886ce7e53e4587fb639d","url":"shells/boot-index.js"},{"revision":"9c03a6cbf82d8e8c3088f67840eeed89","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"d2e16c2c83e617c7641f88aa6cf3ab21","url":"fest/polyfill.js"},{"revision":"569e5e97e3cbae1e26d8db4dec80849e","url":"com/service.js"},{"revision":"14d89db9e6ee333b1704e4a34c9b2efb","url":"com/app.js"},{"revision":"276b4827deb3cf110ad6e3a0ee56ff7a","url":"chunks/workcenter2.js"},{"revision":"7f5b5a59dadf872176d6259ad82381f6","url":"chunks/window.js"},{"revision":"683e8ba60840a3157d06a34329679269","url":"chunks/viewer.js"},{"revision":"06ddbd64c24d49c25b93bcbfb03943f3","url":"chunks/unified.js"},{"revision":"90365694fe9d50ea253ac897bffbe211","url":"chunks/turndown.browser.es.js"},{"revision":"0c9237455ba07e90f2c58eb75a7e5256","url":"chunks/temml.js"},{"revision":"80f90bf75d448ee52fc6306a4518f073","url":"chunks/tabbed.js"},{"revision":"44ce152c4a8aa8e998e28e4fe67d24f2","url":"chunks/settings.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"205257bdc4d09723979d30fbfce426ac","url":"chunks/registry.js"},{"revision":"01dd2b84c897b4f8619981c651d3a96c","url":"chunks/preview.js"},{"revision":"844f1e08c8bfb43fc617d0917dbe61e3","url":"chunks/outdated.js"},{"revision":"db0fc0ceee056ecc901e0d52668a74e6","url":"chunks/main.js"},{"revision":"ff50a5c7e28bceeaa42f5e12fd46a1db","url":"chunks/history.js"},{"revision":"e211995089cb55c3b1dc8d39a9f4ad8e","url":"chunks/explorer.js"},{"revision":"4517a128d0eb076ad2abc8adf9c033d3","url":"chunks/environment.js"},{"revision":"3cb4263adcc58d61f45847f1e8edbd00","url":"chunks/entities.js"},{"revision":"795eda67f1d7c09b92e63cf25f5de7ee","url":"chunks/editor.js"},{"revision":"f819cc8cfb15a4681645ee216ba0555d","url":"chunks/content.js"},{"revision":"037b7e2d6c0898127c470744d0dd688d","url":"chunks/channel-unknown.js"},{"revision":"217aa0d7c8584dbdd9d86a08f676b36c","url":"chunks/bundle.min.js"},{"revision":"ae5d7f4ee84e78238483e11d5d37416a","url":"chunks/base.js"},{"revision":"38a4b779532210d287a59448fe73b0c9","url":"chunks/airpad.js"},{"revision":"ff2b2fa515bfab287711caffd7b56eb7","url":"chunks/admin-doors.js"},{"revision":"21c6a9a1cd86986f657aa77c1b2708cd","url":"chunks/WorkCenterState.js"},{"revision":"e0a944eeab006b64201e110a6c51ae1d","url":"chunks/WorkCenterDataProcessing.js"},{"revision":"53cec20263487603ae321df82f5052a7","url":"chunks/WorkCenter.js"},{"revision":"1cbc44ad087f7a1196c6e70df4bfa959","url":"chunks/RuntimeSettings.js"},{"revision":"04337f39143e24e2ab60c75b3105b499","url":"chunks/RecognizeData.js"},{"revision":"16803a9e95702acb86e07663270e9447","url":"chunks/QuillEditor.js"},{"revision":"ba771b7ea93617ba32e09020cf6564bc","url":"chunks/MarkdownEditor.js"},{"revision":"cb7d1bee54d5b3fe64d1b9d76730f53f","url":"chunks/CustomInstructions.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
+var manifest = [{"revision":"f753419b376eb987d0be8743651b64ed","url":"index.js"},{"revision":"fac982cb9c8d4f83a31cb75344015a86","url":"views/workcenter.js"},{"revision":"efd1b089d47d46102e9be22d974be652","url":"views/settings.js"},{"revision":"bc6c0b77291eac18b4e51ae8d73d6bef","url":"views/home.js"},{"revision":"fc0a0b6593d1541970d881c9f2ee5f2b","url":"views/history.js"},{"revision":"5b1c7e97224d3a09ad11db27889ca9c8","url":"views/explorer.js"},{"revision":"fefe8048f1c1a24fa907c70dad1aba6f","url":"views/editor.js"},{"revision":"686b97be4f2699328b01ba164a936382","url":"views/airpad.js"},{"revision":"69ab23017456f8cb926eb4b6c7f38511","url":"vendor/socket.io-client.js"},{"revision":"cbb3b9e0b2a263bd702e343603f14765","url":"vendor/quill.js"},{"revision":"7e88756390f46618107efb0f8f7cbcaf","url":"vendor/parchment.js"},{"revision":"bbc6dc43ef991c2ee87877452c871921","url":"vendor/lodash.isequal.js"},{"revision":"65966eaf2927aafce866a54bd1c3aea5","url":"vendor/lodash.clonedeep.js"},{"revision":"fe9f9b9df2001b6d94d4293367d6c847","url":"vendor/lodash-es.js"},{"revision":"b4ff75363de50b97e9ccc230f30cb4e6","url":"vendor/fast-diff.js"},{"revision":"9e979c9b04554315d82c9ebaab7e84ed","url":"vendor/eventemitter3.js"},{"revision":"19f3da8be5045fac02f347e084d8d75e","url":"vendor/engine.io-client.js"},{"revision":"86dd05ab2c01b563395f9e1098ccc52f","url":"vendor/@socket.io_component-emitter.js"},{"revision":"976bffedd499320767003a59691277c1","url":"shells/tabbed-index.js"},{"revision":"9d3735b25ceffb1771f561d60f903b4c","url":"shells/print-index.js"},{"revision":"37742b7fc03ad2988761600b922085aa","url":"shells/minimal.js"},{"revision":"3364436e05a0affa68bf08455485721e","url":"shells/environment-index.js"},{"revision":"7e625c47d69798419e96142c3b390f9e","url":"shells/content-index.js"},{"revision":"ac0ac3395040886ce7e53e4587fb639d","url":"shells/boot-index.js"},{"revision":"9c03a6cbf82d8e8c3088f67840eeed89","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"d2e16c2c83e617c7641f88aa6cf3ab21","url":"fest/polyfill.js"},{"revision":"569e5e97e3cbae1e26d8db4dec80849e","url":"com/service.js"},{"revision":"16bb3b443d6b6d721312b4e747154dbe","url":"com/app.js"},{"revision":"276b4827deb3cf110ad6e3a0ee56ff7a","url":"chunks/workcenter2.js"},{"revision":"7f5b5a59dadf872176d6259ad82381f6","url":"chunks/window.js"},{"revision":"683e8ba60840a3157d06a34329679269","url":"chunks/viewer.js"},{"revision":"06ddbd64c24d49c25b93bcbfb03943f3","url":"chunks/unified.js"},{"revision":"90365694fe9d50ea253ac897bffbe211","url":"chunks/turndown.browser.es.js"},{"revision":"0c9237455ba07e90f2c58eb75a7e5256","url":"chunks/temml.js"},{"revision":"80f90bf75d448ee52fc6306a4518f073","url":"chunks/tabbed.js"},{"revision":"44ce152c4a8aa8e998e28e4fe67d24f2","url":"chunks/settings.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"205257bdc4d09723979d30fbfce426ac","url":"chunks/registry.js"},{"revision":"01dd2b84c897b4f8619981c651d3a96c","url":"chunks/preview.js"},{"revision":"844f1e08c8bfb43fc617d0917dbe61e3","url":"chunks/outdated.js"},{"revision":"db0fc0ceee056ecc901e0d52668a74e6","url":"chunks/main.js"},{"revision":"ff50a5c7e28bceeaa42f5e12fd46a1db","url":"chunks/history.js"},{"revision":"e211995089cb55c3b1dc8d39a9f4ad8e","url":"chunks/explorer.js"},{"revision":"4517a128d0eb076ad2abc8adf9c033d3","url":"chunks/environment.js"},{"revision":"3cb4263adcc58d61f45847f1e8edbd00","url":"chunks/entities.js"},{"revision":"795eda67f1d7c09b92e63cf25f5de7ee","url":"chunks/editor.js"},{"revision":"f819cc8cfb15a4681645ee216ba0555d","url":"chunks/content.js"},{"revision":"037b7e2d6c0898127c470744d0dd688d","url":"chunks/channel-unknown.js"},{"revision":"217aa0d7c8584dbdd9d86a08f676b36c","url":"chunks/bundle.min.js"},{"revision":"ae5d7f4ee84e78238483e11d5d37416a","url":"chunks/base.js"},{"revision":"38a4b779532210d287a59448fe73b0c9","url":"chunks/airpad.js"},{"revision":"ff2b2fa515bfab287711caffd7b56eb7","url":"chunks/admin-doors.js"},{"revision":"21c6a9a1cd86986f657aa77c1b2708cd","url":"chunks/WorkCenterState.js"},{"revision":"e0a944eeab006b64201e110a6c51ae1d","url":"chunks/WorkCenterDataProcessing.js"},{"revision":"53cec20263487603ae321df82f5052a7","url":"chunks/WorkCenter.js"},{"revision":"1cbc44ad087f7a1196c6e70df4bfa959","url":"chunks/RuntimeSettings.js"},{"revision":"04337f39143e24e2ab60c75b3105b499","url":"chunks/RecognizeData.js"},{"revision":"16803a9e95702acb86e07663270e9447","url":"chunks/QuillEditor.js"},{"revision":"ba771b7ea93617ba32e09020cf6564bc","url":"chunks/MarkdownEditor.js"},{"revision":"cb7d1bee54d5b3fe64d1b9d76730f53f","url":"chunks/CustomInstructions.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
 cleanupOutdatedCaches();
 if (manifest && true) precacheAndRoute(manifest.filter((entry) => {
 	const url = typeof entry === "string" ? entry : String(entry?.url || "");
@@ -34165,6 +34213,7 @@ registerRoute(({ url }) => {
 	const isSocketIoPath = pathname === "/socket.io" || pathname.startsWith("/socket.io/");
 	const isControlPath = pathname.startsWith("/api/") || pathname === "/lna-probe" || isSocketIoPath;
 	if (isSocketIoPath) return true;
+	if (pathname === "/lna-probe") return true;
 	return isControlPath && (isPrivateIp || isLocalHost);
 }, new NetworkOnly({ fetchOptions: {
 	cache: "no-store",

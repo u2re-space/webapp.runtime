@@ -2018,8 +2018,9 @@ var unwrapIncomingPayload = async (payload) => {
 	if (getTransportMode() !== "secure") return payload;
 	return unwrapSignedPayload(payload);
 };
+/** Strip `L-` node id prefix (e.g. `L-192.168.0.110` → `192.168.0.110`) for IP / LNA checks. */
 function stripWireEndpointIdPrefix(host) {
-	const t = String(host || "").trim();
+	const t = host.trim();
 	return /^l-/i.test(t) ? t.slice(2).trim() : t;
 }
 function isPrivateOrLocalTarget(host) {
@@ -2253,24 +2254,26 @@ function connectWS() {
 		if (!isIpv4Literal(host)) return false;
 		return host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host);
 	};
-	const connectHostFromRemote = (h) => {
-		const t = stripWireEndpointIdPrefix(h.trim());
-		return t || h.trim();
-	};
-	/** CWSP: private IPs first, then remote DNS, then PWA page origin (avoids u2re.space before LAN gateway). */
+	/**
+	* HTTPS probe order: LAN / private IPs first (where CWSP admin usually listens), then DNS names
+	* from **remote** settings, then **page** origin (PWA shell). Putting `u2re.space` last avoids
+	* timeouts and PNA noise when the real gateway is 192.168.x.x only.
+	*/
 	const reorderHostEntriesForHttps = (entries) => {
 		const dnsRemote = [];
 		const dnsPage = [];
 		const privateIpv4 = [];
 		const publicIpv4 = [];
-		for (const e of entries) {
-			if (!isIpv4Literal(e.host)) {
-				if (e.source === "page") dnsPage.push(e);
-				else dnsRemote.push(e);
-			} else if (isPrivateIp(e.host) || e.host === "127.0.0.1") privateIpv4.push(e);
-			else publicIpv4.push(e);
-		}
-		return [...privateIpv4, ...dnsRemote, ...dnsPage, ...publicIpv4];
+		for (const e of entries) if (!isIpv4Literal(e.host)) if (e.source === "page") dnsPage.push(e);
+		else dnsRemote.push(e);
+		else if (isPrivateIp(e.host) || e.host === "127.0.0.1") privateIpv4.push(e);
+		else publicIpv4.push(e);
+		return [
+			...privateIpv4,
+			...dnsRemote,
+			...dnsPage,
+			...publicIpv4
+		];
 	};
 	const isLikelyPort = (value) => /^\d{1,5}$/.test(value);
 	const stripProtocol = (value) => {
@@ -2317,12 +2320,15 @@ function connectWS() {
 	const primaryProtocol = inferProtocol();
 	const rawProbeHost = (parsedRemoteHost || resolvedRemoteHost || "").trim();
 	const probeHost = stripWireEndpointIdPrefix(rawProbeHost) || rawProbeHost;
-	const probePort = remotePort || (primaryProtocol === "https" ? "8443" : "8080");
-	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${probePort}`, probeHost);
+	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${remotePort || (primaryProtocol === "https" ? "8443" : "8080")}`, probeHost);
 	const fallbackProtocol = primaryProtocol === "https" ? "http" : "https";
 	const defaultPortsByProtocol = {
 		http: ["8080", "80"],
-		https: ["8443", "443", "8444"]
+		https: [
+			"8443",
+			"443",
+			"8444"
+		]
 	};
 	const locationPort = location.port?.trim?.() || "";
 	const protocolOrder = remoteProtocol === "http" ? ["http"] : remoteProtocol === "https" ? ["https"] : [primaryProtocol, fallbackProtocol];
@@ -2339,6 +2345,9 @@ function connectWS() {
 		for (const defaultPort of defaultPortsByProtocol[protocol]) ports.push(defaultPort);
 		if (locationPort) ports.push(locationPort);
 		return ports.filter((port, idx) => ports.indexOf(port) === idx);
+	};
+	const connectHostFromRemote = (h) => {
+		return stripWireEndpointIdPrefix(h.trim()) || h.trim();
 	};
 	const hostEntries = [];
 	for (const remoteHostSpecEntry of remoteHostSpecs) {
@@ -2357,12 +2366,19 @@ function connectWS() {
 			source: "remote"
 		});
 	}
+	/** Hostnames the user configured for the transport (Connect URL), lowercased. */
 	const normalizedRemoteHosts = /* @__PURE__ */ new Set();
 	for (const spec of remoteHostSpecs) if (spec.host) normalizedRemoteHosts.add(spec.host.toLowerCase());
 	if (remoteHostSpecs.length === 0 && remoteHost.trim()) for (const part of splitHostList(remoteHost.trim())) {
 		const parsed = parseHostAndPort(part);
 		if (parsed?.host) normalizedRemoteHosts.add(parsed.host.toLowerCase());
 	}
+	/**
+	* If the user configured **any** LAN / local transport host, skip adding `location.hostname`
+	* unless it is already listed as a remote host. (Connect URL may list both 192.168.x.x and a
+	* public name — we still drop the redundant **page** copy of u2re.space when remotes already
+	* include a private gateway.)
+	*/
 	const hasPrivateOrLocalTransportHost = () => {
 		for (const h of normalizedRemoteHosts) {
 			const bare = stripWireEndpointIdPrefix(h).toLowerCase();
@@ -2381,14 +2397,6 @@ function connectWS() {
 	for (const entry of hostEntries) if (entry.host && !uniqueHostEntries.has(entry.host)) uniqueHostEntries.set(entry.host, entry);
 	const candidateHostEntries = Array.from(uniqueHostEntries.values());
 	const httpsOrderedHostEntries = reorderHostEntriesForHttps(candidateHostEntries);
-	const isChromiumExtensionRuntime = () => {
-		try {
-			const c = globalThis.chrome;
-			return typeof c?.runtime?.id === "string" && c.runtime.id.length > 0;
-		} catch {
-			return false;
-		}
-	};
 	const candidates = [];
 	for (const protocol of protocolOrder) {
 		if (location.protocol === "https:" && protocol === "http") continue;
@@ -2399,10 +2407,8 @@ function connectWS() {
 			for (const port of getPortsForProtocol(protocol, hostPortOverride)) {
 				const hostBare = stripWireEndpointIdPrefix(host).trim() || host.trim();
 				const hostLooksPrivate = isIpv4Literal(hostBare) && isPrivateIp(hostBare);
-				const crossOriginHttpsToPrivateLan = location.protocol === "https:" && !isLocalPageHost && hostLooksPrivate;
-				const inExtension = isChromiumExtensionRuntime();
-				const preferPollingFirst = crossOriginHttpsToPrivateLan && !inExtension;
-				const useWebSocketOnly = location.protocol === "https:" && isLocalPageHost && hostLooksPrivate || inExtension && crossOriginHttpsToPrivateLan && hostLooksPrivate;
+				const preferPollingFirst = location.protocol === "https:" && !isLocalPageHost && hostLooksPrivate;
+				const useWebSocketOnly = location.protocol === "https:" && isLocalPageHost && hostLooksPrivate;
 				candidates.push({
 					url: `${protocol}://${host}:${port}`,
 					protocol,

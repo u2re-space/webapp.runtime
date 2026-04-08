@@ -11,9 +11,10 @@ import {
     writeClipboard as writeLegacyClipboard
 } from "../../../io/clipboard.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../../../utils/endpoint-policy.ts";
+import { CONFIG_DIR } from "../../../utils/paths.ts";
 
 const TRANSPORT_HANDLERS_KEY = Symbol.for("cws.serverV2.transportHandlers");
-const RAW_CLIENTS_CONFIG_PATH = path.resolve(process.cwd(), "config/clients.json");
+const RAW_CLIENTS_CONFIG_PATH = path.join(CONFIG_DIR, "clients.json");
 
 const normalizeString = (value: unknown): string => String(value || "").trim();
 const normalizeToken = (value: unknown): string => String(value || "").trim().toLowerCase();

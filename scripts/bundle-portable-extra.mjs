@@ -1,4 +1,4 @@
-import { cp, mkdir, rm, writeFile, readFile, access } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile, readFile, access, copyFile } from "node:fs/promises";
 import { chmodSync } from "node:fs";
 import { constants as fsConstants } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -8,10 +8,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Packages marked `external` in `build-portable.mjs` must exist in `node_modules` after install.
- * `install.cmd` and the post-build step use `npm install --omit=dev`, so these belong in
- * **dependencies** (not devDependencies), or Windows/Linux portable folders get an empty tree
- * and Airpad/socket/clipboard features fail at runtime.
+ * Everything listed as `external` in `build-portable.mjs` must be installed in portable `node_modules`.
  */
 /** Shipped next to `cwsp.mjs` for `CWS_PORTABLE_CONFIG_PATH` defaults and multi-target presets. */
 const PORTABLE_CONFIG_NAMES = ["portable.config.json", "portable.config.110.json", "portable.config.vds.json"];
@@ -186,6 +183,23 @@ endlocal
         "node cwsp.mjs %*\r\n" +
         "endlocal\r\n";
     await writeFile(resolve(outDir, "webapp.cmd"), webappCmd, "utf8");
+
+    const readPortableTxt =
+        "CWSP portable bundle\n" +
+        "======================\n\n" +
+        "cwsp.mjs is an esbuild slice of the TS server; socket.io + fastify load from node_modules.\n" +
+        "Always run install.cmd (or npm install --omit=dev) in this folder after copy — partial copies break AirPad.\n\n" +
+        "Check: node check-portable-deps.mjs\n\n" +
+        "Typical cwsp.mjs size: ~200–400 KiB (deps are in node_modules, not inside cwsp.mjs).\n\n" +
+        "Start: webapp.cmd | node cwsp.mjs | pm2 start ecosystem.config.cjs\n" +
+        "TLS: https/local/multi.key + multi.crt or https/certificate.mjs next to cwsp.mjs.\n";
+    await writeFile(resolve(outDir, "READ_PORTABLE.txt"), readPortableTxt, "utf8");
+
+    const checkDeps = resolve(pkgRoot, "scripts", "check-portable-deps.mjs");
+    if (await exists(checkDeps)) {
+        await copyFile(checkDeps, resolve(outDir, "check-portable-deps.mjs"));
+        console.log("[bundle-portable-extra] copied check-portable-deps.mjs");
+    }
 
     if (process.env.CWS_SKIP_PORTABLE_NPM_INSTALL === "1" || process.env.CWS_SKIP_NPM_INSTALL === "1") {
         console.log("[bundle-portable-extra] skipped npm install (CWS_SKIP_PORTABLE_NPM_INSTALL=1)");

@@ -1,47 +1,60 @@
 #!/usr/bin/env node
 /**
- * Materialize the same static frontend as `dist/portable/frontend` into `dist/capacitor`
- * (Capacitor `webDir`). Runs full portable build unless `--skip-portable`.
+ * Materialize static web assets into `dist/capacitor` (Capacitor `webDir`).
+ * Uses the same merge as portable/Electron: `sync-frontend` → **no** esbuild `cwsp.mjs` / full portable build.
+ *
+ * `--skip-portable` — skip re-sync; use existing `dist/portable/frontend` if present, else keep/update `dist/capacitor` only when it already has `index.html`.
  */
 import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
 
 import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
+import { syncFrontendResources } from "./sync-frontend.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolveCwspPackageRoot(__dirname);
+
+const portableFrontend = resolve(pkgRoot, "dist", "portable", "frontend");
+const feStageDir = resolve(pkgRoot, "dist", ".cwsp-capacitor-fe-stage");
+const out = resolve(pkgRoot, "dist", "capacitor");
 
 /**
  * @param {{ skipPortable?: boolean }} [opts]
  */
 export async function buildCapacitorWeb(opts = {}) {
     const { skipPortable = false } = opts;
-    const portableFrontend = resolve(pkgRoot, "dist/portable/frontend");
-    const out = resolve(pkgRoot, "dist/capacitor");
+    let mergedFrontend;
 
     if (!skipPortable) {
-        const r = spawnSync(process.execPath, [resolve(__dirname, "build-portable.mjs")], {
-            cwd: pkgRoot,
-            stdio: "inherit"
-        });
-        if (r.status !== 0) process.exit(r.status ?? 1);
-    } else if (!existsSync(portableFrontend)) {
+        await syncFrontendResources({ pkgRoot, destDir: feStageDir });
+        mergedFrontend = join(feStageDir, "frontend");
+        if (!existsSync(join(mergedFrontend, "index.html"))) {
+            console.error(
+                "[build:capacitor:web] sync-frontend did not produce index.html — set CWS_FRONTEND_SRC to built PWA dist or populate runtime/frontend"
+            );
+            process.exit(1);
+        }
+    } else if (existsSync(join(portableFrontend, "index.html"))) {
+        mergedFrontend = portableFrontend;
+        console.log("[build:capacitor:web] --skip-portable: using dist/portable/frontend");
+    } else if (existsSync(join(out, "index.html"))) {
+        console.log("[build:capacitor:web] --skip-portable: leaving existing dist/capacitor");
+        return;
+    } else {
         console.error(
-            "[build:capacitor:web] Missing dist/portable/frontend — run build:portable first or omit --skip-portable"
+            "[build:capacitor:web] --skip-portable: no dist/portable/frontend and no dist/capacitor — run without --skip-portable once"
         );
         process.exit(1);
     }
 
     await rm(out, { recursive: true, force: true });
     await mkdir(out, { recursive: true });
-    /** Copy directory *contents* so index.html lives at webDir root (not webDir/frontend/). */
-    for (const name of await readdir(portableFrontend)) {
-        await cp(join(portableFrontend, name), join(out, name), { recursive: true });
+    for (const name of await readdir(mergedFrontend)) {
+        await cp(join(mergedFrontend, name), join(out, name), { recursive: true });
     }
-    console.log(`[build:capacitor:web] ${portableFrontend}/* -> ${out}`);
+    console.log(`[build:capacitor:web] ${mergedFrontend}/* -> ${out}`);
 }
 
 const entry = process.argv[1];

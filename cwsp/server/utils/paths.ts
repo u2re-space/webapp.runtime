@@ -1,10 +1,14 @@
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-
-import { moduleDirname } from "./runtime.ts";
+import { findPortableConfigRoot, moduleDirname } from "./runtime.ts";
 import { pickEnvStringLegacy } from "./env.ts";
 
+/** Directory of this module (`.../server/utils` in TS, bundle dir for `cwsp.mjs`). */
 const ROOT = moduleDirname(import.meta);
+
+/** cwsp package root when `portable.config.json` exists on an ancestor chain (or here for the bundle). */
+const PORTABLE_ROOT = findPortableConfigRoot(ROOT);
+const IS_PORTABLE_LAYOUT = PORTABLE_ROOT != null;
 
 const getCliArg = (flag: string): string | undefined => {
     const args = typeof process !== "undefined" && Array.isArray(process.argv) ? process.argv : [];
@@ -27,21 +31,28 @@ const explicitDataDir = dataArg || pickEnvStringLegacy("CWS_PORTABLE_DATA_PATH")
 const explicitConfigFile = configArg || pickEnvStringLegacy("CWS_PORTABLE_CONFIG_PATH") || pickEnvStringLegacy("ENDPOINT_CONFIG_JSON_PATH") || pickEnvStringLegacy("PORTABLE_CONFIG_PATH");
 const explicitConfigDir = pickEnvStringLegacy("CWS_CONFIG_DIR");
 
-export const DATA_DIR = explicitDataDir 
-    ? path.resolve(explicitDataDir) 
-    : path.resolve(ROOT, "../../.data");
+export const DATA_DIR = explicitDataDir
+    ? path.resolve(explicitDataDir)
+    : IS_PORTABLE_LAYOUT
+      ? path.join(PORTABLE_ROOT, ".data")
+      : path.resolve(ROOT, "../../.data");
 
-export const CONFIG_DIR = explicitConfigDir 
-    ? path.resolve(explicitConfigDir) 
-    : explicitConfigFile 
-        ? path.dirname(path.resolve(explicitConfigFile)) 
+export const CONFIG_DIR = explicitConfigDir
+    ? path.resolve(explicitConfigDir)
+    : explicitConfigFile
+      ? path.dirname(path.resolve(explicitConfigFile))
+      : IS_PORTABLE_LAYOUT
+        ? path.join(PORTABLE_ROOT, "config")
         : path.resolve(ROOT, "../../config");
 
 export const SETTINGS_FILE = path.join(DATA_DIR, "core-settings.json");
 export const USERS_FILE = path.join(DATA_DIR, "users.json");
 export const USER_STORAGE_DIR = path.join(DATA_DIR, "users");
 export const ADMIN_PREFS_FILE = path.join(CONFIG_DIR, "admin-prefs.json");
-export const ADMIN_DIR = path.resolve(ROOT, "../admin");
+/** Dev: `server/utils` → `server/admin`. Layout with portable.config: admin under package root. */
+export const ADMIN_DIR = IS_PORTABLE_LAYOUT
+    ? path.join(PORTABLE_ROOT, "admin")
+    : path.resolve(ROOT, "../admin");
 
 export const ensureDataDirs = async () => {
     await mkdir(DATA_DIR, { recursive: true });

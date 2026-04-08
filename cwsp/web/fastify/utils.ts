@@ -76,11 +76,18 @@ export const isSpaRoute = (pathname) => {
     return false;
 };
 
+const verboseProbe = (): boolean => process.env.CWS_VERBOSE_FRONTEND_PROBE === "1";
+
 /**
- * Probe directories to find existing paths
+ * Probe directories to find existing paths.
+ * By default logs only warnings (e.g. fallback). Set `CWS_VERBOSE_FRONTEND_PROBE=1` for per-directory trace
+ * (useful when `import.meta.dirname` differs between TS sources and bundled `cwsp.mjs`).
  */
 export const probeDirectory = async (dirList, agr = "local/", testFile = "certificate.crt") => {
-    console.log(`[Probe] Looking for ${testFile} in directories:`);
+    const verbose = verboseProbe();
+    if (verbose) {
+        console.log(`[Probe] Looking for ${testFile} in directories:`);
+    }
 
     for (const dir of dirList) {
         const baseDir = path.isAbsolute(dir)
@@ -94,12 +101,18 @@ export const probeDirectory = async (dirList, agr = "local/", testFile = "certif
             check = await fs.stat(fullPath).catch(() => null);
 
             if (check && check.isFile()) {
-                console.log(`[Probe] ✓ Found ${testFile} in: ${baseDir}`);
+                if (verbose) {
+                    console.log(`[Probe] ✓ Found ${testFile} in: ${baseDir}`);
+                }
                 return baseDir;
             }
-            console.log(`[Probe] ✗ Not found in: ${baseDir}`);
+            if (verbose) {
+                console.log(`[Probe] ✗ Not found in: ${baseDir}`);
+            }
         } catch (e) {
-            console.log(`[Probe] ✗ Error checking: ${baseDir} - ${e.message}`);
+            if (verbose) {
+                console.log(`[Probe] ✗ Error checking: ${baseDir} - ${e.message}`);
+            }
         }
     }
 
