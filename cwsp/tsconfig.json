@@ -1,0 +1,91 @@
+{
+    "include": [
+        "**/*.ts",
+        "**/*.js"
+    ],
+    "exclude": [
+        "./node_modules/**/*",
+        "./dist/**/*",
+        "./portable/**/*"
+    ],
+    "baseUrl": "./",
+    "compilerOptions": {
+        "paths": {
+            "@old/*": [
+                "../endpoint/endpoint/server/*"
+            ],
+            "@old/airpad/*": [
+                "../endpoint/endpoint/server/airpad/*"
+            ],
+            "@old/com/*": [
+                "../endpoint/endpoint/server/com/*"
+            ],
+            "@old/lib/*": [
+                "../endpoint/endpoint/server/lib/*"
+            ],
+            "@old/network/*": [
+                "../endpoint/endpoint/server/network/*"
+            ],
+            "@old/routing/*": [
+                "../endpoint/endpoint/server/routing/*"
+            ],
+            "@legacy/*": [
+                "./server/legacy/*"
+            ],
+            "@protocol/*": [
+                "./server/protocol/*"
+            ],
+            "@admin/*": [
+                "./server/admin/*"
+            ],
+            "@config/*": [
+                "./server/config/*"
+            ],
+            "@server-v2/*": [
+                "./server/"
+            ],
+            "@server/*": [
+                "./server/"
+            ],
+            "@inputs/*": [
+                "./server/inputs/*"
+            ],
+            "@utils/*": [
+                "./server/utils/*"
+            ]
+        },
+        "outDir": "./dist/",
+        "target": "ES2025",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "lib": [
+            "ES2025",
+            "DOM"
+        ],
+        "esModuleInterop": true,
+        "allowImportingTsExtensions": true,
+        "allowArbitraryExtensions": true,
+        "allowSyntheticDefaultImports": true,
+        "allowUmdGlobalAccess": true,
+        "allowUnreachableCode": true,
+        "allowUnusedLabels": true,
+        "skipLibCheck": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "noImplicitThis": false,
+        "forceConsistentCasingInFileNames": true,
+        "allowJs": true,
+        "declaration": false,
+        "inlineSources": true,
+        "inlineSourceMap": true,
+        "sourceMap": false,
+        "experimentalDecorators": true,
+        "types": [
+            "node"
+        ],
+        "noEmit": true,
+        "noEmitOnError": true,
+        "noEmitHelpers": true
+    },
+    "compileOnSave": false
+}
