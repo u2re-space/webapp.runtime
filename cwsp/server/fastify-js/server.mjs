@@ -1,5 +1,4 @@
-// Require the framework
-import Fastify from "fastify";
+import { fastify } from "fastify";
 
 // Require library to exit fastify process, gracefully (if possible)
 import closeWithGrace from "close-with-grace";
@@ -10,7 +9,7 @@ import appService, { options } from "./router.mjs";
 //
 export const server = async () => {
     // Instantiate Fastify with some config
-    const app = Fastify({
+    const app = fastify({
         ...options,
         logger: true,
     });

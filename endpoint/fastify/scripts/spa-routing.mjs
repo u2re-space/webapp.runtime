@@ -278,12 +278,17 @@ export async function registerSPARouting(fastify, options = {}) {
         });
     };
 
-    fastify.get('/:view', async (req, reply) => {
+    const handleViewRoute = async (req, reply) => {
         const view = req?.params?.view;
         if (!shouldHandleAsViewRoute(view)) {
             return reply.callNotFound();
         }
         if (shouldHandleAsViewApiRoute(view)) {
+            if (String(req.method || "GET").toUpperCase() === "HEAD") {
+                noStore(reply);
+                reply.header("X-Source", "runtime-fastify-view-api");
+                return reply.code(200).send();
+            }
             const accept = String(req?.headers?.accept || "").toLowerCase();
             const wantsJson = accept.includes("application/json") || String(req?.query?.format || "").toLowerCase() === "json";
             if (wantsJson) {
@@ -291,19 +296,12 @@ export async function registerSPARouting(fastify, options = {}) {
             }
         }
         return serveIndexHtml(req, reply);
-    });
+    };
 
-    fastify.head('/:view', async (req, reply) => {
-        const view = req?.params?.view;
-        if (!shouldHandleAsViewRoute(view)) {
-            return reply.callNotFound();
-        }
-        if (shouldHandleAsViewApiRoute(view)) {
-            noStore(reply);
-            reply.header("X-Source", "runtime-fastify-view-api");
-            return reply.code(200).send();
-        }
-        return serveIndexHtml(req, reply);
+    fastify.route({
+        method: ["GET", "HEAD"],
+        url: "/:view",
+        handler: handleViewRoute
     });
 
     fastify.options("/:view", async (req, reply) => {
@@ -334,7 +332,7 @@ export async function registerSPARouting(fastify, options = {}) {
         });
     });
 
-    fastify.get('/:view/*', async (req, reply) => {
+    fastify.get('/:view/*', { exposeHeadRoute: false }, async (req, reply) => {
         const view = req?.params?.view;
         if (!shouldHandleAsViewRoute(view)) {
             return reply.callNotFound();

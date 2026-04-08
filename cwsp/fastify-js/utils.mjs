@@ -83,30 +83,25 @@ export const probeDirectory = async (dirList, agr = "local/", testFile = "certif
     console.log(`[Probe] Looking for ${testFile} in directories:`);
 
     for (const dir of dirList) {
-        const baseDir = path.isAbsolute(dir)
-            ? agr
-                ? path.join(dir, agr)
-                : dir
-            : path.resolve(import.meta.dirname, String(dir) + agr);
-        const fullPath = path.join(baseDir, testFile);
+        const fullPath = path.resolve(import.meta.dirname, dir + agr, testFile);
         let check = null;
         try {
-            check = await fs.stat(fullPath).catch(() => null);
+            check = await fs
+                .stat(fullPath)
+                .catch(() => null);
 
             if (check && check.isFile()) {
-                console.log(`[Probe] ✓ Found ${testFile} in: ${baseDir}`);
-                return baseDir;
+                console.log(`[Probe] ✓ Found ${testFile} in: ${path.resolve(import.meta.dirname, dir)}`);
+                return path.resolve(import.meta.dirname, dir);
+            } else {
+                console.log(`[Probe] ✗ Not found in: ${path.resolve(import.meta.dirname, dir)}`);
             }
-            console.log(`[Probe] ✗ Not found in: ${baseDir}`);
-        } catch (e) {
-            console.log(`[Probe] ✗ Error checking: ${baseDir} - ${e.message}`);
+        } catch(e) {
+            console.log(`[Probe] ✗ Error checking: ${path.resolve(import.meta.dirname, dir)} - ${e.message}`);
         }
     }
 
-    const first = dirList[0];
-    const fallbackDir = path.isAbsolute(first)
-        ? first
-        : path.resolve(import.meta.dirname, String(first));
-    console.warn(`[Probe] No ${testFile} matched — using fallback directory: ${fallbackDir}`);
+    const fallbackDir = path.resolve(import.meta.dirname, dirList[0]);
+    console.log(`[Probe] Using fallback directory: ${fallbackDir}`);
     return fallbackDir;
 };

@@ -6,3 +6,18 @@
 - Android **APK** is the Kotlin app **[CWSAndroid](https://github.com/u2re-space/CWSAndroid)** (`apps/CWSAndroid` submodule): `npm run build:android` / `build:cws-android` / `build:electron:android` (portable + Gradle). APKs are built under `apps/CWSAndroid/app/build/outputs/apk/` and **copied** to `cwsp/dist/electron/android/` for packaging next to desktop `dist/electron`. Not an Electron binary.
 - Same product family as CWSAndroid (sync, clipboard bridge, admin-style workflows); the web UI is HTML/JS/CSS in portable `frontend/`.
 - PWA / browser: serve public Fastify + static frontend as usual.
+
+## Fastify
+
+Early runned by:
+
+```json
+"build": "npm install --include=dev",
+"start": "node ./scripts/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm",
+"dev": "npm run start",
+"test": "npm run test:dev",
+"test:dev": "vite dev --config vite.config.ts",
+"test:test": "echo 'No tests configured for fastify-server' && exit 0"
+```
+
+And located in `scripts` instead of `fastify-js`.

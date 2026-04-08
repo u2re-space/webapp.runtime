@@ -97,17 +97,6 @@ export function registerErrorHandling(fastify, options = {}) {
             });
         }
 
-        // Vite dev-only URLs (never exist as static files on CWSP)
-        if (pathname.startsWith("/src/") || pathname.startsWith("/@")) {
-            reply.header("Cache-Control", "no-store");
-            reply.header("X-CWSP-Hint", "vite-dev-asset");
-            const { buildViteDevAssetTrapHtml } = await import("./vite-dev-detect.ts");
-            return reply
-                .code(503)
-                .header("Content-Type", "text/html; charset=utf-8")
-                .send(buildViteDevAssetTrapHtml());
-        }
-
         // Check if this looks like a static file request
         if (isStaticFilePath(pathname)) {
             // Return styled 404 for missing static files
@@ -122,7 +111,7 @@ export function registerErrorHandling(fastify, options = {}) {
         console.log(`[SPA] Serving index.html for: ${pathname}`);
 
         // Import the SPA serving function dynamically
-        const { serveIndexHtml } = await import('./spa-routing.ts');
+        const { serveIndexHtml } = await import('./spa-routing.mjs');
         return serveIndexHtml(req, reply);
     });
 

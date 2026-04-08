@@ -44,13 +44,6 @@ const ROOT_ASSET_PREFIXES = [
 const NON_HASHED_SCRIPT_STYLE_RE = /\.(js|mjs|css)$/i;
 const HASHED_ASSET_RE = /\.[a-f0-9]{8,}\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/i;
 
-/** Root `index.html` is served by `registerRootDocumentRoutes` / SPA — do not register GET/HEAD via @fastify/static (duplicate route). */
-const SHELL_INDEX_GLOB_IGNORE = ["**/index.html"];
-const shellIndexAllowedPath = (pathName) => {
-    const base = path.basename(String(pathName || "").split("?")[0]);
-    return base.toLowerCase() !== "index.html";
-};
-
 /**
  * Resolve asset paths with app and fallback lookup
  */
@@ -135,11 +128,6 @@ const setStaticHeaders = (res, filePath) => {
         fileName === 'sw.js' ||
         /^workbox-[\w.-]+\.js$/.test(fileName) ||
         /^registersw\.js$/.test(fileName);
-
-    // Helps document COEP (require-corp) load same-origin subresources reliably in Chromium.
-    if (!res.getHeader("Cross-Origin-Resource-Policy")) {
-        res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
-    }
 
     // Set explicit Content-Type for critical file types
     if (ext === 'js' || ext === 'mjs') {
@@ -295,8 +283,6 @@ export async function registerStaticServing(fastify, options = {}) {
         cacheControl: false,
         root: path.resolve(__frontendDir, './'),
         prefix: '/',
-        globIgnore: SHELL_INDEX_GLOB_IGNORE,
-        allowedPath: shellIndexAllowedPath,
         setHeaders: (res, filePath) => {
             console.log(`[Static] Serving shared asset from frontend: ${filePath}`);
             setStaticHeaders(res, filePath);
@@ -314,8 +300,6 @@ export async function registerStaticServing(fastify, options = {}) {
             cacheControl: false,
             root: path.resolve(__appDir, './'),
             prefix: '/',
-            globIgnore: SHELL_INDEX_GLOB_IGNORE,
-            allowedPath: shellIndexAllowedPath,
             setHeaders: (res, filePath) => {
                 console.log(`[Static] Serving app asset from ${__appDir}: ${filePath}`);
                 setStaticHeaders(res, filePath);

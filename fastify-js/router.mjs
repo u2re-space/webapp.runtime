@@ -2,17 +2,16 @@ import fs from "fs/promises"
 import path from "node:path"
 
 // Import modular components
-import { registerMiddleware } from "./middleware.ts"
-import { registerAPIRoutes } from "./api-routes.ts"
-import { registerShareTargetRoutes } from "./share-target-routes.ts"
-import { registerStaticServing, initializeDirectories } from "./static-serving.ts"
-import { registerSPARouting, registerRootDocumentRoutes, initializeSPARouting } from "./spa-routing.ts"
-import { registerErrorHandling } from "./error-handling.ts"
-import { probeDirectory } from "./utils.ts"
-import { looksLikeViteDevIndexHtml } from "./vite-dev-detect.ts"
+import { registerMiddleware } from "./middleware.mjs"
+import { registerAPIRoutes } from "./api-routes.mjs"
+import { registerShareTargetRoutes } from "./share-target-routes.mjs"
+import { registerStaticServing, initializeDirectories } from "./static-serving.mjs"
+import { registerSPARouting, initializeSPARouting } from "./spa-routing.mjs"
+import { registerErrorHandling } from "./error-handling.mjs"
+import { probeDirectory } from "./utils.mjs"
 
 // AI Proxy routes (fallback when service worker unavailable)
-import { registerAIProxyRoutes } from "./ai-proxy.ts"
+import { registerAIProxyRoutes } from "./ai-proxy.mjs"
 
 // ============================================================================
 // DIRECTORY & FILE RESOLUTION
@@ -22,72 +21,23 @@ const DIRNAME = "webapp.runtime";
 // Probe for frontend directory and app directories
 const APP_NAME = "cw";
 
-const cwspRoot = path.resolve(import.meta.dirname, "../..");
-const pathLooksAbsolute = (p) => p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p);
-
-/** Explicit dirs (highest priority): CWS_FRONTEND_DIR, then each path in CWS_FRONTEND_SRC (same as sync-frontend). */
-const envFrontendDirs = () => {
-    const out = [];
-    const explicit = String(process.env.CWS_FRONTEND_DIR || "").trim();
-    if (explicit) out.push(path.resolve(explicit));
-    const src = process.env.CWS_FRONTEND_SRC;
-    if (src) {
-        for (const part of String(src).split(/[:;]/)) {
-            const t = part.trim();
-            if (!t) continue;
-            out.push(pathLooksAbsolute(t) ? path.resolve(t) : path.resolve(cwspRoot, t));
-        }
-    }
-    return out;
-};
-
 // First, find the main frontend directory (for shared assets)
-const __frontendDir = await probeDirectory(
-    [
-        ...envFrontendDirs(),
-        "../../.dev-frontend/frontend",
-        "../../dist/portable/frontend",
-        "../../frontend",
-        "../frontend",
-        "./frontend",
-        "../../" + DIRNAME + "/frontend",
-        "../" + DIRNAME + "/frontend",
-        "./" + DIRNAME + "/frontend"
-    ],
-    "",
-    "index.html"
-);
+const __frontendDir = (await probeDirectory([
+    "../../frontend",
+    "../frontend",
+    "./frontend",
+    "../../"+DIRNAME+"/frontend",
+    "../"+DIRNAME+"/frontend",
+    "./"+DIRNAME+"/frontend"
+], "./", "index.html"));
 
 console.log(`[Router] Main frontend directory: ${__frontendDir}`);
 
-const __indexPath = path.resolve(__frontendDir, "index.html");
-try {
-    await fs.access(__indexPath);
-} catch {
-    console.error(
-        "[Router] No index.html at resolved frontend dir. Set CWS_FRONTEND_DIR to built PWA output, " +
-            "or CWS_FRONTEND_SRC (see dev.env), or run dev without CWS_SKIP_DEV_FRONTEND_SYNC so .dev-frontend is merged."
-    );
-}
-
-try {
-    const idx = await fs.readFile(__indexPath, "utf-8");
-    if (looksLikeViteDevIndexHtml(idx)) {
-        console.error(
-            "[Router] index.html looks like a Vite **dev** shell (references /src/, html-proxy, or @vite-plugin-pwa). " +
-                "CWSP cannot serve that. Build PWA (e.g. npm run build:pwa in CrossWord) and set CWS_FRONTEND_DIR or CWS_FRONTEND_SRC to dist. " +
-                "Opening / will show an explanation page unless CWS_ALLOW_VITE_DEV_HTML=true."
-        );
-    }
-} catch {
-    /* already logged access error */
-}
-
 // Then, try to find app-specific directory (relative to found frontend directory)
 const __appDir = (await probeDirectory([
+    // First try app directory relative to the found frontend directory
     path.resolve(__frontendDir, "apps", APP_NAME),
-    "../../.dev-frontend/frontend/apps/" + APP_NAME,
-    "../../dist/portable/frontend/apps/" + APP_NAME,
+    // Also try absolute paths as fallback
     "../../frontend/apps/" + APP_NAME,
     "../frontend/apps/" + APP_NAME,
     "./frontend/apps/" + APP_NAME,
@@ -101,7 +51,7 @@ const __appDir = (await probeDirectory([
     "../../"+DIRNAME+"/frontend",
     "../"+DIRNAME+"/frontend",
     "./"+DIRNAME+"/frontend"
-], "", "index.js"));
+], "./", "index.js"));
 
 console.log(`[Router] App directory resolved to: ${__appDir}`);
 
@@ -136,9 +86,7 @@ export default async function (fastify, options = {}) {
     // Register AI proxy routes (fallback when service worker unavailable)
     await registerAIProxyRoutes(fastify);
 
-    // SPA shell for `/` and `/index.html` (static plugin must not register those paths — see allowedPath).
-    await registerRootDocumentRoutes(fastify);
-
+    // Register static file serving (assets, fallbacks, etc.)
     await registerStaticServing(fastify, options);
 
     // Register SPA routing (index.html serving)
@@ -150,7 +98,47 @@ export default async function (fastify, options = {}) {
     console.log('[Router] All modules registered successfully');
 }
 
-// HTTPS configuration is now handled by the CWSP core server.
+// ============================================================================
+// HTTPS CONFIGURATION & OPTIONS
+// ============================================================================
+
+// Load HTTPS certificate if not disabled
+let httpsConfig = {};
+if (!Array.from(process.argv).some((e) => e.endsWith("no-https"))) {
+    try {
+        console.log(`[Router] Looking for HTTPS certificates...`);
+
+        // Look for certificate directory
+        const certDir = await probeDirectory(["../../https/", "../https/", "./https/"], "./", "certificate.crt");
+        console.log(`[Router] Found certificate directory: ${certDir}`);
+
+        // Check for certificate.mjs file
+        const certPath = path.resolve(certDir, "certificate.mjs");
+        console.log(`[Router] Looking for certificate.mjs at: ${certPath}`);
+
+        // Check if certificate file actually exists before trying to import
+        await fs.access(certPath);
+        console.log(`[Router] Certificate file exists, loading...`);
+
+        httpsConfig = (await import("file://" + certPath)).default;
+        console.log(`[Router] HTTPS certificate loaded successfully from: ${certPath}`);
+    } catch (error) {
+        console.log(`[Router] HTTPS certificate setup failed:`);
+        console.log(`  Error: ${error.message}`);
+        console.log(`  Certificate directory probe failed or certificate.mjs not found`);
+        console.log(`  Starting server without HTTPS (add certificate.crt and certificate.mjs to https/ directory)`);
+        console.log(`  Or use --no-https to disable HTTPS completely`);
+        httpsConfig = {}; // Fallback to no HTTPS
+    }
+}
+
+// Server configuration options
+let port = 443;
+if (Array.from(process.argv).some((e) => e.endsWith("port"))) {
+    const index = Array.from(process.argv).findIndex((e) => e.endsWith("port"));
+    port = parseInt(process.argv[index + 1]);
+}
+
 export const options = {
     http2: true,
     esm: true,
@@ -158,5 +146,9 @@ export const options = {
     logger: true,
     routerOptions: {
         ignoreTrailingSlash: true,
-    }
+    },
+    port: port || 443,
+    https: { allowHTTP1: true, ...httpsConfig },
+    address: "::",
+    host: "::",
 };

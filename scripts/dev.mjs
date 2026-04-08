@@ -4,6 +4,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
+import { syncFrontendResources } from "./sync-frontend.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolveCwspPackageRoot(__dirname);
@@ -22,11 +23,24 @@ for (const [key, value] of Object.entries(defaults)) {
     }
 }
 
-const child = spawn("npx", ["tsx", "watch", "--clear-screen=false", "server/index.ts"], {
-    cwd: pkgRoot,
-    stdio: "inherit",
-    env: process.env,
-    shell: true
-});
+const skipSync = ["1", "true", "yes", "on"].includes(String(process.env.CWS_SKIP_DEV_FRONTEND_SYNC || "").trim().toLowerCase());
 
-child.on("exit", (code) => process.exit(code ?? 0));
+const startServer = () => {
+    const child = spawn("npx", ["tsx", "watch", "--clear-screen=false", "server/index.ts"], {
+        cwd: pkgRoot,
+        stdio: "inherit",
+        env: process.env,
+        shell: true
+    });
+    child.on("exit", (code) => process.exit(code ?? 0));
+};
+
+(async () => {
+    if (!skipSync) {
+        await syncFrontendResources({ pkgRoot, destDir: resolve(pkgRoot, ".dev-frontend") });
+    }
+    startServer();
+})().catch((err) => {
+    console.error("[dev] Failed:", err);
+    process.exit(1);
+});

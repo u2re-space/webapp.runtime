@@ -1,9 +1,9 @@
-import { fastify } from "fastify";
+import Fastify from 'fastify';
 
 //
 const startRedirectServer = async () => {
-    const app = fastify();
-    app.all("*", (request, reply) => {
+    const fastify = Fastify();
+    fastify.all('*', (request, reply) => {
         const httpsUrl = `https://${request.headers.host}${request.url}`;
         reply
             .status(301)
@@ -26,7 +26,7 @@ const startRedirectServer = async () => {
 
     //
     try {
-        await app.listen({ port: 80, host: "0.0.0.0" });
+        await fastify.listen({ port: 80, host: '0.0.0.0' });
         console.log('HTTP to HTTPS redirect server is running on port 80');
     } catch (err) {
         console.error('Error starting redirect server:', err);

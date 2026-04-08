@@ -1,4 +1,4 @@
-import { cp, mkdir, mkdtemp, realpath, rm, stat } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -70,6 +70,26 @@ export async function syncFrontendResources({ pkgRoot, destDir }) {
         await materializeInto(real, destFrontend);
         copied = true;
         console.log(`[sync-frontend] merged ${real} -> ${destFrontend}`);
+    }
+    if (copied) {
+        try {
+            const html = await readFile(resolve(destFrontend, "index.html"), "utf8");
+            if (
+                /\/src\/index\.(tsx?|jsx?)/.test(html) ||
+                html.includes("@vite-plugin-pwa") ||
+                html.includes("html-proxy") ||
+                (html.includes('href="/src/') && html.includes("manifest.json"))
+            ) {
+                console.warn(
+                    "[sync-frontend] index.html looks like a Vite **dev** shell (e.g. CrossWord repo root). " +
+                        "CWSP only serves **static** files — `/src/...` and Vite PWA hooks will fail on https://LAN:443.\n" +
+                        "  Fix: set CWS_FRONTEND_SRC to **built** output, e.g. after `(cd apps/CrossWord && npm run build:pwa)` use the `dist/` folder.\n" +
+                        "  If you already use dist, clear this origin’s **service worker** (Chrome → Application → Unregister)."
+                );
+            }
+        } catch {
+            /* no index yet */
+        }
     }
     if (!copied) {
         console.warn(

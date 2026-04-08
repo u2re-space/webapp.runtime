@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,10 +41,33 @@ export const isMainModule = (meta: ImportMeta): boolean => {
     const anyMeta = meta as any;
     // Deno provides import.meta.main
     if (typeof anyMeta?.main === "boolean") return anyMeta.main;
-    // Node: best-effort check
+    // Node: best-effort check (tsx / npx may use symlinked or relative argv[1])
+    const rawUrl = anyMeta?.url;
+    if (typeof rawUrl !== "string" || !rawUrl) return false;
     const entry = process.argv?.[1];
     if (!entry) return false;
-    return path.resolve(entry) === fileURLToPath(meta.url);
+    const metaPath = fileURLToPath(rawUrl);
+    const resolvedEntry = path.resolve(entry);
+    if (resolvedEntry === metaPath) return true;
+    try {
+        if (fs.existsSync(resolvedEntry) && fs.existsSync(metaPath)) {
+            const realEntry = fs.realpathSync(resolvedEntry);
+            const realMeta = fs.realpathSync(metaPath);
+            if (realEntry === realMeta) return true;
+        }
+    } catch {
+        /* ignore */
+    }
+    const fromCwd = path.resolve(process.cwd(), entry);
+    if (fromCwd === metaPath) return true;
+    try {
+        if (fs.existsSync(fromCwd) && fs.existsSync(metaPath) && fs.realpathSync(fromCwd) === fs.realpathSync(metaPath)) {
+            return true;
+        }
+    } catch {
+        /* ignore */
+    }
+    return false;
 };
 
 export const runtimeArgs = (): string[] => {

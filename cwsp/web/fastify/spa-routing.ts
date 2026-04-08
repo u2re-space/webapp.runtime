@@ -7,6 +7,8 @@
 import fs from "fs/promises"
 import path from "node:path"
 
+import { buildWrongIndexHelpHtml, looksLikeViteDevIndexHtml } from "./vite-dev-detect.ts"
+
 let LOADER, __frontendDir;
 
 /**
@@ -190,6 +192,18 @@ export const serveIndexHtml = async (req, reply) => {
     }
 
     const { content, stats } = await readIndexHtml();
+    const allowViteDevHtml = String(process.env.CWS_ALLOW_VITE_DEV_HTML || "").trim().toLowerCase() === "true";
+    if (!allowViteDevHtml && looksLikeViteDevIndexHtml(content)) {
+        noStore(reply);
+        reply.header("X-CWSP-Shell", "vite-dev-rejected");
+        const method = String(req?.method || "GET").toUpperCase();
+        const help = buildWrongIndexHelpHtml(__frontendDir || "");
+        if (method === "HEAD") {
+            return reply.code(200).header("Content-Type", "text/html; charset=utf-8").send();
+        }
+        return reply.code(200).type("text/html; charset=utf-8").send(help);
+    }
+
     const links = extractEarlyHintLinks(content);
     const etag = `W/"${Number(stats.mtimeMs || Date.now()).toString(36)}-${stats.size.toString(36)}"`;
     const lastModified = stats.mtime.toUTCString();
@@ -220,6 +234,16 @@ export const serveIndexHtml = async (req, reply) => {
         ?.type?.('text/html')
         ?.send?.(content);
 };
+
+/**
+ * Register `/` and `/index.html` before `@fastify/static` so the shell always wins over static's `/` handling.
+ */
+export async function registerRootDocumentRoutes(fastify) {
+    const sendRoot = async (req, reply) => serveIndexHtml(req, reply);
+    // Fastify 5 can auto-register HEAD for `get()` — use one route per path for GET+HEAD.
+    fastify.route({ method: ["GET", "HEAD"], url: "/", handler: sendRoot });
+    fastify.route({ method: ["GET", "HEAD"], url: "/index.html", handler: sendRoot });
+}
 
 export async function registerSPARouting(fastify, options = {}) {
     // ========================================================================
@@ -278,12 +302,18 @@ export async function registerSPARouting(fastify, options = {}) {
         });
     };
 
-    fastify.get('/:view', { exposeHeadRoute: false }, async (req, reply) => {
+    // One registration for GET + HEAD — Fastify 5 may auto-add HEAD for `get()` and then `head()` throws FST_ERR_DUPLICATED_ROUTE.
+    const handleViewRoute = async (req, reply) => {
         const view = req?.params?.view;
         if (!shouldHandleAsViewRoute(view)) {
             return reply.callNotFound();
         }
         if (shouldHandleAsViewApiRoute(view)) {
+            if (String(req.method || "GET").toUpperCase() === "HEAD") {
+                noStore(reply);
+                reply.header("X-Source", "runtime-fastify-view-api");
+                return reply.code(200).send();
+            }
             const accept = String(req?.headers?.accept || "").toLowerCase();
             const wantsJson = accept.includes("application/json") || String(req?.query?.format || "").toLowerCase() === "json";
             if (wantsJson) {
@@ -291,19 +321,12 @@ export async function registerSPARouting(fastify, options = {}) {
             }
         }
         return serveIndexHtml(req, reply);
-    });
+    };
 
-    fastify.head('/:view', async (req, reply) => {
-        const view = req?.params?.view;
-        if (!shouldHandleAsViewRoute(view)) {
-            return reply.callNotFound();
-        }
-        if (shouldHandleAsViewApiRoute(view)) {
-            noStore(reply);
-            reply.header("X-Source", "runtime-fastify-view-api");
-            return reply.code(200).send();
-        }
-        return serveIndexHtml(req, reply);
+    fastify.route({
+        method: ["GET", "HEAD"],
+        url: "/:view",
+        handler: handleViewRoute
     });
 
     fastify.options("/:view", async (req, reply) => {
@@ -339,15 +362,6 @@ export async function registerSPARouting(fastify, options = {}) {
         if (!shouldHandleAsViewRoute(view)) {
             return reply.callNotFound();
         }
-        return serveIndexHtml(req, reply);
-    });
-
-    // ========================================================================
-    // SPA ROUTES (serve index.html for client-side routing)
-    // ========================================================================
-
-    // Root route - serves main app (client handles all routing)
-    fastify.get('/', async (req, reply) => {
         return serveIndexHtml(req, reply);
     });
 }

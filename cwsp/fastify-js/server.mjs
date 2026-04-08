@@ -1,15 +1,16 @@
+// Require the framework
+import Fastify from "fastify";
+
+// Require library to exit fastify process, gracefully (if possible)
 import closeWithGrace from "close-with-grace";
 
-import { loadFastifyFactory } from "../../server/utils/fastify-loader.ts";
-
 // Import your application
-import appService, { options } from "./router.ts";
+import appService, { options } from "./router.mjs";
 
 //
 export const server = async () => {
-    const build = await loadFastifyFactory();
-
-    const app = build({
+    // Instantiate Fastify with some config
+    const app = Fastify({
         ...options,
         logger: true,
     });
