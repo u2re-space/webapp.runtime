@@ -25,10 +25,19 @@ if (!existsSync(entry)) {
 }
 
 const isWin = process.platform === "win32";
+const portableConfig =
+    process.env.CWS_PORTABLE_CONFIG_PATH ||
+    path.join(portableDir, "portable.config.json");
+const portableData =
+    process.env.CWS_PORTABLE_DATA_PATH || path.join(portableDir, ".data");
 const child = spawn("node", [entry], {
     cwd: portableDir,
     stdio: "inherit",
-    env: { ...process.env },
+    env: {
+        ...process.env,
+        CWS_PORTABLE_CONFIG_PATH: portableConfig,
+        CWS_PORTABLE_DATA_PATH: portableData
+    },
     shell: isWin
 });
 

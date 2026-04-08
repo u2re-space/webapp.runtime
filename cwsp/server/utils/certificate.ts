@@ -1,5 +1,6 @@
-import { readFile } from "node:fs/promises";
+import { access, constants, readFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { parsePortableBoolean, resolveMaybeTextBoolean, resolvePortableTextValue } from "./parsing.ts";
 
@@ -7,6 +8,49 @@ const KEY_FILE_NAME = "multi.key";
 const CRT_FILE_NAME = "multi.crt";
 
 const unique = (items: string[]) => [...new Set(items.map((item) => path.resolve(item)))];
+
+const materialToString = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value;
+    if (Buffer.isBuffer(value)) return value.toString("utf8");
+    return undefined;
+};
+
+const certificateMjsRoots = (moduleDir: string, cwd: string): string[] =>
+    unique([
+        cwd,
+        path.resolve(cwd, ".."),
+        path.resolve(cwd, "config"),
+        path.resolve(moduleDir, ".."),
+        path.resolve(moduleDir, "..", ".."),
+        path.resolve(moduleDir, "..", "..", "..")
+    ]);
+
+/** Same layout as legacy `endpoint` Fastify router: `https/certificate.mjs` exporting `{ key, cert [, ca] }`. */
+const tryLoadCertificateMjs = async (
+    moduleDir: string,
+    cwd: string
+): Promise<{ key: unknown; cert: unknown; ca?: unknown } | undefined> => {
+    for (const root of certificateMjsRoots(moduleDir, cwd)) {
+        const file = path.resolve(root, "https", "certificate.mjs");
+        try {
+            await access(file, constants.R_OK);
+        } catch {
+            continue;
+        }
+        try {
+            const mod = await import(pathToFileURL(file).href);
+            const exp = (mod as { default?: Record<string, unknown> } & Record<string, unknown>).default || mod;
+            const key = exp?.key;
+            const cert = exp?.cert;
+            if (key && cert) {
+                return { key, cert, ca: exp?.ca };
+            }
+        } catch (err) {
+            console.warn(`[core-backend] https/certificate.mjs at ${file} failed:`, String((err as Error)?.message || err));
+        }
+    }
+    return undefined;
+};
 
 const isLikelyBase64 = (value: string): boolean => {
     const normalized = value.replace(/\s/g, "");
@@ -163,7 +207,27 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
             }
         }
 
-        const ca = caFile ? await readCertificateMaterial(caFile, "ca") : undefined;
+        const needCertificateMjs = !key || !cert || !caFile;
+        const mjsBundle = needCertificateMjs ? await tryLoadCertificateMjs(moduleDir, cwd) : undefined;
+        if ((!key || !cert) && mjsBundle) {
+            const keyStr = materialToString(mjsBundle.key);
+            const certStr = materialToString(mjsBundle.cert);
+            if (keyStr && certStr) {
+                const [k2, c2] = await Promise.all([readCertificateMaterial(keyStr, "key"), readCertificateMaterial(certStr, "cert")]);
+                if (k2 && c2) {
+                    key = k2;
+                    cert = c2;
+                }
+            }
+        }
+
+        let ca = caFile ? await readCertificateMaterial(caFile, "ca") : undefined;
+        if (!ca && mjsBundle?.ca) {
+            const caStr = materialToString(mjsBundle.ca);
+            if (caStr) {
+                ca = (await readCertificateMaterial(caStr, "ca")) ?? undefined;
+            }
+        }
 
         if (!key || !cert) {
             throw new Error("[core-backend] HTTPS disabled: missing key or cert material");

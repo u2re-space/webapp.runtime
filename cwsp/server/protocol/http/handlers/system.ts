@@ -73,7 +73,10 @@ export const registerSystemHttpHandlers = async (app: FastifyInstance): Promise<
         const origin = String((req.headers as any)?.origin || "");
         if (origin) reply.header("Access-Control-Allow-Origin", origin);
         reply.header("Access-Control-Allow-Methods", "GET, OPTIONS");
-        reply.header("Access-Control-Allow-Headers", "Content-Type");
+        reply.header(
+            "Access-Control-Allow-Headers",
+            "Content-Type, Access-Control-Request-Private-Network, Access-Control-Request-Method"
+        );
         reply.header("Access-Control-Max-Age", "600");
         if (String((req.headers as any)?.["access-control-request-private-network"] || "").toLowerCase() === "true") {
             reply.header("Access-Control-Allow-Private-Network", "true");

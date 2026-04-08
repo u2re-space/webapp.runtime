@@ -2018,12 +2018,17 @@ var unwrapIncomingPayload = async (payload) => {
 	if (getTransportMode() !== "secure") return payload;
 	return unwrapSignedPayload(payload);
 };
+function stripWireEndpointIdPrefix(host) {
+	const t = String(host || "").trim();
+	return /^l-/i.test(t) ? t.slice(2).trim() : t;
+}
 function isPrivateOrLocalTarget(host) {
 	if (!host) return false;
-	if (host === "localhost") return true;
+	const bare = stripWireEndpointIdPrefix(host);
+	if (bare === "localhost" || host === "localhost") return true;
 	if (host.endsWith(".local")) return true;
-	if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return false;
-	return host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || host.startsWith("127.");
+	if (!/^\d{1,3}(?:\.\d{1,3}){3}$/.test(bare)) return false;
+	return bare.startsWith("10.") || bare.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(bare) || bare.startsWith("127.") || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(bare);
 }
 var getCurrentOriginHostname = () => {
 	try {
@@ -2246,22 +2251,26 @@ function connectWS() {
 	const isPrivateIp = (host) => {
 		if (!host) return false;
 		if (!isIpv4Literal(host)) return false;
-		return host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+		return host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host);
 	};
-	/** Prefer hostname (SNI) before public IPv4 for HTTPS — certs rarely include the bare IP. */
+	const connectHostFromRemote = (h) => {
+		const t = stripWireEndpointIdPrefix(h.trim());
+		return t || h.trim();
+	};
+	/** CWSP: private IPs first, then remote DNS, then PWA page origin (avoids u2re.space before LAN gateway). */
 	const reorderHostEntriesForHttps = (entries) => {
-		const dns = [];
+		const dnsRemote = [];
+		const dnsPage = [];
 		const privateIpv4 = [];
 		const publicIpv4 = [];
-		for (const e of entries) if (!isIpv4Literal(e.host)) dns.push(e);
-		else if (isPrivateIp(e.host) || e.host === "127.0.0.1") privateIpv4.push(e);
-		else publicIpv4.push(e);
-		dns.sort((a, b) => (a.source === "page" ? 0 : 1) - (b.source === "page" ? 0 : 1));
-		return [
-			...dns,
-			...privateIpv4,
-			...publicIpv4
-		];
+		for (const e of entries) {
+			if (!isIpv4Literal(e.host)) {
+				if (e.source === "page") dnsPage.push(e);
+				else dnsRemote.push(e);
+			} else if (isPrivateIp(e.host) || e.host === "127.0.0.1") privateIpv4.push(e);
+			else publicIpv4.push(e);
+		}
+		return [...privateIpv4, ...dnsRemote, ...dnsPage, ...publicIpv4];
 	};
 	const isLikelyPort = (value) => /^\d{1,5}$/.test(value);
 	const stripProtocol = (value) => {
@@ -2296,7 +2305,7 @@ function connectWS() {
 	}
 	const inferProtocol = () => {
 		if (remoteProtocol === "http" || remoteProtocol === "https") return remoteProtocol;
-		if (remotePort === "443" || remotePort === "8443") return "https";
+		if (remotePort === "443" || remotePort === "8443" || remotePort === "8444") return "https";
 		if (remotePort === "80" || remotePort === "8080") return "http";
 		return location.protocol === "https:" ? "https" : "http";
 	};
@@ -2306,16 +2315,18 @@ function connectWS() {
 	const routeTargetForQuery = parsedConfiguredRouteTarget?.host || configuredRouteTarget || "";
 	const routeTargetPortForQuery = (parsedConfiguredRouteTarget?.port || "").trim();
 	const primaryProtocol = inferProtocol();
-	const probeHost = parsedRemoteHost || resolvedRemoteHost;
-	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${remotePort || (primaryProtocol === "https" ? "8443" : "8080")}`, probeHost);
+	const rawProbeHost = (parsedRemoteHost || resolvedRemoteHost || "").trim();
+	const probeHost = stripWireEndpointIdPrefix(rawProbeHost) || rawProbeHost;
+	const probePort = remotePort || (primaryProtocol === "https" ? "8443" : "8080");
+	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${probePort}`, probeHost);
 	const fallbackProtocol = primaryProtocol === "https" ? "http" : "https";
 	const defaultPortsByProtocol = {
 		http: ["8080", "80"],
-		https: ["8443", "443"]
+		https: ["8443", "443", "8444"]
 	};
 	const locationPort = location.port?.trim?.() || "";
 	const protocolOrder = remoteProtocol === "http" ? ["http"] : remoteProtocol === "https" ? ["https"] : [primaryProtocol, fallbackProtocol];
-	const isLikelyHttpsPort = (port) => port === "443" || port === "8443";
+	const isLikelyHttpsPort = (port) => port === "443" || port === "8443" || port === "8444";
 	const isLikelyHttpPort = (port) => port === "80" || port === "8080";
 	const getPortsForProtocol = (protocol, preferredPort) => {
 		const ports = [];
@@ -2330,16 +2341,39 @@ function connectWS() {
 		return ports.filter((port, idx) => ports.indexOf(port) === idx);
 	};
 	const hostEntries = [];
-	for (const remoteHostSpecEntry of remoteHostSpecs) hostEntries.push({
-		host: remoteHostSpecEntry.host,
-		source: "remote",
-		preferPort: remoteHostSpecEntry.port
-	});
-	if (remoteHostSpecs.length === 0 && remoteHost) hostEntries.push({
-		host: remoteHost,
-		source: "remote"
-	});
-	if (location.hostname) hostEntries.push({
+	for (const remoteHostSpecEntry of remoteHostSpecs) {
+		const ch = connectHostFromRemote(remoteHostSpecEntry.host);
+		if (!ch) continue;
+		hostEntries.push({
+			host: ch,
+			source: "remote",
+			preferPort: remoteHostSpecEntry.port
+		});
+	}
+	if (remoteHostSpecs.length === 0 && remoteHost) {
+		const ch = connectHostFromRemote(remoteHost);
+		if (ch) hostEntries.push({
+			host: ch,
+			source: "remote"
+		});
+	}
+	const normalizedRemoteHosts = /* @__PURE__ */ new Set();
+	for (const spec of remoteHostSpecs) if (spec.host) normalizedRemoteHosts.add(spec.host.toLowerCase());
+	if (remoteHostSpecs.length === 0 && remoteHost.trim()) for (const part of splitHostList(remoteHost.trim())) {
+		const parsed = parseHostAndPort(part);
+		if (parsed?.host) normalizedRemoteHosts.add(parsed.host.toLowerCase());
+	}
+	const hasPrivateOrLocalTransportHost = () => {
+		for (const h of normalizedRemoteHosts) {
+			const bare = stripWireEndpointIdPrefix(h).toLowerCase();
+			if (bare === "localhost" || bare === "127.0.0.1") return true;
+			if (isIpv4Literal(bare) && isPrivateIp(bare)) return true;
+		}
+		return false;
+	};
+	const pageHostnameLower = pageHost.toLowerCase();
+	const skipPageOriginForDirectLan = Boolean(pageHost) && normalizedRemoteHosts.size > 0 && hasPrivateOrLocalTransportHost() && !isLocalPageHost && !normalizedRemoteHosts.has(pageHostnameLower);
+	if (location.hostname && !skipPageOriginForDirectLan) hostEntries.push({
 		host: location.hostname,
 		source: "page"
 	});
@@ -2347,6 +2381,14 @@ function connectWS() {
 	for (const entry of hostEntries) if (entry.host && !uniqueHostEntries.has(entry.host)) uniqueHostEntries.set(entry.host, entry);
 	const candidateHostEntries = Array.from(uniqueHostEntries.values());
 	const httpsOrderedHostEntries = reorderHostEntriesForHttps(candidateHostEntries);
+	const isChromiumExtensionRuntime = () => {
+		try {
+			const c = globalThis.chrome;
+			return typeof c?.runtime?.id === "string" && c.runtime.id.length > 0;
+		} catch {
+			return false;
+		}
+	};
 	const candidates = [];
 	for (const protocol of protocolOrder) {
 		if (location.protocol === "https:" && protocol === "http") continue;
@@ -2355,7 +2397,12 @@ function connectWS() {
 			const { host, source, preferPort } = hostEntry;
 			const hostPortOverride = preferPort;
 			for (const port of getPortsForProtocol(protocol, hostPortOverride)) {
-				const useWebSocketOnly = location.protocol === "https:" && isPrivateIp(host) && !isLocalPageHost;
+				const hostBare = stripWireEndpointIdPrefix(host).trim() || host.trim();
+				const hostLooksPrivate = isIpv4Literal(hostBare) && isPrivateIp(hostBare);
+				const crossOriginHttpsToPrivateLan = location.protocol === "https:" && !isLocalPageHost && hostLooksPrivate;
+				const inExtension = isChromiumExtensionRuntime();
+				const preferPollingFirst = crossOriginHttpsToPrivateLan && !inExtension;
+				const useWebSocketOnly = location.protocol === "https:" && isLocalPageHost && hostLooksPrivate || inExtension && crossOriginHttpsToPrivateLan && hostLooksPrivate;
 				candidates.push({
 					url: `${protocol}://${host}:${port}`,
 					protocol,
@@ -2363,7 +2410,7 @@ function connectWS() {
 					source,
 					port,
 					useWebSocketOnly,
-					preferPollingFirst: false
+					preferPollingFirst
 				});
 			}
 		}
@@ -2387,7 +2434,7 @@ function connectWS() {
 	updateButtonLabel();
 	const maxRounds = 3;
 	const retryDelayMs = 450;
-	const targetHost = parsedRemoteHost || remoteHost;
+	const targetHost = connectHostFromRemote(parsedRemoteHost || remoteHost || "");
 	const targetPort = routeTargetPortForQuery || parsedRemotePort || remotePort || (primaryProtocol === "https" ? "8443" : "8080");
 	const routeTarget = routeTargetForQuery;
 	const resolvedRouteTarget = routeTarget || targetHost || "";

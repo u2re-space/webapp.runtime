@@ -52,7 +52,14 @@ const resolvePortableConfigPath = (args: string[], override?: string): string =>
         resolveArgValue(process.env.CWS_PORTABLE_CONFIG_PATH) ||
         resolveArgValue(process.env.ENDPOINT_CONFIG_JSON_PATH) ||
         resolveArgValue(process.env.PORTABLE_CONFIG_PATH);
-    const candidate = explicit || path.resolve(ROOT, "../../portable.config.json");
+    const cwdCandidate = path.resolve(process.cwd(), "portable.config.json");
+    const legacyCandidate = path.resolve(ROOT, "../../portable.config.json");
+    const defaultCandidate = fs.existsSync(cwdCandidate)
+        ? cwdCandidate
+        : fs.existsSync(legacyCandidate)
+          ? legacyCandidate
+          : cwdCandidate;
+    const candidate = explicit || defaultCandidate;
     if (!candidate) return "";
     return resolvePortableTextValuePath(candidate, process.cwd());
 };

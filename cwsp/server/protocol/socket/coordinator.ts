@@ -1693,6 +1693,48 @@ const wireSocketIoServer = (server: Server, selfId: string, token: string) => {
     });
 };
 
+export type ConnectionRegistryRow = {
+    id: string;
+    peerId: string;
+    deviceId: string;
+    userId: string;
+    remoteAddress: string;
+    reverse: boolean;
+    connectedAt: number;
+};
+
+/** HTTP clipboard relay + reverse-peer matching (`utils/routes.ts` reads `app.wsHub.getConnectionRegistry`). */
+export const getConnectionRegistrySnapshot = (): ConnectionRegistryRow[] => {
+    const rows: ConnectionRegistryRow[] = [];
+    for (const [peerInstanceId, socket] of internalNodeMap.entries()) {
+        const wrap = socketWrapper.get(socket);
+        const q = getSocketHandshakeQuery(socket);
+        const rawAddr = String((socket as any)?.handshake?.address || (socket as any)?.conn?.remoteAddress || "").trim();
+        const remoteAddress = rawAddr.replace(/^::ffff:/i, "");
+        const isTunnel =
+            String(q.__airpad_endpoint || "").trim() === "0" ||
+            String(q.__airpad_via || "").trim().toLowerCase() === "tunnel";
+        const reverse =
+            isTunnel ||
+            String(q.reverse || "").trim().toLowerCase() === "true" ||
+            String(q.connectionType || "")
+                .toLowerCase()
+                .includes("reverse");
+        const deviceId = resolveKnownClientIdForPeerInstance(peerInstanceId) || peerInstanceId;
+        const issued = Number((socket as any)?.handshake?.issued);
+        rows.push({
+            id: peerInstanceId,
+            peerId: String(wrap?.peerId || peerInstanceId),
+            deviceId,
+            userId: String(wrap?.peerId || deviceId),
+            remoteAddress,
+            reverse,
+            connectedAt: Number.isFinite(issued) ? issued : Date.now()
+        });
+    }
+    return rows;
+};
+
 export class SocketServer {
     /** All Socket.IO servers (e.g. public + admin Fastify HTTP(S) listeners). */
     public readonly servers: Server[];

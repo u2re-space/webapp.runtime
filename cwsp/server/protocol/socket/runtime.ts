@@ -7,6 +7,7 @@ import {
     SELF_DATA,
     areNodeIdsEquivalent,
     findOrInitiateConnection,
+    getConnectionRegistrySnapshot,
     internalNodeMap,
     knownClients,
     loadFromClientsConfig,
@@ -128,6 +129,11 @@ export class ServerV2SocketRuntime {
                 ids: this.getConnectedDevices()
             }
         };
+    }
+
+    /** For HTTP handlers (`/clipboard` policy relay) — tunnel / reverse Socket.IO clients. */
+    getConnectionRegistry() {
+        return getConnectionRegistrySnapshot();
     }
 
     multicast(_ownerId: string, payload: Record<string, unknown>, _namespace?: string): boolean {

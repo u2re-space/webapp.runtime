@@ -49,7 +49,7 @@ const resolvePortableConfig = (): Record<string, unknown> => {
     return asRecord(resolvePortablePayload(raw, path.dirname(absolutePath)));
 };
 
-const PORTABLE_CONFIG = resolvePortableConfig();
+let PORTABLE_CONFIG: Record<string, unknown> = {};
 
 const applyPortableLauncherEnvDefaults = () => {
     const launcherEnv = asRecord(PORTABLE_CONFIG.launcherEnv);
@@ -63,8 +63,6 @@ const applyPortableLauncherEnvDefaults = () => {
         process.env[key] = typeof rawValue === "string" ? rawValue : String(rawValue);
     }
 };
-
-applyPortableLauncherEnvDefaults();
 
 const resolvePortableModuleRecord = (key: string): Record<string, unknown> => {
     const modules = asRecord(PORTABLE_CONFIG.portableModules);
@@ -168,10 +166,30 @@ const inferBridgeIdentityFromEndpointIds = (policies: Record<string, unknown>): 
     return "";
 };
 
-const PORTABLE_CORE = readPortableCore();
-const PORTABLE_ENDPOINT = readPortableEndpoint();
-const PORTABLE_CLIENTS = readPortableClients();
-const PORTABLE_NETWORK = readPortableNetwork();
+let PORTABLE_CORE: Record<string, unknown> = {};
+let PORTABLE_ENDPOINT: Record<string, unknown> = {};
+let PORTABLE_CLIENTS: Record<string, unknown> = {};
+let PORTABLE_NETWORK: Record<string, unknown> = {};
+
+const rebuildPortableDerivedTables = (): void => {
+    loadReport.portableModules = [];
+    PORTABLE_CORE = readPortableCore();
+    PORTABLE_ENDPOINT = readPortableEndpoint();
+    PORTABLE_CLIENTS = readPortableClients();
+    PORTABLE_NETWORK = readPortableNetwork();
+};
+
+/**
+ * Load `portable.config.json` + `launcherEnv` into memory. Runs at module init (often before paths exist)
+ * and again after `applyServerV2Bootstrap()` sets `CWS_PORTABLE_CONFIG_PATH` / cwd for the portable bundle.
+ */
+const loadPortableStateFromDisk = (): void => {
+    PORTABLE_CONFIG = resolvePortableConfig();
+    applyPortableLauncherEnvDefaults();
+    rebuildPortableDerivedTables();
+};
+
+loadPortableStateFromDisk();
 
 const resolveRoles = (): string[] => {
     const envRoles = pickEnvListLegacy("CWS_ROLES");
@@ -289,6 +307,20 @@ const resolveRuntimeDefaults = () => {
     };
 };
 
+/** TLS file paths / flags from portable JSON (aligned with legacy `endpoint` + env `CWS_HTTPS_*`). */
+const resolveHttpsConfig = (): Record<string, any> => {
+    const top = asRecord(PORTABLE_CONFIG.https);
+    const fromEndpoint = asRecord(PORTABLE_ENDPOINT.https);
+    const fromCore = asRecord(PORTABLE_CORE.https);
+    const fromNetwork = asRecord(PORTABLE_NETWORK.https);
+    return {
+        ...fromNetwork,
+        ...fromCore,
+        ...fromEndpoint,
+        ...top
+    };
+};
+
 const resolveNetworkAliases = (): Record<string, unknown> => {
     return asRecord(PORTABLE_NETWORK.aliases || PORTABLE_NETWORK.networkAliases || PORTABLE_NETWORK.aliasMap);
 };
@@ -306,6 +338,7 @@ const buildSnapshot = (): ServerV2ConfigSnapshot => {
     const runtime = resolveRuntimeDefaults();
     return {
         ...runtime,
+        https: resolveHttpsConfig(),
         roles: resolveRoles(),
         bridge,
         topology: {
@@ -321,6 +354,12 @@ const buildSnapshot = (): ServerV2ConfigSnapshot => {
 };
 
 let snapshotCache: ServerV2ConfigSnapshot | null = null;
+
+/** Call after `applyServerV2Bootstrap()` so portable modules, bridge, TLS env, and Airpad flags apply. */
+export const reloadPortableConfigState = (): void => {
+    snapshotCache = null;
+    loadPortableStateFromDisk();
+};
 
 export const readServerV2ConfigSnapshot = (): ServerV2ConfigSnapshot => {
     if (snapshotCache) return { ...snapshotCache };

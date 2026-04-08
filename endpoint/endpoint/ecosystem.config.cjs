@@ -80,7 +80,7 @@ for (const [key, value] of Object.entries(envFromFile)) {
 module.exports = {
     apps: [
         {
-            name: "cws",
+            name: "cwsp",
             script: "launcher.mjs",
             interpreter: "node",
             exec_mode: "fork",

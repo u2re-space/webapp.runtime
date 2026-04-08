@@ -2,8 +2,7 @@
 // HTTP Routes
 // =========================
 
-import writeClipboard from "@inputs/access/clipboard.ts";
-import setBroadcasting from "@inputs/access/clipboard.ts";
+import { writeClipboard, setBroadcasting } from "../io/clipboard.ts";
 import config from "../config/config.ts";
 import { pickEnvBoolLegacy } from "./env.ts";
 import { CONFIG_DIR } from "./paths.ts";

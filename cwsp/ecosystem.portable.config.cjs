@@ -4,7 +4,7 @@ const path = require("node:path");
 module.exports = {
     apps: [
         {
-            name: "cwsp-portable",
+            name: "cwsp",
             script: "cwsp.mjs",
             cwd: path.join(__dirname, "dist/portable"),
             interpreter: "node",
@@ -13,7 +13,10 @@ module.exports = {
             max_restarts: 30,
             min_uptime: "10s",
             env: {
-                NODE_ENV: "production"
+                NODE_ENV: "production",
+                CWS_PORTABLE_CONFIG_PATH: "./portable.config.json",
+                CWS_PORTABLE_DATA_PATH: "./.data",
+                CWS_HTTPS_ENABLED: "true"
             }
         }
     ]

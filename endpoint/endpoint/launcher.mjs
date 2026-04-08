@@ -6,6 +6,7 @@
  * Spawns tsx server-v2/index.ts with config/data from env; exits with child code so PM2 can restart.
  */
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +26,13 @@ const isWin = process.platform === "win32";
 const tsxName = isWin ? "tsx.cmd" : "tsx";
 const tsxBin = path.join(rootDir, "node_modules", ".bin", tsxName);
 const serverEntry = path.join(rootDir, "server-v2", "index.ts");
+
+if (!existsSync(tsxBin)) {
+    console.error(
+        `[launcher] missing tsx at ${tsxBin}. From ${rootDir} run: npm install`
+    );
+    process.exit(1);
+}
 
 const args = [
   serverEntry,

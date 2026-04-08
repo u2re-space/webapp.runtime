@@ -56,6 +56,8 @@ const createCorsOriginMatcher = () => {
         "http://100.110.152.73",
         "https://192.168.0.200",
         "http://192.168.0.200",
+        "https://192.168.0.110",
+        "http://192.168.0.110",
         "https://localhost",
         "http://localhost",
         "https://127.0.0.1",

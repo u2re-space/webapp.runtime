@@ -20,6 +20,68 @@ const defaultAdminBase = () =>
 const defaultPublicUrl = () =>
     (process.env.CWS_ELECTRON_URL || 'https://127.0.0.1:443/').replace(/\/?$/, '/');
 
+/** When 443/80 are unavailable, cwsp binds fallbacks (8444, …). Probe in order. */
+const publicUrlCandidates = () => {
+    const fromEnv = String(process.env.CWS_ELECTRON_PUBLIC_URLS || '').trim();
+    if (fromEnv) {
+        return fromEnv
+            .split(',')
+            .map((s) => s.trim().replace(/\/?$/, '/'))
+            .filter(Boolean);
+    }
+    return [
+        defaultPublicUrl(),
+        'https://127.0.0.1:8444/',
+        'https://127.0.0.1:9443/',
+        'https://127.0.0.1:7443/'
+    ];
+};
+
+async function waitForPublicUrl(timeoutMs = 90000) {
+    const fixed = String(process.env.CWS_ELECTRON_URL || '').trim();
+    if (fixed) {
+        const u = fixed.replace(/\/?$/, '/');
+        const start = Date.now();
+        while (Date.now() - start < timeoutMs) {
+            try {
+                const res = await fetch(u, {
+                    method: 'GET',
+                    redirect: 'manual',
+                    signal: AbortSignal.timeout(2000)
+                });
+                if (res.ok || res.status === 304 || (res.status >= 300 && res.status < 400)) return u;
+            } catch {
+                /* still starting */
+            }
+            await new Promise((r) => setTimeout(r, 400));
+        }
+        return u;
+    }
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        for (const base of publicUrlCandidates()) {
+            try {
+                const res = await fetch(base, {
+                    method: 'GET',
+                    redirect: 'manual',
+                    signal: AbortSignal.timeout(2000)
+                });
+                if (res.ok || res.status === 304 || (res.status >= 300 && res.status < 400)) {
+                    if (base !== defaultPublicUrl()) {
+                        console.log(`[Electron] Using public UI at ${base} (primary port may be unavailable)`);
+                    }
+                    return base;
+                }
+            } catch {
+                /* try next */
+            }
+        }
+        await new Promise((r) => setTimeout(r, 400));
+    }
+    console.warn('[Electron] Public URL probe timed out; loading default URL anyway');
+    return defaultPublicUrl();
+}
+
 function startPortableServer() {
     const portableDir = path.join(__dirname, 'portable');
     const script = path.join(portableDir, 'cwsp.mjs');
@@ -70,7 +132,7 @@ const restart = async () => {
         browser.shown = false;
     }
     browser.init();
-    const base = defaultPublicUrl();
+    const base = await waitForPublicUrl();
     await browser.loadURL(base);
 };
 

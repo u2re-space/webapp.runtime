@@ -5,15 +5,12 @@ import path from "node:path";
 import { verifyUser } from "@protocol/http/routers/auth/users.ts";
 import type { ClipboardAccess } from "@inputs/access/clipboard.ts";
 import type { ServerV2SocketRuntime } from "@protocol/socket/runtime.ts";
-import {
-    buildClipboardBroadcastPayload,
-    normalizeClipboardText
-} from "../../../../server/routing/routes.ts";
+import { buildClipboardBroadcastPayload, normalizeClipboardText } from "./routes.ts";
 import {
     setBroadcasting as setLegacyClipboardBroadcasting,
     writeClipboard as writeLegacyClipboard
-} from "../../../../server/io/clipboard.ts";
-import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../../../utils/endpoint-policy.ts";
+} from "../io/clipboard.ts";
+import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "./endpoint-policy.ts";
 
 const TRANSPORT_HANDLERS_KEY = Symbol.for("cws.serverV2.transportHandlers");
 const RAW_CLIENTS_CONFIG_PATH = path.resolve(process.cwd(), "config/clients.json");

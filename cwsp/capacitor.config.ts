@@ -6,6 +6,8 @@ import type { CapacitorConfig } from '@capacitor/cli';
  *
  * Android (Capacitor WebView) + CrossWord Settings → Server:
  * - Admin doors (HTTPS :8443 / HTTP :8080) and `core.endpointUrl` must use hosts reachable from the device.
+ * - If the Node cwsp process cannot bind 80/443 (common on mobile), set CWS_EMBEDDED_WEBVIEW=1 for admin-only
+ *   or rely on automatic public fallbacks (8444, …); UI is served from this WebView shell, not only from :443.
  * - Live reload / dev server: set `CWS_CAP_SERVER_URL` (e.g. http://10.0.2.2:5173 for emulator → host).
  * - Cleartext to arbitrary LAN IPs requires extra `<domain>` rows in
  *   `resources/android/network_security_config.xml` (re-applied after each `cap sync` by patch script).

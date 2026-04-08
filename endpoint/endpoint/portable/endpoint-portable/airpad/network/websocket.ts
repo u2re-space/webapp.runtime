@@ -731,28 +731,35 @@ export function connectWS() {
         return (
             host.startsWith('10.') ||
             host.startsWith('192.168.') ||
-            /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+            /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+            /** CGNAT / Tailscale-style 100.64.0.0/10 */
+            /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)
         );
     };
 
-    /** Prefer hostname (SNI) before public IPv4 for HTTPS — certs rarely include the bare IP. */
+    /**
+     * HTTPS probe order: LAN / private IPs first (where CWSP admin usually listens), then DNS names
+     * from **remote** settings, then **page** origin (PWA shell). Putting `u2re.space` last avoids
+     * timeouts and PNA noise when the real gateway is 192.168.x.x only.
+     */
     const reorderHostEntriesForHttps = (
         entries: Array<{ host: string; source: WSConnectCandidate['source']; preferPort?: string }>
     ) => {
-        const dns: typeof entries = [];
+        const dnsRemote: typeof entries = [];
+        const dnsPage: typeof entries = [];
         const privateIpv4: typeof entries = [];
         const publicIpv4: typeof entries = [];
         for (const e of entries) {
             if (!isIpv4Literal(e.host)) {
-                dns.push(e);
+                if (e.source === 'page') dnsPage.push(e);
+                else dnsRemote.push(e);
             } else if (isPrivateIp(e.host) || e.host === '127.0.0.1') {
                 privateIpv4.push(e);
             } else {
                 publicIpv4.push(e);
             }
         }
-        dns.sort((a, b) => (a.source === 'page' ? 0 : 1) - (b.source === 'page' ? 0 : 1));
-        return [...dns, ...privateIpv4, ...publicIpv4];
+        return [...privateIpv4, ...dnsRemote, ...dnsPage, ...publicIpv4];
     };
 
     const isLikelyPort = (value: string): boolean => /^\d{1,5}$/.test(value);
@@ -869,7 +876,41 @@ export function connectWS() {
             source: "remote"
         });
     }
-    if (location.hostname) {
+
+    /** Hostnames the user configured for the transport (Connect URL), lowercased. */
+    const normalizedRemoteHosts = new Set<string>();
+    for (const spec of remoteHostSpecs) {
+        if (spec.host) normalizedRemoteHosts.add(spec.host.toLowerCase());
+    }
+    if (remoteHostSpecs.length === 0 && remoteHost.trim()) {
+        for (const part of splitHostList(remoteHost.trim())) {
+            const parsed = parseHostAndPort(part);
+            if (parsed?.host) normalizedRemoteHosts.add(parsed.host.toLowerCase());
+        }
+    }
+
+    /**
+     * If the user configured **any** LAN / local transport host, skip adding `location.hostname`
+     * unless it is already listed as a remote host. (Connect URL may list both 192.168.x.x and a
+     * public name — we still drop the redundant **page** copy of u2re.space when remotes already
+     * include a private gateway.)
+     */
+    const hasPrivateOrLocalTransportHost = (): boolean => {
+        for (const h of normalizedRemoteHosts) {
+            if (h === "localhost" || h === "127.0.0.1") return true;
+            if (isIpv4Literal(h) && isPrivateIp(h)) return true;
+        }
+        return false;
+    };
+    const pageHostnameLower = pageHost.toLowerCase();
+    const skipPageOriginForDirectLan =
+        Boolean(pageHost) &&
+        normalizedRemoteHosts.size > 0 &&
+        hasPrivateOrLocalTransportHost() &&
+        !isLocalPageHost &&
+        !normalizedRemoteHosts.has(pageHostnameLower);
+
+    if (location.hostname && !skipPageOriginForDirectLan) {
         hostEntries.push({
             host: location.hostname,
             source: "page"
