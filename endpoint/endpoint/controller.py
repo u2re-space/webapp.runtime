@@ -1,4 +1,5 @@
-# controller.py
+# controller.py — run from this directory (endpoint) or set PYTHONPATH as needed:
+#   cd runtime/endpoint/endpoint && python controller.py
 import json
 import os
 import sys

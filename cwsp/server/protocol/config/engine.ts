@@ -18,6 +18,10 @@ export type ServerV2RuntimeProfile = {
     bridgeMode: string;
     httpPort?: number;
     httpsPort?: number;
+    /** Public site HTTPS (default 443 when TLS). */
+    publicListenPort?: number;
+    /** Public site HTTP (default 80 when plain HTTP). */
+    publicHttpPort?: number;
     policyCount: number;
     roles: string[];
     topologyLinks: number;
@@ -39,7 +43,17 @@ const collectTransports = (snapshot: Record<string, any>): ServerV2Transport[] =
         transports.add("ws");
         transports.add("socketio");
     }
+    if (Number.isFinite(snapshot?.publicHttpPort)) {
+        transports.add("http");
+        transports.add("ws");
+        transports.add("socketio");
+    }
     if (Number.isFinite(snapshot?.listenPort)) {
+        transports.add("https");
+        transports.add("ws");
+        transports.add("socketio");
+    }
+    if (Number.isFinite(snapshot?.publicListenPort)) {
         transports.add("https");
         transports.add("ws");
         transports.add("socketio");
@@ -69,6 +83,8 @@ export const createServerV2Engine = () => {
         bridgeMode: String(snapshot?.bridge?.mode || "active"),
         httpPort: Number.isFinite(snapshot?.httpPort) ? Number(snapshot.httpPort) : undefined,
         httpsPort: Number.isFinite(snapshot?.listenPort) ? Number(snapshot.listenPort) : undefined,
+        publicListenPort: Number.isFinite(snapshot?.publicListenPort) ? Number(snapshot.publicListenPort) : undefined,
+        publicHttpPort: Number.isFinite(snapshot?.publicHttpPort) ? Number(snapshot.publicHttpPort) : undefined,
         policyCount: Object.keys(policyMap).length,
         roles: resolveRoles(snapshot),
         topologyLinks: Array.isArray(snapshot?.topology?.links) ? snapshot.topology.links.length : 0,

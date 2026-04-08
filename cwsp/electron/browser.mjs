@@ -47,10 +47,10 @@ export default class BrowserApp {
     }
 
     //
-    loadURL(index = "https://localhost:8000/") {
+    async loadURL(index = "https://localhost:8000/") {
         if (!this.shown) {
             this.shown = true;
-            this.browser.loadURL(index);
+            await this.browser.loadURL(index);
             this.browser.show();
             this.browser.webContents.openDevTools();
         }

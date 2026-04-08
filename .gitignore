@@ -173,3 +173,6 @@ frontend/modules
 frontend/modules/*
 ./frontend/modules
 ./frontend/modules/*
+
+# Local Chrome extension mirror (npm run cwsp:pack-extension)
+/pack/

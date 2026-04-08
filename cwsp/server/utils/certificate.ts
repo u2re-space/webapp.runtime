@@ -46,6 +46,15 @@ const normalizePemMaterial = (value: string, kind: Kind): string => {
     return wrapAsPem(trimmed, kind);
 };
 
+const looksLikeFilesystemPath = (value: string): boolean => {
+    if (path.isAbsolute(value)) return true;
+    if (value.startsWith("./") || value.startsWith("../")) return true;
+    if (/\.(pem|crt|key|csr)$/i.test(value)) return true;
+    if (value.includes(path.sep)) return true;
+    if (value.includes("\\")) return true;
+    return false;
+};
+
 const readCertificateMaterial = async (candidate: string | undefined, kind: Kind = "auto"): Promise<string | Buffer | undefined> => {
     if (typeof candidate !== "string") return undefined;
     const trimmed = candidate.trim();
@@ -56,6 +65,8 @@ const readCertificateMaterial = async (candidate: string | undefined, kind: Kind
         if (!fileMaterial.length) return undefined;
         return normalizePemMaterial(fileMaterial.toString("utf8"), kind);
     } catch {
+        // Do not wrap a missing/invalid file path as PEM (OpenSSL: ERR_OSSL_PEM_BAD_BASE64_DECODE).
+        if (looksLikeFilesystemPath(trimmed)) return undefined;
         const normalized = normalizePemMaterial(trimmed, kind);
         return normalized.includes("-----BEGIN ") ? normalized : undefined;
     }
@@ -76,6 +87,19 @@ export const resolveHttpsPaths = (moduleDir: string, cwd = process.cwd()) => {
         cert: candidates.certs[0] || path.resolve(moduleDir, "./https/local/" + CRT_FILE_NAME),
         candidates
     };
+};
+
+const dedupePathsPreserveOrder = (items: string[]): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const item of items) {
+        if (typeof item !== "string" || !item.trim()) continue;
+        const resolved = path.resolve(item.trim());
+        if (seen.has(resolved)) continue;
+        seen.add(resolved);
+        out.push(item.trim());
+    }
+    return out;
 };
 
 const resolveHttpsConfigValue = (source: Record<string, any>, sourceKeys: string[], envCandidates: string[], fallback?: string, baseDir = process.cwd()) => {
@@ -121,15 +145,24 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
         baseDir
     );
 
-    const keyCandidates = [keySource, ...candidates.keys];
-    const certCandidates = [certSource, ...candidates.certs];
+    const keyCandidates = dedupePathsPreserveOrder([keySource, ...candidates.keys]);
+    const certCandidates = dedupePathsPreserveOrder([certSource, ...candidates.certs]);
 
     try {
-        const keyFile = keyCandidates.find((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
-        const certFile = certCandidates.find((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
         const caFile = caSource && typeof caSource === "string" && caSource.trim().length > 0 ? caSource : undefined;
 
-        const [key, cert] = await Promise.all([readCertificateMaterial(keyFile, "key"), readCertificateMaterial(certFile, "cert")]);
+        const pairCount = Math.min(keyCandidates.length, certCandidates.length);
+        let key: string | Buffer | undefined;
+        let cert: string | Buffer | undefined;
+        for (let i = 0; i < pairCount; i++) {
+            const [k, c] = await Promise.all([readCertificateMaterial(keyCandidates[i], "key"), readCertificateMaterial(certCandidates[i], "cert")]);
+            if (k && c) {
+                key = k;
+                cert = c;
+                break;
+            }
+        }
+
         const ca = caFile ? await readCertificateMaterial(caFile, "ca") : undefined;
 
         if (!key || !cert) {
@@ -157,7 +190,10 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
         };
     } catch (error) {
         const details = String((error as any)?.message || error || "unknown");
-        console.warn(`[core-backend] HTTPS disabled: failed to load certificate files ` + `key=${keyCandidates[0] || keyPath}, cert=${certCandidates[0] || certPath}. ${details}`);
+        console.warn(
+            `[core-backend] HTTPS disabled: failed to load certificate files ` +
+                `key=${keyCandidates[0] || keyPath}, cert=${certCandidates[0] || certPath}. ${details}`
+        );
         return undefined;
     }
 };

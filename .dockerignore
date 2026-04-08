@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+.git
+**/.git
+*.md
+**/test
+**/tests
+**/__tests__

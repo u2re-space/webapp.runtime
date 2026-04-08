@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Cross-platform PM2 launcher for server-v2.
+ * Cross-platform PM2 launcher for server-v2 (this `endpoint/` tree).
+ * CWSP unified runtime uses `runtime/launcher.mjs` + `runtime/ecosystem.config.cjs` instead.
  * Used by ecosystem.config.cjs so the same config works on Windows (192.168.0.110) and Linux (192.168.0.200).
  * Spawns tsx server-v2/index.ts with config/data from env; exits with child code so PM2 can restart.
  */

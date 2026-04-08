@@ -1653,52 +1653,68 @@ export const findOrInitiateConnection = (id: string, selfId: string): SocketWrap
 }
 
 //
+const wireSocketIoServer = (server: Server, selfId: string, token: string) => {
+    server.on("connection", async (socket) => {
+        try {
+            const socketWrapper = new SocketWrapper(socket, selfId, token) as SocketWrapper;
+            socketWrapper.rememberPeerId((await identifyNodeIdFromIncomingConnection(socket, {})) as string);
+            await socketWrapper?.hello?.(true) ?? null;
+            traceSocket("server-connection", {
+                local: socketWrapper?.selfId,
+                peer: socketWrapper?.peerId || socketWrapper?.socketId,
+                origin: socketWrapper?.origin
+            });
+            console.log(
+                `[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.peerId || socketWrapper?.socketId || socketWrapper?.origin}`
+            );
+            return socketWrapper;
+        } catch (err) {
+            console.error(err);
+        }
+    });
+
+    server.on("reconnect", async (socket) => {
+        try {
+            const socketWrapper = new SocketWrapper(socket, selfId, token) as SocketWrapper;
+            socketWrapper.rememberPeerId((await identifyNodeIdFromIncomingConnection(socket, {})) as string);
+            await socketWrapper?.hello?.() ?? null;
+            traceSocket("server-reconnect", {
+                local: socketWrapper?.selfId,
+                peer: socketWrapper?.peerId || socketWrapper?.socketId,
+                origin: socketWrapper?.origin
+            });
+            console.log(
+                `[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.peerId || socketWrapper?.socketId || socketWrapper?.origin}`
+            );
+            return socketWrapper;
+        } catch (err) {
+            console.error(err);
+        }
+    });
+};
+
 export class SocketServer {
-    public server: Server;
+    /** All Socket.IO servers (e.g. public + admin Fastify HTTP(S) listeners). */
+    public readonly servers: Server[];
+    /** Primary instance (first listener); kept for callers that expect a single `Server`. */
+    public readonly server: Server;
     public selfId: string = SELF_DATA.ASSOCIATED_ID;
     public token: string = SELF_DATA.ASSOCIATED_TOKEN;
 
     //
-    public constructor(server: Server, selfId: string = SELF_DATA.ASSOCIATED_ID, token: string = SELF_DATA.ASSOCIATED_TOKEN) {
-        this.server = server;
+    public constructor(
+        servers: Server | Server[],
+        selfId: string = SELF_DATA.ASSOCIATED_ID,
+        token: string = SELF_DATA.ASSOCIATED_TOKEN
+    ) {
+        this.servers = Array.isArray(servers) ? servers : [servers];
+        this.server = this.servers[0]!;
         this.selfId = selfId;
         this.token = token;
 
-        //
-        server.on("connection", async (socket) => {
-            try {
-                const socketWrapper = new SocketWrapper(socket, selfId, token) as SocketWrapper;
-                socketWrapper.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
-                await socketWrapper?.hello?.(true) ?? null;
-                traceSocket("server-connection", {
-                    local: socketWrapper?.selfId,
-                    peer: socketWrapper?.peerId || socketWrapper?.socketId,
-                    origin: socketWrapper?.origin
-                });
-                console.log(`[Server] Connected to ${socketWrapper?.selfId} from ${socketWrapper?.peerId || socketWrapper?.socketId || socketWrapper?.origin}`);
-                return socketWrapper;
-            } catch (err) {
-                console.error(err);
-            }
-        });
-
-        //
-        server.on("reconnect", async (socket) => {
-            try {
-                const socketWrapper = new SocketWrapper(socket, selfId, token) as SocketWrapper;
-                socketWrapper.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
-                await socketWrapper?.hello?.() ?? null;
-                traceSocket("server-reconnect", {
-                    local: socketWrapper?.selfId,
-                    peer: socketWrapper?.peerId || socketWrapper?.socketId,
-                    origin: socketWrapper?.origin
-                });
-                console.log(`[Server] Reconnected to ${socketWrapper?.selfId} from ${socketWrapper?.peerId || socketWrapper?.socketId || socketWrapper?.origin}`);
-                return socketWrapper;
-            } catch (err) {
-                console.error(err);
-            }
-        });
+        for (const io of this.servers) {
+            wireSocketIoServer(io, selfId, token);
+        }
     }
 
     //
@@ -1769,9 +1785,13 @@ const buildSocketIoServerOptions = () => {
         allowRequest: (_req: any, callback: (err: string | null, ok: boolean) => void) => callback(null, true)
     } as any;
 };
-export const makeSocketServer = (originOrServer: any, selfId: string) => {
-    return (existsSocketServer ??= new SocketServer(new Server(originOrServer, buildSocketIoServerOptions()), selfId));
-}
+export const makeSocketServer = (primaryHttpServer: any, selfId: string, extraHttpServers: any[] = []) => {
+    if (existsSocketServer) return existsSocketServer;
+    const opts = buildSocketIoServerOptions();
+    const ioServers = [new Server(primaryHttpServer, opts), ...extraHttpServers.map((srv) => new Server(srv, opts))];
+    existsSocketServer = new SocketServer(ioServers, selfId);
+    return existsSocketServer;
+};
 
 //
 export default makeSocketServer;

@@ -95,7 +95,7 @@
         "@types/node": ">=22.10.2",
         "cross-env": "^10.1.0",
         "tsx": ">=4.21.0",
-        "typescript": ">=6.0.0-beta"
+        "typescript": "^6.0.0-beta"
     },
     "browserslist": [
         "last 1 chrome version",

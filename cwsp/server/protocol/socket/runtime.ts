@@ -88,14 +88,17 @@ export class ServerV2SocketRuntime {
         this.bridgeConfig = bridgeConfig;
     }
 
-    attach(server: SocketServerInput): void {
+    attach(server: SocketServerInput | SocketServerInput[]): void {
         if (this.socketServer) return;
+        const nodes = (Array.isArray(server) ? server : [server]).filter(Boolean) as SocketServerInput[];
+        if (!nodes.length) return;
         SELF_DATA.ASSOCIATED_ID = this.selfId;
         SELF_DATA.ASSOCIATED_TOKEN = this.token;
         if (this.clientSeed && Object.keys(this.clientSeed).length > 0) {
             loadFromClientsConfig(this.clientSeed as any);
         }
-        this.socketServer = makeSocketServer(server as any, this.selfId);
+        const [primary, ...extras] = nodes;
+        this.socketServer = makeSocketServer(primary as any, this.selfId, extras as any);
         this.startBridgePreconnect();
     }
 
@@ -104,7 +107,9 @@ export class ServerV2SocketRuntime {
             clearInterval(this.preconnectTimer);
             this.preconnectTimer = undefined;
         }
-        this.socketServer?.server?.close?.();
+        for (const io of this.socketServer?.servers ?? []) {
+            io.close();
+        }
         this.socketServer = undefined;
     }
 

@@ -8,8 +8,8 @@
         "./dist/**/*",
         "./portable/**/*"
     ],
-    "baseUrl": "./",
     "compilerOptions": {
+        "baseUrl": "./",
         "paths": {
             "@old/*": [
                 "../endpoint/endpoint/server/*"

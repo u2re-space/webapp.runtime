@@ -254,6 +254,12 @@ const resolveRuntimeDefaults = () => {
     const networkHttp =
         parsePortableInteger((PORTABLE_NETWORK as Record<string, unknown>).httpPort) ??
         parsePortableInteger(networkRuntime.httpPort);
+    const networkPublicListen =
+        parsePortableInteger((PORTABLE_NETWORK as Record<string, unknown>).publicListenPort) ??
+        parsePortableInteger(networkRuntime.publicListenPort);
+    const networkPublicHttp =
+        parsePortableInteger((PORTABLE_NETWORK as Record<string, unknown>).publicHttpPort) ??
+        parsePortableInteger(networkRuntime.publicHttpPort);
     return {
         listenPort:
             pickEnvNumberLegacy(
@@ -263,6 +269,16 @@ const resolveRuntimeDefaults = () => {
         httpPort:
             pickEnvNumberLegacy("CWS_HTTP_PORT", parsePortableInteger(runtime.httpPort) ?? networkHttp ?? 8080) ??
             8080,
+        publicListenPort:
+            pickEnvNumberLegacy(
+                "CWS_PUBLIC_HTTPS_PORT",
+                parsePortableInteger(runtime.publicListenPort) ?? networkPublicListen ?? 443
+            ) ?? 443,
+        publicHttpPort:
+            pickEnvNumberLegacy(
+                "CWS_PUBLIC_HTTP_PORT",
+                parsePortableInteger(runtime.publicHttpPort) ?? networkPublicHttp ?? 80
+            ) ?? 80,
         broadcastForceHttps: parsePortableBoolean(runtime.broadcastForceHttps) ?? true,
         peers: splitList(runtime.peers),
         broadcastTargets: splitList(runtime.broadcastTargets),

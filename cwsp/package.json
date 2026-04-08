@@ -4,10 +4,27 @@
   "description": "CWSP Unified Runtime",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --clear-screen=false runtime/cwsp/server/index.ts",
-    "build": "node runtime/scripts/build.mjs",
-    "start": "node dist/server/index.js",
-    "debug": "node --inspect-brk -r tsx runtime/cwsp/server/index.ts"
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build:portable",
+    "build:portable": "node scripts/build-portable.mjs",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:electron:native": "node scripts/build-electron-native.mjs",
+    "build:electron:native:dir": "node scripts/build-electron-native.mjs --dir",
+    "build:electron:windows": "node scripts/build-electron.mjs && node scripts/build-electron-native.mjs --win",
+    "build:electron:linux": "node scripts/build-electron.mjs && node scripts/build-electron-native.mjs --linux",
+    "build:electron:mac": "node scripts/build-electron.mjs && node scripts/build-electron-native.mjs --mac",
+    "build:electron:darwin": "node scripts/build-electron.mjs && node scripts/build-electron-native.mjs --mac",
+    "build:electron:mwl": "node scripts/build-electron.mjs && node scripts/build-electron-native.mjs -mwl",
+    "build:electron:android": "node scripts/build-cws-android.mjs",
+    "build:android": "node scripts/build-cws-android.mjs",
+    "build:cws-android": "node scripts/build-cws-android.mjs",
+    "build:electron:all": "npm run build:electron && npm run build:electron:native",
+    "hint:capacitor-apk": "node scripts/hint-capacitor-apk.mjs",
+    "start": "node dist/portable/cwsp.mjs",
+    "start:pm2": "pm2 start ecosystem.portable.config.cjs",
+    "pack:portable": "node ../pack-portable.mjs",
+    "pack:extension": "node ../pack-extension.mjs",
+    "debug": "node --inspect-brk -r tsx server/index.ts"
   },
   "devDependencies": {
     "@fastify/caching": ">=9.0.3",
@@ -20,11 +37,15 @@
     "@phosphor-icons/core": "^2.1.1",
     "clipboardy": ">=4.0.0",
     "close-with-grace": ">=2.1.0",
-    "dotenv": ">=16.4.7",
-    "electron": ">=42.0.0-beta.1",
     "fastify": ">=5.8.4",
     "socket.io": ">=4.7.5",
+    "socket.io-client": ">=4.7.5",
+    "@electron/rebuild": ">=4.0.3",
+    "dotenv": ">=16.4.7",
+    "electron": ">=42.0.0-beta.1",
+    "electron-builder": "^26.8.1",
+    "esbuild": ">=0.24.0",
     "tsx": ">=4.7.1",
-    "typescript": ">=5.4.3"
+    "typescript": ">=6.0.0-beta"
   }
 }

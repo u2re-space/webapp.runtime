@@ -11,7 +11,7 @@ import { loadHttpsOptions } from "./utils/certificate.ts";
 // Plugins
 import { registerWebPlugin } from "../web/index.ts";
 import { registerApiPlugin } from "../api/index.ts";
-import { registerIoPlugin } from "../io/index.ts";
+import { registerIoPlugin } from "./io/plugin/index.ts";
 import { registerControlPlugin } from "../control/index.ts";
 
 export type CWSPStartOptions = {
@@ -71,9 +71,9 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
             const adminHttpPort = engine.profile.httpPort || 8080;
             const adminPort = isHttps ? adminHttpsPort : adminHttpPort;
             
-            // Public Port
-            const publicHttpsPort = 443;
-            const publicHttpPort = 80;
+            // Public Port (frontend / primary browser entry; config: publicListenPort / publicHttpPort)
+            const publicHttpsPort = Number(engine.config.publicListenPort) || 443;
+            const publicHttpPort = Number(engine.config.publicHttpPort) || 80;
             const publicPort = isHttps ? publicHttpsPort : publicHttpPort;
 
             try {

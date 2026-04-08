@@ -6,12 +6,22 @@ let mainWindow;
 let cwspProcess;
 
 function startCWSP() {
-  const portablePath = path.join(__dirname, '../portable/cwsp.cjs');
+  const portableDir = path.join(__dirname, 'dist', 'portable');
+  const portablePath = path.join(portableDir, 'cwsp.mjs');
   console.log('[Electron] Starting CWSP Portable from:', portablePath);
-  
-  cwspProcess = spawn('node', [portablePath], {
-    env: { ...process.env, CWS_CLIPBOARD_ENABLED: 'true' },
-    stdio: 'inherit'
+  const useElectronAsNode =
+    Boolean(process.versions.electron) && String(process.env.CWS_FORCE_NODE_BINARY || '').trim() !== '1';
+  const cmd = useElectronAsNode ? process.execPath : 'node';
+  const env = {
+    ...process.env,
+    CWS_CLIPBOARD_ENABLED: 'true',
+    ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
+  };
+  cwspProcess = spawn(cmd, [portablePath], {
+    cwd: portableDir,
+    env,
+    stdio: 'inherit',
+    shell: process.platform === 'win32' && !useElectronAsNode
   });
 
   cwspProcess.on('close', (code) => {
@@ -29,9 +39,9 @@ function createWindow() {
     }
   });
 
-  // Wait a bit for the server to start, then load the frontend
+  const ui = process.env.CWS_ELECTRON_URL || 'https://127.0.0.1:8443/';
   setTimeout(() => {
-    mainWindow.loadURL('http://localhost:80'); // Public Frontend Port
+    mainWindow.loadURL(ui);
   }, 2000);
 }
 

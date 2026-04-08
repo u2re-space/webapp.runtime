@@ -1,3 +1,4 @@
+/** PM2 for legacy `endpoint` server-v2. For CWSP portable see `runtime/ecosystem.config.cjs`. */
 const NODE_BIN = process.execPath;
 const fs = require("fs");
 const path = require("path");

@@ -1,0 +1,20 @@
+const path = require("node:path");
+
+/** PM2 from `cwsp/`: `npm run start:pm2`. From monorepo `runtime/`: `pm2 start ecosystem.config.cjs` (uses ../launcher.mjs). */
+module.exports = {
+    apps: [
+        {
+            name: "cwsp-portable",
+            script: "cwsp.mjs",
+            cwd: path.join(__dirname, "dist/portable"),
+            interpreter: "node",
+            instances: 1,
+            autorestart: true,
+            max_restarts: 30,
+            min_uptime: "10s",
+            env: {
+                NODE_ENV: "production"
+            }
+        }
+    ]
+};
