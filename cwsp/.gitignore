@@ -1,4 +1,0 @@
-dist/
-.dev-frontend/
-# Capacitor native project — run `npm run cap:add:android` after `npm run build:capacitor:web` (or let `npm run build:capacitor` create dist/capacitor first).
-android/
