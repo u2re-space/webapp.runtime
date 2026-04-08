@@ -10,7 +10,7 @@
  * @see https://github.com/u2re-space/CWSAndroid — submodule `apps/CWSAndroid`
  *
  * 1. Refreshes portable bundle (Fastify + frontend + config) unless --skip-portable
- * 2. Runs `./gradlew :app:assembleDebug` (override via CWS_GRADLEW_TASK)
+ * 2. Runs `./gradlew` assemble (default `:app:assembleCwsDebug`; `CWS_ANDROID_PRODUCT_FLAVOR=cwsp` → `assembleCwspDebug`)
  * 3. Copies `*.apk` from `app/build/outputs/apk/**` → `dist/electron/android/**`
  */
 import { spawnSync } from "node:child_process";
@@ -25,6 +25,7 @@ const pkgRoot = resolveCwspPackageRoot(__dirname);
 
 const argv = new Set(process.argv.slice(2));
 const skipPortable = argv.has("--skip-portable");
+const withCapacitorWeb = argv.has("--with-capacitor-web");
 const help = argv.has("--help") || argv.has("-h");
 
 if (help) {
@@ -33,12 +34,14 @@ if (help) {
   Android .apk via Kotlin CWSAndroid (Gradle), same product family as CWSP portable.
 
 Options:
-  --skip-portable     Do not run build:portable first
-  --help, -h          This text
+  --skip-portable       Do not run build:portable first
+  --with-capacitor-web  Run build-capacitor-web.mjs first so dist/capacitor exists (Capacitor shell in Kotlin app)
+  --help, -h            This text
 
 Env:
   CWS_ANDROID_ROOT         Path to CWSAndroid repo (default: ../../apps/CWSAndroid from cwsp)
-  CWS_GRADLEW_TASK         Gradle task (default: :app:assembleDebug)
+  CWS_GRADLEW_TASK         Gradle task (default: :app:assembleCwsDebug or :app:assembleCwspDebug)
+  CWS_ANDROID_PRODUCT_FLAVOR  cws | cwsp — default assemble when CWS_GRADLEW_TASK unset (cwsp = Capacitor appId space.u2re.cwsp)
   CWS_ANDROID_FRONTEND_DIR Optional: sync dist/portable/frontend into this folder
   CWS_ANDROID_DIST_OUT     Relative to cwsp package: APK copy destination (default: dist/electron/android)
   CWS_SKIP_ANDROID_DIST_COPY  Set to 1 to skip copying APKs into dist/
@@ -48,12 +51,23 @@ Env:
 
 const defaultAndroidRoot = resolve(pkgRoot, "../../apps/CWSAndroid");
 const androidRoot = resolve(process.env.CWS_ANDROID_ROOT || defaultAndroidRoot);
-const gradleTask = (process.env.CWS_GRADLEW_TASK || ":app:assembleDebug").trim();
+const productFlavor = (process.env.CWS_ANDROID_PRODUCT_FLAVOR || "cws").trim().toLowerCase();
+const defaultGradleAssemble =
+    productFlavor === "cwsp" ? ":app:assembleCwspDebug" : ":app:assembleCwsDebug";
+const gradleTask = (process.env.CWS_GRADLEW_TASK || defaultGradleAssemble).trim();
 const gradlew = process.platform === "win32" ? "gradlew.bat" : "./gradlew";
 const gradlewPath = resolve(androidRoot, gradlew);
 
 const runPortable = () => {
     const r = spawnSync(process.execPath, [resolve(__dirname, "build-portable.mjs")], {
+        cwd: pkgRoot,
+        stdio: "inherit"
+    });
+    if (r.status !== 0) process.exit(r.status ?? 1);
+};
+
+const runCapacitorWeb = () => {
+    const r = spawnSync(process.execPath, [resolve(__dirname, "build-capacitor-web.mjs")], {
         cwd: pkgRoot,
         stdio: "inherit"
     });
@@ -134,6 +148,11 @@ const main = () => {
     }
 
     syncFrontendToAndroid();
+
+    if (withCapacitorWeb) {
+        console.log("[build:cws-android] Running build-capacitor-web.mjs (dist/capacitor for CapacitorWebActivity)…");
+        runCapacitorWeb();
+    }
 
     console.log(`[build:cws-android] Gradle in ${androidRoot}: ${gradlew} ${gradleTask}`);
     const shell = process.platform === "win32";

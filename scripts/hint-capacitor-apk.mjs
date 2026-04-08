@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 console.log(
-    "[cwsp] Alternative Android shell: Capacitor (not the primary Kotlin app).\n" +
-        "  Primary APK: Kotlin CWSAndroid — npm run build:electron:android (or build:cws-android).\n" +
-        "  Capacitor: webDir = dist/portable/frontend, then:\n" +
-        "  npm i @capacitor/core @capacitor/cli && npx cap init && npx cap add android && npx cap copy && npx cap build android"
+    "[cwsp] Two Android paths:\n" +
+        "  1) Kotlin CWSAndroid (primary, same family as endpoint/server-v2 features):\n" +
+        "     npm run build:cws-android  (from runtime/cwsp) — APKs → dist/electron/android/\n" +
+        "  2) Capacitor WebView shell (alternative):\n" +
+        "     npm run cap:add:android    (once, creates android/)\n" +
+        "     npm run build:capacitor:android — web → dist/capacitor, sync, Gradle — APKs → dist/capacitor/android/\n" +
+        "  Electron desktop: npm run build:electron → dist/electron\n"
 );
 process.exit(0);

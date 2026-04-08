@@ -9,7 +9,7 @@
  *   node scripts/build-electron-native.mjs --linux AppImage
  *   node scripts/build-electron-native.mjs --mac --dir
  *
- * Android: Electron does not ship APK — npm run build:electron:android → Capacitor hint.
+ * Android: Electron does not ship APK — use build:cws-android (Kotlin) or build:capacitor:android (Capacitor).
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
