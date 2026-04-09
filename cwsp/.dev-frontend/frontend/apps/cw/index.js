@@ -1,6 +1,5 @@
-import { c as ensureAppCss, d as setupLaunchQueueConsumer, f as ensureServiceWorkerRegistered, l as handleShareTarget, o as applyAirpadRuntimeFromAppSettings, s as checkPendingShareData, u as initReceivers } from "./views/airpad.js";
+import { C as checkPendingShareData, D as setupLaunchQueueConsumer, E as initReceivers, O as ensureServiceWorkerRegistered, T as handleShareTarget, w as ensureAppCss } from "./views/airpad.js";
 import { Fn as loadAsAdopted, r as initializeAppChannels } from "./com/app.js";
-import { k as loadSettings } from "./com/service.js";
 import { b as pickEnabledView, i as views_default } from "./shells/base.js";
 import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, s as initializeLayers, t as ensureAppLayers } from "./shells/boot-index.js";
 //#region src/frontend/pwa/pwa-handling.ts
@@ -572,7 +571,7 @@ async function index(mountElement) {
 	console.log("[Index] Starting CrossWord frontend loader");
 	console.log("[Index] Initializing uniform channels...");
 	initializeAppChannels();
-	loadSettings().then((s) => applyAirpadRuntimeFromAppSettings(s)).catch(() => void 0);
+	import("./chunks/hub-socket-boot.js").then((m) => m.bootHubSocketFromStoredSettings()).catch(() => void 0);
 	setLoadingState(mountElement, "Initializing CrossWord...");
 	try {
 		const pwaPromise = initPWA();

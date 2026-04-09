@@ -1,2 +1,2 @@
-import { b as getActiveInstructionText } from "../com/service.js";
+import { x as getActiveInstructionText } from "../com/service.js";
 export { getActiveInstructionText };

@@ -10,7 +10,7 @@
  * @see https://github.com/u2re-space/CWSAndroid — submodule `apps/CWSAndroid`
  *
  * 1. Refreshes portable bundle (Fastify + frontend + config) unless --skip-portable
- * 2. Runs `./gradlew` assemble (default `:app:assembleCwsDebug`; `CWS_ANDROID_PRODUCT_FLAVOR=cwsp` → `assembleCwspDebug`)
+ * 2. Runs `./gradlew` assemble (default **hybrid**: `cwsp` + `dist/capacitor` → `:app:assembleCwspDebug`; `--standalone-cws` → `cws`)
  * 3. Copies `*.apk` from `app/build/outputs/apk/**` → `dist/electron/android/**`
  */
 import { spawnSync } from "node:child_process";
@@ -25,7 +25,10 @@ const pkgRoot = resolveCwspPackageRoot(__dirname);
 
 const argv = new Set(process.argv.slice(2));
 const skipPortable = argv.has("--skip-portable");
-const withCapacitorWeb = argv.has("--with-capacitor-web");
+/** Legacy alias: same as default hybrid (cwsp + capacitor web). */
+const unified = argv.has("--unified");
+/** Kotlin-only `space.u2re.cws` flavor when no env override. */
+const standaloneCws = argv.has("--standalone-cws");
 const help = argv.has("--help") || argv.has("-h");
 
 if (help) {
@@ -35,13 +38,16 @@ if (help) {
 
 Options:
   --skip-portable       Do not run build:portable first
-  --with-capacitor-web  Run build-capacitor-web.mjs first so dist/capacitor exists (Capacitor shell in Kotlin app)
+  --with-capacitor-web  Run build-capacitor-web.mjs (default ON for hybrid; use --no-capacitor-web to skip)
+  --no-capacitor-web    Skip dist/capacitor staging (still cwsp unless --standalone-cws)
+  --unified             Same as default hybrid (kept for scripts/CI)
+  --standalone-cws      cws flavor only (space.u2re.cws), no Capacitor web assets
   --help, -h            This text
 
 Env:
   CWS_ANDROID_ROOT         Path to CWSAndroid repo (default: ../../apps/CWSAndroid from cwsp)
-  CWS_GRADLEW_TASK         Gradle task (default: :app:assembleCwsDebug or :app:assembleCwspDebug)
-  CWS_ANDROID_PRODUCT_FLAVOR  cws | cwsp — default assemble when CWS_GRADLEW_TASK unset (cwsp = Capacitor appId space.u2re.cwsp)
+  CWS_GRADLEW_TASK         Gradle task (default: :app:assembleCwspDebug; cws → :app:assembleCwsDebug)
+  CWS_ANDROID_PRODUCT_FLAVOR  cws | cwsp — when set, overrides flavor; unset defaults to cwsp (use --standalone-cws for cws without env)
   CWS_ANDROID_FRONTEND_DIR Optional: sync dist/portable/frontend into this folder
   CWS_ANDROID_DIST_OUT     Relative to cwsp package: APK copy destination (default: dist/electron/android)
   CWS_SKIP_ANDROID_DIST_COPY  Set to 1 to skip copying APKs into dist/
@@ -51,7 +57,22 @@ Env:
 
 const defaultAndroidRoot = resolve(pkgRoot, "../../apps/CWSAndroid");
 const androidRoot = resolve(process.env.CWS_ANDROID_ROOT || defaultAndroidRoot);
-const productFlavor = (process.env.CWS_ANDROID_PRODUCT_FLAVOR || "cws").trim().toLowerCase();
+const productFlavor = (process.env.CWS_ANDROID_PRODUCT_FLAVOR || (standaloneCws ? "cws" : "cwsp"))
+    .trim()
+    .toLowerCase();
+
+/** Hybrid (cwsp): stage dist/capacitor by default. Cws-only assemble skips unless --with-capacitor-web. */
+let withCapacitorWeb;
+if (argv.has("--no-capacitor-web")) {
+    withCapacitorWeb = false;
+} else if (argv.has("--with-capacitor-web") || unified) {
+    withCapacitorWeb = true;
+} else if (productFlavor === "cwsp") {
+    withCapacitorWeb = true;
+} else {
+    withCapacitorWeb = false;
+}
+
 const defaultGradleAssemble =
     productFlavor === "cwsp" ? ":app:assembleCwspDebug" : ":app:assembleCwsDebug";
 const gradleTask = (process.env.CWS_GRADLEW_TASK || defaultGradleAssemble).trim();

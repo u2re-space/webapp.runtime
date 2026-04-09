@@ -1,2 +1,2 @@
-import { O as getRuntimeSettings } from "../com/service.js";
+import { k as getRuntimeSettings } from "../com/service.js";
 export { getRuntimeSettings };

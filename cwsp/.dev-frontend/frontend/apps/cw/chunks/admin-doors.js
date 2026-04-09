@@ -1,2 +1,2 @@
-import { T as openAdminDoorFromCore } from "../com/service.js";
+import { E as openAdminDoorFromCore } from "../com/service.js";
 export { openAdminDoorFromCore };

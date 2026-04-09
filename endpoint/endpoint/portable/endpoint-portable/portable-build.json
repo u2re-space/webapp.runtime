@@ -1,7 +1,7 @@
 {
-  "builtAt": "2026-04-06T17:33:47.899Z",
-  "nowStamp": "2026-04-06T17-33-47-855Z",
-  "tag": "endpoint-portable-slim-2026-04-06T17-33-47-855Z.tar.gz",
+  "builtAt": "2026-04-09T04:21:37.155Z",
+  "nowStamp": "2026-04-09T04-21-37-113Z",
+  "tag": "endpoint-portable-slim-2026-04-09T04-21-37-113Z.tar.gz",
   "nodeModulesMode": "none",
   "includeNodeModules": false,
   "portableConfigPath": "./portable.config.110.json",

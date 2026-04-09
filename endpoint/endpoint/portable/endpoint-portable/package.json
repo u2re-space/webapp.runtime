@@ -85,7 +85,8 @@
         "iconv-lite": ">=0.7.0",
         "jsox": ">=1.2.124",
         "socket.io": ">=4.8.1",
-        "socket.io-client": "^4.8.3"
+        "socket.io-client": "^4.8.3",
+        "tsx": "^4.21.0"
     },
     "optionalDependencies": {
         "clipboardy": ">=5.0.1",
@@ -94,8 +95,7 @@
     "devDependencies": {
         "@types/node": ">=22.10.2",
         "cross-env": "^10.1.0",
-        "tsx": ">=4.21.0",
-        "typescript": ">=6.0.0-beta"
+        "typescript": "^6.0.0-beta"
     },
     "browserslist": [
         "last 1 chrome version",

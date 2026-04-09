@@ -1296,6 +1296,78 @@ var checkPendingShareData = async () => {
 	}
 };
 //#endregion
+//#region src/frontend/shared/native/clipboard-device.ts
+/**
+* Device clipboard I/O: prefers Capacitor on cwsp Android, else Web Clipboard API.
+* Used for LAN clipboard sync (CWSAndroid-style) from Socket.IO / coordinator.
+*/
+var isCapacitorNative = () => {
+	try {
+		const c = globalThis.Capacitor;
+		return typeof c?.isNativePlatform === "function" && Boolean(c.isNativePlatform());
+	} catch {
+		return false;
+	}
+};
+/** Same check — use when "clipboard" naming is misleading (e.g. AirPad WebSocket transport). */
+var isCapacitorNativeShell = () => isCapacitorNative();
+async function writeClipboardTextToDevice(text) {
+	const value = String(text ?? "");
+	if (isCapacitorNative()) try {
+		const { Clipboard } = await import(
+			/* @vite-ignore */
+			"@capacitor/clipboard"
+);
+		await Clipboard.write({ string: value });
+		return;
+	} catch {}
+	if (globalThis.navigator?.clipboard?.writeText) {
+		await globalThis.navigator.clipboard.writeText(value);
+		return;
+	}
+	throw new Error("Clipboard write unavailable");
+}
+async function readClipboardTextFromDevice() {
+	if (isCapacitorNative()) try {
+		const { Clipboard } = await import(
+			/* @vite-ignore */
+			"@capacitor/clipboard"
+);
+		const v = (await Clipboard.read())?.value;
+		if (typeof v === "string") return v;
+	} catch {}
+	if (globalThis.navigator?.clipboard?.readText) return String(await globalThis.navigator.clipboard.readText());
+	throw new Error("Clipboard read unavailable");
+}
+/** Opens notification settings for this app (Android / iOS). Best-effort. */
+async function openNativeNotificationSettings() {
+	if (!isCapacitorNative()) return;
+	try {
+		const { NativeSettings, AndroidSettings, IOSSettings } = await import(
+			/* @vite-ignore */
+			"capacitor-native-settings"
+);
+		await NativeSettings.open({
+			optionAndroid: AndroidSettings.AppNotification,
+			optionIOS: IOSSettings.AppNotification
+		});
+	} catch {}
+}
+/** Opens system UI where the user can adjust app permissions (Android / iOS). Best-effort. */
+async function openAppClipboardRelatedSettings() {
+	if (!isCapacitorNative()) return;
+	try {
+		const { NativeSettings, AndroidSettings, IOSSettings } = await import(
+			/* @vite-ignore */
+			"capacitor-native-settings"
+);
+		await NativeSettings.open({
+			optionAndroid: AndroidSettings.ApplicationDetails,
+			optionIOS: IOSSettings.App
+		});
+	} catch {}
+}
+//#endregion
 //#region src/frontend/views/airpad/credential-cache-bridge.ts
 var impl = null;
 /** Called from websocket.ts at module load. */
@@ -1406,6 +1478,11 @@ var coreIdentityBridgeUserKey = "";
 var coreIdentityUseForAirpad = true;
 /** Shell / Capacitor toggles (coordinator + future native bridges). */
 var shellRemoteClipboardEnabled = true;
+var shellApplyRemoteToDevice = true;
+var shellPushLocalClipboard = false;
+var shellClipboardPushIntervalMs = 2e3;
+var shellClipboardBroadcastTargets = "";
+var shellMaintainHubSocket = false;
 var shellNativeSmsEnabled = true;
 var shellNativeContactsEnabled = true;
 var remoteHost = "";
@@ -1488,6 +1565,12 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	coreIdentityBridgeUserKey = (core?.userKey || "").trim();
 	coreIdentityUseForAirpad = (core?.useCoreIdentityForAirPad ?? true) !== false;
 	shellRemoteClipboardEnabled = (shell?.enableRemoteClipboardBridge ?? true) !== false;
+	shellApplyRemoteToDevice = (shell?.applyRemoteClipboardToDevice ?? true) !== false;
+	shellPushLocalClipboard = Boolean(shell?.pushLocalClipboardToLan);
+	const intervalRaw = Number(shell?.clipboardPushIntervalMs);
+	shellClipboardPushIntervalMs = Number.isFinite(intervalRaw) && intervalRaw >= 800 ? Math.min(Math.round(intervalRaw), 6e4) : 2e3;
+	shellClipboardBroadcastTargets = (shell?.clipboardBroadcastTargets || "").trim();
+	shellMaintainHubSocket = Boolean(shell?.maintainHubSocketConnection);
 	shellNativeSmsEnabled = (shell?.enableNativeSms ?? true) !== false;
 	shellNativeContactsEnabled = (shell?.enableNativeContacts ?? true) !== false;
 	const input = {};
@@ -1501,6 +1584,9 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	try {
 		globalThis.__CWS_SHELL_FEATURES__ = {
 			clipboardBridge: shellRemoteClipboardEnabled,
+			applyRemoteClipboard: shellApplyRemoteToDevice,
+			pushLocalClipboard: shellPushLocalClipboard,
+			maintainHubSocket: shellMaintainHubSocket,
 			sms: shellNativeSmsEnabled,
 			contacts: shellNativeContactsEnabled
 		};
@@ -1508,6 +1594,28 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 }
 function isShellRemoteClipboardBridgeEnabled() {
 	return shellRemoteClipboardEnabled !== false;
+}
+function isApplyRemoteClipboardToDeviceEnabled() {
+	return shellApplyRemoteToDevice !== false;
+}
+function isPushLocalClipboardToLanEnabled() {
+	return shellPushLocalClipboard === true;
+}
+function getClipboardPushIntervalMs() {
+	return shellClipboardPushIntervalMs;
+}
+var parseClipboardTargetList = (value) => {
+	return Array.from(new Set(value.split(/[;,]/).map((item) => item.trim()).filter(Boolean)));
+};
+/** Device ids for outbound clipboard acts (Settings → clipboard broadcast targets, else route target). */
+function getClipboardBroadcastTargetNodes() {
+	const explicit = parseClipboardTargetList(shellClipboardBroadcastTargets);
+	if (explicit.length) return explicit;
+	return parseClipboardTargetList(remoteRouteTarget);
+}
+/** Background Socket.IO to cwsp / endpoint hub (any shell, not only AirPad view). */
+function isMaintainHubSocketConnectionEnabled() {
+	return shellMaintainHubSocket === true;
 }
 function getRemoteHost() {
 	return remoteHost;
@@ -1949,6 +2057,49 @@ function notifyClipboardHandlers(text, meta) {
 		h(text, meta);
 	} catch {}
 }
+/** Suppress echo when applying remote text to the device clipboard vs. push polling. */
+var lastClipboardPushSent = "";
+var lastClipboardWrittenFromRemote = "";
+var clipboardPushIntervalId = null;
+var stopClipboardPushLoop = () => {
+	if (clipboardPushIntervalId) {
+		globalThis.clearInterval(clipboardPushIntervalId);
+		clipboardPushIntervalId = null;
+	}
+};
+var startClipboardPushLoop = () => {
+	stopClipboardPushLoop();
+	if (!isPushLocalClipboardToLanEnabled() || !isShellRemoteClipboardBridgeEnabled()) return;
+	const ms = getClipboardPushIntervalMs();
+	clipboardPushIntervalId = globalThis.setInterval(() => {
+		tickLocalClipboardPush();
+	}, ms);
+};
+async function tickLocalClipboardPush() {
+	if (!socket?.connected) return;
+	if (!isShellRemoteClipboardBridgeEnabled() || !isPushLocalClipboardToLanEnabled()) return;
+	const nodes = getClipboardBroadcastTargetNodes();
+	if (!nodes.length) return;
+	try {
+		const text = await readClipboardTextFromDevice();
+		const t = String(text ?? "");
+		if (!t || t === lastClipboardPushSent) return;
+		lastClipboardPushSent = t;
+		sendCoordinatorAct("clipboard:update", { text: t }, nodes);
+	} catch {}
+}
+async function applyIncomingClipboardText(text, meta) {
+	if (!isShellRemoteClipboardBridgeEnabled()) return;
+	const t = typeof text === "string" ? text : "";
+	notifyClipboardHandlers(t, meta);
+	if (!isApplyRemoteClipboardToDeviceEnabled() || !t) return;
+	if (t === lastClipboardWrittenFromRemote) return;
+	try {
+		await writeClipboardTextToDevice(t);
+		lastClipboardWrittenFromRemote = t;
+		lastClipboardPushSent = t;
+	} catch {}
+}
 function safeJson(value) {
 	try {
 		return JSON.stringify(value);
@@ -2026,9 +2177,8 @@ var handleCoordinatorPacket = (packet) => {
 		return;
 	}
 	if (packet.what === "clipboard:update") {
-		if (!isShellRemoteClipboardBridgeEnabled()) return;
 		const clipboardPayload = packet.result ?? packet.payload;
-		notifyClipboardHandlers(typeof clipboardPayload?.text === "string" ? clipboardPayload.text : "", { source: clipboardPayload?.source });
+		applyIncomingClipboardText(typeof clipboardPayload?.text === "string" ? clipboardPayload.text : "", { source: clipboardPayload?.source });
 	}
 };
 var emitCoordinatorPacket = (packet) => {
@@ -2255,12 +2405,11 @@ function logWsState(event, payload) {
 var WS_STATUS_TLS_HINT_CLASS = "ws-status-tls-hint";
 function setWsStatusTlsHint(originUrl) {
 	const wsStatusEl = getWsStatusEl();
-	if (wsStatusEl) {
-		wsStatusEl.textContent = `Untrusted cert — open ${originUrl} in this browser, accept, then retry`;
-		wsStatusEl.classList.add(WS_STATUS_TLS_HINT_CLASS);
-		wsStatusEl.classList.remove("ws-status-ok");
-		wsStatusEl.classList.add("ws-status-bad");
-	}
+	if (!wsStatusEl) return;
+	wsStatusEl.textContent = isCapacitorNativeShell() ? `TLS failed — install your CA in Android Settings → Security → Encryption & credentials (or use Remote host = name on the cert). Try HTTP :8080 if the server allows. ${originUrl}` : `Untrusted cert — open ${originUrl} in this browser, accept, then retry`;
+	wsStatusEl.classList.add(WS_STATUS_TLS_HINT_CLASS);
+	wsStatusEl.classList.remove("ws-status-ok");
+	wsStatusEl.classList.add("ws-status-bad");
 }
 /** When the server cert is issued for a hostname, https://&lt;public-ip&gt; fails before the user can "trust" it. */
 function setWsStatusTlsHostnameHint(hostname) {
@@ -2477,8 +2626,9 @@ function connectWS() {
 				const hostLooksPrivate = isIpv4Literal(hostBare) && isPrivateIp(hostBare);
 				const crossOriginHttpsToPrivateLan = location.protocol === "https:" && !isLocalPageHost && hostLooksPrivate;
 				const inExtension = isChromiumExtensionRuntime();
-				const preferPollingFirst = crossOriginHttpsToPrivateLan && !inExtension;
-				const useWebSocketOnly = location.protocol === "https:" && isLocalPageHost && hostLooksPrivate || inExtension && crossOriginHttpsToPrivateLan && hostLooksPrivate;
+				const nativeShell = isCapacitorNativeShell();
+				const preferPollingFirst = !nativeShell && crossOriginHttpsToPrivateLan && !inExtension;
+				const useWebSocketOnly = nativeShell && hostLooksPrivate || location.protocol === "https:" && isLocalPageHost && hostLooksPrivate || inExtension && crossOriginHttpsToPrivateLan && hostLooksPrivate;
 				candidates.push({
 					url: `${protocol}://${host}:${port}`,
 					protocol,
@@ -2582,6 +2732,7 @@ function connectWS() {
 		isConnecting = false;
 		autoReconnectAttempts = 0;
 		setWsStatus(true);
+		startClipboardPushLoop();
 		socket.emit("hello", {
 			id: peerInstanceId || clientId,
 			byId: clientId,
@@ -2591,6 +2742,7 @@ function connectWS() {
 			nodes: getCoordinatorNodes()
 		});
 		socket.on("disconnect", (reason) => {
+			stopClipboardPushLoop();
 			logWsState("disconnected", `candidate=${index + 1}/${uniqueCandidates.length} candidate_url=${url} reason=${reason || "unknown"}`);
 			engine?.off?.("close", onEngineClose);
 			engine?.off?.("error", onEngineError);
@@ -2642,9 +2794,8 @@ function connectWS() {
 			handleServerMessage(await unwrapIncomingPayload(msg));
 		});
 		socket.on("clipboard:update", async (msg) => {
-			if (!isShellRemoteClipboardBridgeEnabled()) return;
 			const decoded = await unwrapIncomingPayload(msg);
-			notifyClipboardHandlers(typeof decoded?.text === "string" ? decoded.text : "", { source: decoded?.source });
+			applyIncomingClipboardText(typeof decoded?.text === "string" ? decoded.text : "", { source: decoded?.source });
 		});
 		socket.on("data", async (packet) => {
 			const decoded = await unwrapIncomingPayload(packet);
@@ -2785,7 +2936,13 @@ function connectWS() {
 				probeSocket.close();
 				const details = error?.description || error?.context || "";
 				const errorMessage = String(error?.message || error || "");
-				if (candidate.protocol === "https" && isPrivateIp(candidate.host) && /xhr poll error|websocket error/i.test(errorMessage) && !batchTlsCertUrl) batchTlsCertUrl = url;
+				const combinedProbeErr = `${errorMessage} ${String(details)}`;
+				const weakEngineIoTlsSuspect = candidate.protocol === "https" && isPrivateIp(candidate.host) && /xhr poll error|websocket error/i.test(errorMessage);
+				/** Capacitor/WebView often reports generic xhr/WS errors; do not label "Untrusted cert" without TLS signals. */
+				const tlsKeywordsInErr = /certificate|cert\.|ssl|tls|trust|ERR_CERT|ERR_SSL|handshake|authority|SELF_SIGNED|unknown.*cert|invalid.*cert|unable to verify|pkix|hostname|name mismatch/i.test(combinedProbeErr);
+				const plainTransportFailure = /refused|ECONNREFUSED|ENOTFOUND|timed out|timeout|unreachable|ERR_CONNECTION|ADDRESS_UNREACHABLE|NAME_NOT_RESOLVED|INTERNET_DISCONNECTED|network.*lost/i.test(combinedProbeErr);
+				const nativeAir = isCapacitorNativeShell();
+				if (weakEngineIoTlsSuspect && !batchTlsCertUrl && (tlsKeywordsInErr || !nativeAir && !plainTransportFailure)) batchTlsCertUrl = url;
 				const publicIpv4Https = candidate.protocol === "https" && isIpv4Literal(candidate.host) && !isPrivateIp(candidate.host) && candidate.host !== "127.0.0.1";
 				const combinedErr = `${errorMessage} ${String(details)}`;
 				if (publicIpv4Https && /xhr poll error|websocket error|certificate|CERT|common name|ssl|tls|failed to fetch|name invalid/i.test(combinedErr) && !batchTlsHostname) {
@@ -2817,6 +2974,7 @@ function connectWS() {
 	})();
 }
 function disconnectWS() {
+	stopClipboardPushLoop();
 	connectAttemptId += 1;
 	manualDisconnectRequested = true;
 	for (const probe of [...activeProbeSockets]) {
@@ -5724,4 +5882,4 @@ function createView(options) {
 /** Alias for createView */
 var createAirpadView = createView;
 //#endregion
-export { unmountAirpadRuntime as a, ensureAppCss as c, setupLaunchQueueConsumer as d, ensureServiceWorkerRegistered as f, mountAirpad as i, handleShareTarget as l, createAirpadView as n, applyAirpadRuntimeFromAppSettings as o, createView as r, checkPendingShareData as s, AirpadView as t, initReceivers as u };
+export { checkPendingShareData as C, setupLaunchQueueConsumer as D, initReceivers as E, ensureServiceWorkerRegistered as O, writeClipboardTextToDevice as S, handleShareTarget as T, isMaintainHubSocketConnectionEnabled as _, unmountAirpadRuntime as a, openNativeNotificationSettings as b, initWebSocket as c, onVoiceResult as d, onWSConnectionChange as f, getRemoteHost as g, applyAirpadRuntimeFromAppSettings as h, mountAirpad as i, isWSConnected as l, sendCoordinatorRequest as m, createAirpadView as n, connectWS as o, sendCoordinatorAct as p, createView as r, disconnectWS as s, AirpadView as t, onServerClipboardUpdate as u, isCapacitorNativeShell as v, ensureAppCss as w, readClipboardTextFromDevice as x, openAppClipboardRelatedSettings as y };
