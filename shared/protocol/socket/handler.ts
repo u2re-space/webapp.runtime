@@ -2,12 +2,13 @@ import {
     resolveEndpointTransportPreference,
     type EndpointIdPolicyMap,
     type EndpointTransportMode
-} from "../../utils/endpoint-policy.ts";
-import { parseBinaryEnvelope } from "../../utils/binary.ts";
+} from "@utils/endpoint-policy.ts";
+import { parseBinaryEnvelope } from "@utils/binary.ts";
 import type { Packet } from "./types.ts";
 import { inferWhatFromLegacyType } from "./packet.ts";
 import { handleAirpadAction, handleAirpadAsk } from "./handlers/airpad.ts";
 import { handleClipboardAction, handleClipboardAsk } from "./handlers/clipboard.ts";
+import { handleAiAction, handleAiAsk } from "./handlers/ai.ts";
 import { SELF_DATA } from "./coordinator.ts";
 
 
@@ -154,6 +155,8 @@ export const handleAct = async (what: string, payload: any, packet: Packet, self
     if (airpadResult !== null) return airpadResult;
     const clipboardResult = await handleClipboardAction(what, payload, packet);
     if (clipboardResult !== null) return clipboardResult;
+    const aiResult = await handleAiAction(what, payload, packet);
+    if (aiResult !== null) return aiResult;
     return {
         ok: false,
         handled: false,
@@ -168,6 +171,8 @@ export const handleAsk = async (what: string, payload: any, packet: Packet, self
     if (airpadResult !== null) return airpadResult;
     const clipboardResult = await handleClipboardAsk(what, payload, packet);
     if (clipboardResult !== null) return clipboardResult;
+    const aiResult = await handleAiAsk(what, payload, packet);
+    if (aiResult !== null) return aiResult;
     if (what == "token") {
         return Promise.resolve(getAssociatedToken(selfId));
     }

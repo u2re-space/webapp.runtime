@@ -1,6 +1,6 @@
 import { Promised } from "@utils/Promised.ts";
 import type { Packet } from "../types.ts";
-import { sendVoiceToPython } from "../../http/routers/assistant/python.ts";
+import { sendVoiceToPython } from "@protocol/http/routers/assistant/python.ts";
 
 //
 export const handleAirpadAction = async (what: string, payload: any, packet: Packet) => {

@@ -2,7 +2,7 @@ import { Promised } from "@utils/Promised.ts";
 import type { Packet } from "../types.ts";
 
 const loadClipboardAccess = async () => {
-    return Promised(Promised(await import("../../../inputs/access/clipboard.ts"))?.default);
+    return Promised(Promised(await import("@inputs/access/clipboard.ts"))?.default);
 };
 
 //
