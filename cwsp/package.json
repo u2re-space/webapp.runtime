@@ -61,6 +61,7 @@
     "@fastify/formbody": ">=8.0.2",
     "@fastify/multipart": "^10.0.0",
     "@fastify/static": ">=9.1.0",
+    "@gachlab/capacitor-permissions": "^2.1.0",
     "@phosphor-icons/core": "^2.1.1",
     "@webviewjs/webview": ">=0.1.4",
     "capacitor-native-settings": "^8.1.0",

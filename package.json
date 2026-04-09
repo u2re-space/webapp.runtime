@@ -48,6 +48,7 @@
         "@electron/rebuild": ">=4.0.3",
         "@fastify/cors": ">=11.2.0",
         "@fastify/multipart": ">=10.0.0",
+        "@gachlab/capacitor-permissions": "^2.1.0",
         "@tauri-apps/api": ">=2.1.1",
         "@tauri-apps/cli": ">=2.1.0",
         "@webviewjs/webview": ">=0.1.4",
