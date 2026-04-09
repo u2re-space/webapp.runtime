@@ -37,5 +37,8 @@
     "browserslist": [
         "last 1 chrome version",
         "last 1 firefox version"
-    ]
+    ],
+    "devDependencies": {
+        "vite": "^8.0.7"
+    }
 }
