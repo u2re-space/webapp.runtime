@@ -19,5 +19,7 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- Typical wireless-ADB / LAN test device (override in fork if needed) -->
+        <domain includeSubdomains="false">192.168.0.196</domain>
     </domain-config>
 </network-security-config>

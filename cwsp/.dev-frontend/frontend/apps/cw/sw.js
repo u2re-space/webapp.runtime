@@ -2781,6 +2781,7 @@ var init_SettingsTypes = __esmMin((() => {
 			preferBackendSync: true,
 			ntpEnabled: false,
 			appClientId: "",
+			useCoreIdentityForAirPad: true,
 			allowInsecureTls: false,
 			admin: {
 				httpsOrigin: "https://localhost:8443",
@@ -2793,6 +2794,14 @@ var init_SettingsTypes = __esmMin((() => {
 				wsTargets: [],
 				syncTargets: []
 			}
+		},
+		shell: {
+			airPadConnectHosts: "",
+			airPadRouteTarget: "",
+			syncAirPadHostFromEndpointUrl: false,
+			enableRemoteClipboardBridge: true,
+			enableNativeSms: true,
+			enableNativeContacts: true
 		},
 		ai: {
 			apiKey: "",
@@ -21140,7 +21149,7 @@ var init_ChannelContext = __esmMin((() => {
 	init_RequestHandler();
 	init_UnifiedChannel();
 	init_ConnectionModel();
-	workerCode = new URL("" + new URL("assets/Worker.ts", import.meta.url).href, "" + import.meta.url);
+	workerCode = new URL("" + new URL("assets/Worker-BCSbBPGz.ts", import.meta.url).href, "" + import.meta.url);
 	RemoteChannelHelper = class {
 		constructor(_channel, _context, _options = {}) {
 			this._channel = _channel;
@@ -22640,6 +22649,7 @@ var init_UnifiedMessaging = __esmMin((() => {
 //#region shared/fest/uniform/newer/messaging/index.ts
 var init_messaging = __esmMin((() => {
 	init_UnifiedMessaging();
+	init_Env();
 }));
 //#endregion
 //#region shared/fest/uniform/newer/next/channel/ChannelMessageHandler.ts
@@ -22650,6 +22660,7 @@ var init_ChannelMessageHandler = __esmMin((() => {
 //#endregion
 //#region shared/fest/uniform/newer/index.ts
 var init_newer = __esmMin((() => {
+	init_Interface();
 	init_RequestHandler();
 	init_Observable();
 	init_UnifiedChannel();
@@ -22688,7 +22699,7 @@ var init_uniform = __esmMin((() => {
 //#endregion
 //#region shared/fest/lure/extension/opfs/OPFS.uniform.worker.ts?worker
 function WorkerWrapper(options) {
-	return new Worker("" + new URL("assets/OPFS.uniform.worker.js", import.meta.url).href, { name: options?.name });
+	return new Worker("" + new URL("assets/OPFS.uniform.worker-CdC3NRX3.js", import.meta.url).href, { name: options?.name });
 }
 var init_OPFS_uniform_worker = __esmMin((() => {}));
 //#endregion
@@ -22808,7 +22819,6 @@ function detectTypeByRelPath(relPath) {
 	return "file";
 }
 function getMimeTypeByFilename(filename) {
-	const ext = filename?.split?.(".")?.pop?.()?.toLowerCase?.();
 	return {
 		"txt": "text/plain",
 		"md": "text/markdown",
@@ -22834,7 +22844,7 @@ function getMimeTypeByFilename(filename) {
 		"zip": "application/zip",
 		"rar": "application/vnd.rar",
 		"7z": "application/x-7z-compressed"
-	}[ext] || "application/octet-stream";
+	}[filename?.split?.(".")?.pop?.()?.toLowerCase?.()] || "application/octet-stream";
 }
 async function getDirectoryHandle(rootHandle, relPath, { create = false, basePath = "" } = {}, logger = defaultLogger) {
 	try {
@@ -25191,6 +25201,7 @@ Always include both the mathematical solution AND the visualization.
 var init_BuiltInAI = __esmMin((() => {
 	init_core$2();
 	init_templates();
+	init_utils();
 }));
 //#endregion
 //#region shared/fest/lure/extension/modules/TemplateManager.ts
@@ -29282,6 +29293,10 @@ var init_Settings = __esmMin((() => {
 					grid: {
 						...DEFAULT_SETTINGS.grid,
 						...stored?.grid
+					},
+					shell: {
+						...DEFAULT_SETTINGS.shell || {},
+						...stored?.shell || {}
 					}
 				};
 				console.log("[Settings] loadSettings result:", {
@@ -29382,6 +29397,11 @@ var init_Settings = __esmMin((() => {
 				...DEFAULT_SETTINGS.grid || {},
 				...current.grid || {},
 				...settings.grid || {}
+			},
+			shell: {
+				...DEFAULT_SETTINGS.shell || {},
+				...current.shell || {},
+				...settings.shell || {}
 			}
 		};
 		await idbPutSettings(merged);
@@ -30629,11 +30649,10 @@ var init_GPT_Responses = __esmMin((() => {
 				const BASE64URL = `data:${data?.dataSource?.type};base64,`;
 				const arrayBuffer = await data?.dataSource?.arrayBuffer();
 				if (!arrayBuffer) throw new Error("Failed to read file as ArrayBuffer");
-				const URL = BASE64URL + toBase64(new Uint8Array(arrayBuffer));
 				return {
 					"type": "input_image",
 					"detail": "auto",
-					"image_url": URL
+					"image_url": BASE64URL + toBase64(new Uint8Array(arrayBuffer))
 				};
 			} catch (error) {
 				console.error("[GPT-Responses] Failed to process image file:", error);
@@ -33823,7 +33842,7 @@ async function broadcastToClients(type, data) {
 		console.warn("[SW-Broadcast] Failed to broadcast to clients:", error);
 	}
 }
-var manifest = [{"revision":"f753419b376eb987d0be8743651b64ed","url":"index.js"},{"revision":"fac982cb9c8d4f83a31cb75344015a86","url":"views/workcenter.js"},{"revision":"efd1b089d47d46102e9be22d974be652","url":"views/settings.js"},{"revision":"bc6c0b77291eac18b4e51ae8d73d6bef","url":"views/home.js"},{"revision":"fc0a0b6593d1541970d881c9f2ee5f2b","url":"views/history.js"},{"revision":"5b1c7e97224d3a09ad11db27889ca9c8","url":"views/explorer.js"},{"revision":"fefe8048f1c1a24fa907c70dad1aba6f","url":"views/editor.js"},{"revision":"686b97be4f2699328b01ba164a936382","url":"views/airpad.js"},{"revision":"69ab23017456f8cb926eb4b6c7f38511","url":"vendor/socket.io-client.js"},{"revision":"cbb3b9e0b2a263bd702e343603f14765","url":"vendor/quill.js"},{"revision":"7e88756390f46618107efb0f8f7cbcaf","url":"vendor/parchment.js"},{"revision":"bbc6dc43ef991c2ee87877452c871921","url":"vendor/lodash.isequal.js"},{"revision":"65966eaf2927aafce866a54bd1c3aea5","url":"vendor/lodash.clonedeep.js"},{"revision":"fe9f9b9df2001b6d94d4293367d6c847","url":"vendor/lodash-es.js"},{"revision":"b4ff75363de50b97e9ccc230f30cb4e6","url":"vendor/fast-diff.js"},{"revision":"9e979c9b04554315d82c9ebaab7e84ed","url":"vendor/eventemitter3.js"},{"revision":"19f3da8be5045fac02f347e084d8d75e","url":"vendor/engine.io-client.js"},{"revision":"86dd05ab2c01b563395f9e1098ccc52f","url":"vendor/@socket.io_component-emitter.js"},{"revision":"976bffedd499320767003a59691277c1","url":"shells/tabbed-index.js"},{"revision":"9d3735b25ceffb1771f561d60f903b4c","url":"shells/print-index.js"},{"revision":"37742b7fc03ad2988761600b922085aa","url":"shells/minimal.js"},{"revision":"3364436e05a0affa68bf08455485721e","url":"shells/environment-index.js"},{"revision":"7e625c47d69798419e96142c3b390f9e","url":"shells/content-index.js"},{"revision":"ac0ac3395040886ce7e53e4587fb639d","url":"shells/boot-index.js"},{"revision":"9c03a6cbf82d8e8c3088f67840eeed89","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"d2e16c2c83e617c7641f88aa6cf3ab21","url":"fest/polyfill.js"},{"revision":"569e5e97e3cbae1e26d8db4dec80849e","url":"com/service.js"},{"revision":"16bb3b443d6b6d721312b4e747154dbe","url":"com/app.js"},{"revision":"276b4827deb3cf110ad6e3a0ee56ff7a","url":"chunks/workcenter2.js"},{"revision":"7f5b5a59dadf872176d6259ad82381f6","url":"chunks/window.js"},{"revision":"683e8ba60840a3157d06a34329679269","url":"chunks/viewer.js"},{"revision":"06ddbd64c24d49c25b93bcbfb03943f3","url":"chunks/unified.js"},{"revision":"90365694fe9d50ea253ac897bffbe211","url":"chunks/turndown.browser.es.js"},{"revision":"0c9237455ba07e90f2c58eb75a7e5256","url":"chunks/temml.js"},{"revision":"80f90bf75d448ee52fc6306a4518f073","url":"chunks/tabbed.js"},{"revision":"44ce152c4a8aa8e998e28e4fe67d24f2","url":"chunks/settings.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"205257bdc4d09723979d30fbfce426ac","url":"chunks/registry.js"},{"revision":"01dd2b84c897b4f8619981c651d3a96c","url":"chunks/preview.js"},{"revision":"844f1e08c8bfb43fc617d0917dbe61e3","url":"chunks/outdated.js"},{"revision":"db0fc0ceee056ecc901e0d52668a74e6","url":"chunks/main.js"},{"revision":"ff50a5c7e28bceeaa42f5e12fd46a1db","url":"chunks/history.js"},{"revision":"e211995089cb55c3b1dc8d39a9f4ad8e","url":"chunks/explorer.js"},{"revision":"4517a128d0eb076ad2abc8adf9c033d3","url":"chunks/environment.js"},{"revision":"3cb4263adcc58d61f45847f1e8edbd00","url":"chunks/entities.js"},{"revision":"795eda67f1d7c09b92e63cf25f5de7ee","url":"chunks/editor.js"},{"revision":"f819cc8cfb15a4681645ee216ba0555d","url":"chunks/content.js"},{"revision":"037b7e2d6c0898127c470744d0dd688d","url":"chunks/channel-unknown.js"},{"revision":"217aa0d7c8584dbdd9d86a08f676b36c","url":"chunks/bundle.min.js"},{"revision":"ae5d7f4ee84e78238483e11d5d37416a","url":"chunks/base.js"},{"revision":"38a4b779532210d287a59448fe73b0c9","url":"chunks/airpad.js"},{"revision":"ff2b2fa515bfab287711caffd7b56eb7","url":"chunks/admin-doors.js"},{"revision":"21c6a9a1cd86986f657aa77c1b2708cd","url":"chunks/WorkCenterState.js"},{"revision":"e0a944eeab006b64201e110a6c51ae1d","url":"chunks/WorkCenterDataProcessing.js"},{"revision":"53cec20263487603ae321df82f5052a7","url":"chunks/WorkCenter.js"},{"revision":"1cbc44ad087f7a1196c6e70df4bfa959","url":"chunks/RuntimeSettings.js"},{"revision":"04337f39143e24e2ab60c75b3105b499","url":"chunks/RecognizeData.js"},{"revision":"16803a9e95702acb86e07663270e9447","url":"chunks/QuillEditor.js"},{"revision":"ba771b7ea93617ba32e09020cf6564bc","url":"chunks/MarkdownEditor.js"},{"revision":"cb7d1bee54d5b3fe64d1b9d76730f53f","url":"chunks/CustomInstructions.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
+var manifest = [{"revision":"402b66900e731ca748771b6fc5e7a068","url":"registerSW.js"},{"revision":"79a78f4fb306ff83f1a007a7cd9fe0a0","url":"index.js"},{"revision":"210ef561568be60c53330b4f41ca27b2","url":"workers/opfs/OPFS.uniform.worker.js"},{"revision":"4cc0127f2ec8868270dc8c61e0adfe85","url":"views/workcenter.js"},{"revision":"7c44581bcbd31a6b681b9c9aa36a17b7","url":"views/settings.js"},{"revision":"bc6c0b77291eac18b4e51ae8d73d6bef","url":"views/home.js"},{"revision":"fc0a0b6593d1541970d881c9f2ee5f2b","url":"views/history.js"},{"revision":"5b1c7e97224d3a09ad11db27889ca9c8","url":"views/explorer.js"},{"revision":"fefe8048f1c1a24fa907c70dad1aba6f","url":"views/editor.js"},{"revision":"9ec234d19515a743d43bcf7ee9bc6448","url":"views/airpad.js"},{"revision":"69ab23017456f8cb926eb4b6c7f38511","url":"vendor/socket.io-client.js"},{"revision":"de2c2760e8242be5c62fb1f8eefe9c07","url":"vendor/quill.js"},{"revision":"7e88756390f46618107efb0f8f7cbcaf","url":"vendor/parchment.js"},{"revision":"bbc6dc43ef991c2ee87877452c871921","url":"vendor/lodash.isequal.js"},{"revision":"65966eaf2927aafce866a54bd1c3aea5","url":"vendor/lodash.clonedeep.js"},{"revision":"3849f9e7b1e73df9c307370420c8ce2a","url":"vendor/lodash-es.js"},{"revision":"b4ff75363de50b97e9ccc230f30cb4e6","url":"vendor/fast-diff.js"},{"revision":"9e979c9b04554315d82c9ebaab7e84ed","url":"vendor/eventemitter3.js"},{"revision":"19f3da8be5045fac02f347e084d8d75e","url":"vendor/engine.io-client.js"},{"revision":"86dd05ab2c01b563395f9e1098ccc52f","url":"vendor/@socket.io_component-emitter.js"},{"revision":"976bffedd499320767003a59691277c1","url":"shells/tabbed-index.js"},{"revision":"9d3735b25ceffb1771f561d60f903b4c","url":"shells/print-index.js"},{"revision":"37742b7fc03ad2988761600b922085aa","url":"shells/minimal.js"},{"revision":"3364436e05a0affa68bf08455485721e","url":"shells/environment-index.js"},{"revision":"7e625c47d69798419e96142c3b390f9e","url":"shells/content-index.js"},{"revision":"ac0ac3395040886ce7e53e4587fb639d","url":"shells/boot-index.js"},{"revision":"9c03a6cbf82d8e8c3088f67840eeed89","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"d2e16c2c83e617c7641f88aa6cf3ab21","url":"fest/polyfill.js"},{"revision":"05adc5234aac60f9369342842f89aaad","url":"com/service.js"},{"revision":"deb10b6c25f6f739432b84d34fc29c3d","url":"com/app.js"},{"revision":"276b4827deb3cf110ad6e3a0ee56ff7a","url":"chunks/workcenter2.js"},{"revision":"7f5b5a59dadf872176d6259ad82381f6","url":"chunks/window.js"},{"revision":"683e8ba60840a3157d06a34329679269","url":"chunks/viewer.js"},{"revision":"06ddbd64c24d49c25b93bcbfb03943f3","url":"chunks/unified.js"},{"revision":"90365694fe9d50ea253ac897bffbe211","url":"chunks/turndown.browser.es.js"},{"revision":"0c9237455ba07e90f2c58eb75a7e5256","url":"chunks/temml.js"},{"revision":"80f90bf75d448ee52fc6306a4518f073","url":"chunks/tabbed.js"},{"revision":"44ce152c4a8aa8e998e28e4fe67d24f2","url":"chunks/settings.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"205257bdc4d09723979d30fbfce426ac","url":"chunks/registry.js"},{"revision":"01dd2b84c897b4f8619981c651d3a96c","url":"chunks/preview.js"},{"revision":"844f1e08c8bfb43fc617d0917dbe61e3","url":"chunks/outdated.js"},{"revision":"db0fc0ceee056ecc901e0d52668a74e6","url":"chunks/main.js"},{"revision":"ff50a5c7e28bceeaa42f5e12fd46a1db","url":"chunks/history.js"},{"revision":"e211995089cb55c3b1dc8d39a9f4ad8e","url":"chunks/explorer.js"},{"revision":"4517a128d0eb076ad2abc8adf9c033d3","url":"chunks/environment.js"},{"revision":"3cb4263adcc58d61f45847f1e8edbd00","url":"chunks/entities.js"},{"revision":"795eda67f1d7c09b92e63cf25f5de7ee","url":"chunks/editor.js"},{"revision":"f819cc8cfb15a4681645ee216ba0555d","url":"chunks/content.js"},{"revision":"b9c23720afcbaa3b76afb17e992a35a1","url":"chunks/channel-unknown.js"},{"revision":"217aa0d7c8584dbdd9d86a08f676b36c","url":"chunks/bundle.min.js"},{"revision":"ae5d7f4ee84e78238483e11d5d37416a","url":"chunks/base.js"},{"revision":"38a4b779532210d287a59448fe73b0c9","url":"chunks/airpad.js"},{"revision":"ff2b2fa515bfab287711caffd7b56eb7","url":"chunks/admin-doors.js"},{"revision":"21c6a9a1cd86986f657aa77c1b2708cd","url":"chunks/WorkCenterState.js"},{"revision":"e0a944eeab006b64201e110a6c51ae1d","url":"chunks/WorkCenterDataProcessing.js"},{"revision":"53cec20263487603ae321df82f5052a7","url":"chunks/WorkCenter.js"},{"revision":"1cbc44ad087f7a1196c6e70df4bfa959","url":"chunks/RuntimeSettings.js"},{"revision":"04337f39143e24e2ab60c75b3105b499","url":"chunks/RecognizeData.js"},{"revision":"16803a9e95702acb86e07663270e9447","url":"chunks/QuillEditor.js"},{"revision":"ba771b7ea93617ba32e09020cf6564bc","url":"chunks/MarkdownEditor.js"},{"revision":"cb7d1bee54d5b3fe64d1b9d76730f53f","url":"chunks/CustomInstructions.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker-CdC3NRX3.js"}];
 cleanupOutdatedCaches();
 if (manifest && true) precacheAndRoute(manifest.filter((entry) => {
 	const url = typeof entry === "string" ? entry : String(entry?.url || "");
@@ -34208,7 +34227,7 @@ registerRoute(({ url }) => {
 registerRoute(({ url }) => {
 	const host = url?.hostname || "";
 	const pathname = url?.pathname || "";
-	const isPrivateIp = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) && (host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || host.startsWith("127."));
+	const isPrivateIp = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) && (host.startsWith("10.") || host.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(host) || host.startsWith("127.") || /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host));
 	const isLocalHost = host === "localhost" || host.endsWith(".local");
 	const isSocketIoPath = pathname === "/socket.io" || pathname.startsWith("/socket.io/");
 	const isControlPath = pathname.startsWith("/api/") || pathname === "/lna-probe" || isSocketIoPath;

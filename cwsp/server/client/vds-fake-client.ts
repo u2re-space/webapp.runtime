@@ -175,6 +175,17 @@ const main = async () => {
     }
 
     const handshake = buildServerV2SocketHandshake(identity);
+    const tunnel = String(process.env.CWS_FAKE_CLIENT_TUNNEL || readLauncher("CWS_FAKE_CLIENT_TUNNEL") || "").trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(tunnel)) {
+        handshake.query.__airpad_via = "tunnel";
+        handshake.query.__airpad_endpoint = "0";
+        const routeTarget =
+            String(process.env.CWS_FAKE_CLIENT_ROUTE_TARGET || readLauncher("CWS_FAKE_CLIENT_ROUTE_TARGET") || "").trim();
+        if (routeTarget) {
+            handshake.query.__airpad_route_target = routeTarget;
+            handshake.query.routeTarget = routeTarget;
+        }
+    }
     const socket: Socket = io(identity.endpointUrl, {
         auth: handshake.auth,
         query: handshake.query,

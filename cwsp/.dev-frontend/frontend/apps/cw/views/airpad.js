@@ -1,5 +1,5 @@
 import { Cn as unifiedMessaging, Fn as loadAsAdopted, Nn as BROADCAST_CHANNELS, R as initToastReceiver, Rn as removeAdopted, V as showToast, a as summarizeForLog, an as H, c as copy, f as eventTargetElement, i as dispatchViewTransfer, l as initClipboardReceiver, pt as loadSettings } from "../com/app.js";
-import { M as storeShareTargetPayloadToCache$1, k as consumeCachedShareTargetPayload$1 } from "../com/service.js";
+import { A as consumeCachedShareTargetPayload$1, N as storeShareTargetPayloadToCache$1 } from "../com/service.js";
 import { t as lookup } from "../vendor/socket.io-client.js";
 //#region src/frontend/pwa/sw-url.ts
 var isLikelyJavaScriptContentType = (contentType) => {
@@ -1296,6 +1296,259 @@ var checkPendingShareData = async () => {
 	}
 };
 //#endregion
+//#region src/frontend/views/airpad/credential-cache-bridge.ts
+var impl = null;
+/** Called from websocket.ts at module load. */
+function setAirpadCredentialInvalidator(fn) {
+	impl = fn;
+}
+/** Clear AES/HMAC key caches when transport secrets or mode change. */
+function invalidateAirpadTransportCredentials() {
+	try {
+		impl?.();
+	} catch {}
+}
+//#endregion
+//#region src/frontend/views/airpad/config/config.ts
+var STORAGE_KEY = "airpad.remote.connection.v1";
+var toTrimmedString = (value) => {
+	if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
+	return typeof value === "string" ? value.trim() : "";
+};
+var hasExplicitPort = (value) => {
+	const valueTrimmed = value.trim();
+	if (!valueTrimmed) return false;
+	const hostSpec = valueTrimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split("/")[0];
+	const at = hostSpec.lastIndexOf(":");
+	if (at <= 0) return false;
+	const port = hostSpec.slice(at + 1);
+	return /^\d{1,5}$/.test(port);
+};
+var appendPort = (value, port) => {
+	const valueTrimmed = value.trim();
+	if (!valueTrimmed) return "";
+	const portTrimmed = port.trim();
+	if (!portTrimmed) return valueTrimmed;
+	if (hasExplicitPort(valueTrimmed)) return valueTrimmed;
+	return `${valueTrimmed}:${portTrimmed}`;
+};
+function loadStoredRemoteConfig() {
+	try {
+		const raw = globalThis?.localStorage?.getItem?.(STORAGE_KEY);
+		if (!raw) return {};
+		const parsed = JSON.parse(raw);
+		if (!parsed || typeof parsed !== "object") return {};
+		const source = parsed;
+		const sourceHost = toTrimmedString(source.host);
+		const sourceTunnelHost = toTrimmedString(source.tunnelHost);
+		const sourcePort = toTrimmedString(source.port);
+		if (!(sourcePort !== "" || sourceTunnelHost !== "")) return parsed;
+		const hostParts = [];
+		const seen = /* @__PURE__ */ new Set();
+		const addHostPart = (hostValue) => {
+			const normalized = (sourcePort ? appendPort(hostValue, sourcePort) : hostValue).trim();
+			if (!normalized || seen.has(normalized)) return;
+			seen.add(normalized);
+			hostParts.push(normalized);
+		};
+		if (sourceHost) addHostPart(sourceHost);
+		if (sourceTunnelHost) addHostPart(sourceTunnelHost);
+		if (!sourceHost && !sourceTunnelHost && sourcePort && location?.hostname) addHostPart(`${location.hostname}:${sourcePort}`);
+		return {
+			...parsed,
+			host: hostParts.join(", "),
+			_legacyMigrated: true
+		};
+	} catch {
+		return {};
+	}
+}
+var readGlobalAirpadValue = (keys) => {
+	const globalValue = globalThis.AIRPAD_CONFIG;
+	for (const key of keys) {
+		const direct = globalThis[key];
+		if (typeof direct === "string" && direct.trim()) return direct.trim();
+		const fromConfig = globalValue && typeof globalValue === "object" && typeof globalValue[key] === "string" ? globalValue[key] : "";
+		if (fromConfig.trim()) return String(fromConfig).trim();
+	}
+	return "";
+};
+function persistRemoteConfig() {
+	try {
+		globalThis?.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify({
+			host: remoteHost,
+			protocol: remoteProtocol,
+			routeTarget: remoteRouteTarget,
+			transportMode: remoteConfig.transportMode,
+			authToken: remoteConfig.authToken,
+			clientId: remoteConfig.clientId,
+			peerInstanceId: remoteConfig.peerInstanceId,
+			transportSecret: remoteConfig.transportSecret,
+			signingSecret: remoteConfig.signingSecret
+		}));
+	} catch {}
+}
+var createPeerInstanceId = () => {
+	if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+	return `ap-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+};
+var remoteConfig = {
+	transportMode: "plaintext",
+	authToken: "",
+	clientId: "",
+	peerInstanceId: "",
+	transportSecret: "",
+	signingSecret: ""
+};
+/** IndexedDB “Server” tab: userId/userKey as fallbacks for AirPad when local client/token empty (CWS_ASSOCIATED_*). */
+var coreIdentityBridgeUserId = "";
+var coreIdentityBridgeUserKey = "";
+var coreIdentityUseForAirpad = true;
+/** Shell / Capacitor toggles (coordinator + future native bridges). */
+var shellRemoteClipboardEnabled = true;
+var shellNativeSmsEnabled = true;
+var shellNativeContactsEnabled = true;
+var remoteHost = "";
+var remoteProtocol = "auto";
+var remoteRouteTarget = "";
+/**
+* Apply settings from a stored blob (localStorage shape). Safe to call on tab focus / storage events.
+*/
+function hydrateFromStored(stored) {
+	const locHost = typeof location !== "undefined" ? location.hostname || "" : "";
+	remoteHost = (stored.host || locHost || "").trim();
+	remoteProtocol = stored.protocol === "http" || stored.protocol === "https" || stored.protocol === "auto" ? stored.protocol : "auto";
+	remoteRouteTarget = (stored.routeTarget || readGlobalAirpadValue(["AIRPAD_ROUTE_TARGET"]) || "").trim();
+	remoteConfig.transportMode = stored.transportMode === "secure" ? "secure" : "plaintext";
+	remoteConfig.authToken = stored.authToken || "";
+	remoteConfig.clientId = stored.clientId || "";
+	const storedPeer = toTrimmedString(stored.peerInstanceId);
+	if (storedPeer) remoteConfig.peerInstanceId = storedPeer;
+	else if (!remoteConfig.peerInstanceId) remoteConfig.peerInstanceId = createPeerInstanceId();
+	remoteConfig.transportSecret = stored.transportSecret || "";
+	remoteConfig.signingSecret = stored.signingSecret || "";
+}
+var stored = loadStoredRemoteConfig();
+hydrateFromStored(stored);
+if (!toTrimmedString(stored.peerInstanceId)) remoteConfig.peerInstanceId = remoteConfig.peerInstanceId || createPeerInstanceId();
+if (stored._legacyMigrated === true || !stored.peerInstanceId) persistRemoteConfig();
+/** Re-read localStorage (e.g. after another tab saved, or before mounting AirPad). */
+function reloadAirpadRemoteConfigFromStorage() {
+	hydrateFromStored(loadStoredRemoteConfig());
+}
+/** When another tab updates AirPad settings, refresh in-memory state and crypto caches. */
+function attachAirpadCrossTabConfigSync() {
+	const onStorage = (e) => {
+		if (e.key !== STORAGE_KEY || e.newValue == null) return;
+		reloadAirpadRemoteConfigFromStorage();
+		invalidateAirpadTransportCredentials();
+	};
+	globalThis.addEventListener?.("storage", onStorage);
+	return () => globalThis.removeEventListener?.("storage", onStorage);
+}
+function applyAirpadRemoteConfig(input) {
+	let secretsOrModeChanged = false;
+	if (input.host !== void 0) remoteHost = (input.host || "").trim();
+	if (input.protocol !== void 0) remoteProtocol = input.protocol === "http" || input.protocol === "https" ? input.protocol : "auto";
+	if (input.routeTarget !== void 0) remoteRouteTarget = (input.routeTarget || "").trim();
+	if (input.transportMode !== void 0) {
+		const next = input.transportMode === "secure" ? "secure" : "plaintext";
+		if (next !== remoteConfig.transportMode) secretsOrModeChanged = true;
+		remoteConfig.transportMode = next;
+	}
+	if (input.authToken !== void 0) remoteConfig.authToken = input.authToken || "";
+	if (input.clientId !== void 0) remoteConfig.clientId = input.clientId || "";
+	if (input.transportSecret !== void 0) {
+		remoteConfig.transportSecret = input.transportSecret || "";
+		secretsOrModeChanged = true;
+	}
+	if (input.signingSecret !== void 0) {
+		remoteConfig.signingSecret = input.signingSecret || "";
+		secretsOrModeChanged = true;
+	}
+	persistRemoteConfig();
+	if (secretsOrModeChanged) invalidateAirpadTransportCredentials();
+}
+var endpointUrlToAirpadConnectHost = (endpointUrl) => {
+	try {
+		const u = new URL(endpointUrl);
+		return `${u.protocol}//${u.host}`;
+	} catch {
+		return "";
+	}
+};
+/**
+* Apply CrossWord AppSettings shell + identity overlay (call after load/save settings and on boot).
+* Does not clear AirPad localStorage fields; only updates in-memory host/route when shell requests it.
+*/
+function applyAirpadRuntimeFromAppSettings(settings) {
+	const core = settings.core;
+	const shell = settings.shell;
+	coreIdentityBridgeUserId = (core?.userId || "").trim();
+	coreIdentityBridgeUserKey = (core?.userKey || "").trim();
+	coreIdentityUseForAirpad = (core?.useCoreIdentityForAirPad ?? true) !== false;
+	shellRemoteClipboardEnabled = (shell?.enableRemoteClipboardBridge ?? true) !== false;
+	shellNativeSmsEnabled = (shell?.enableNativeSms ?? true) !== false;
+	shellNativeContactsEnabled = (shell?.enableNativeContacts ?? true) !== false;
+	const input = {};
+	if (shell?.syncAirPadHostFromEndpointUrl && core?.endpointUrl?.trim()) {
+		const origin = endpointUrlToAirpadConnectHost(core.endpointUrl.trim());
+		if (origin) input.host = origin;
+	} else if (shell?.airPadConnectHosts?.trim()) input.host = shell.airPadConnectHosts.trim();
+	const routeT = (shell?.airPadRouteTarget || "").trim();
+	if (routeT) input.routeTarget = routeT;
+	if (Object.keys(input).length) applyAirpadRemoteConfig(input);
+	try {
+		globalThis.__CWS_SHELL_FEATURES__ = {
+			clipboardBridge: shellRemoteClipboardEnabled,
+			sms: shellNativeSmsEnabled,
+			contacts: shellNativeContactsEnabled
+		};
+	} catch {}
+}
+function isShellRemoteClipboardBridgeEnabled() {
+	return shellRemoteClipboardEnabled !== false;
+}
+function getRemoteHost() {
+	return remoteHost;
+}
+function getRemoteRouteTarget() {
+	return remoteRouteTarget;
+}
+function getRemoteProtocol() {
+	return remoteProtocol;
+}
+function getAirPadTransportMode() {
+	const envMode = readGlobalAirpadValue(["AIRPAD_TRANSPORT_MODE", "AIRPAD_TRANSPORT"]);
+	if (envMode === "secure" || envMode === "plaintext") return envMode;
+	return remoteConfig.transportMode === "secure" ? "secure" : "plaintext";
+}
+function getAirPadAuthToken() {
+	const local = (remoteConfig.authToken || "").trim();
+	if (local) return local;
+	if (coreIdentityUseForAirpad && coreIdentityBridgeUserKey.trim()) return coreIdentityBridgeUserKey.trim();
+	return readGlobalAirpadValue(["AIRPAD_AUTH_TOKEN", "AIRPAD_TOKEN"]);
+}
+function getAirPadClientId() {
+	const local = (remoteConfig.clientId || "").trim();
+	if (local) return local;
+	if (coreIdentityUseForAirpad && coreIdentityBridgeUserId.trim()) return coreIdentityBridgeUserId.trim();
+	return readGlobalAirpadValue(["AIRPAD_CLIENT_ID", "AIRPAD_CLIENT"]);
+}
+function getAirPadPeerInstanceId() {
+	const env = readGlobalAirpadValue(["AIRPAD_PEER_INSTANCE_ID", "AIRPAD_DEVICE_ID"]);
+	if (env.trim()) return env.trim();
+	return remoteConfig.peerInstanceId || "";
+}
+function getAirPadTransportSecret() {
+	return remoteConfig.transportSecret || readGlobalAirpadValue(["AIRPAD_TRANSPORT_SECRET", "AIRPAD_MASTER_KEY"]);
+}
+function getAirPadSigningSecret() {
+	return remoteConfig.signingSecret || readGlobalAirpadValue(["AIRPAD_SIGNING_SECRET", "AIRPAD_HMAC_SECRET"]);
+}
+var REL_ORIENT_DEADZONE = .001;
+var REL_ORIENT_SMOOTH = .8;
+//#endregion
 //#region src/frontend/views/airpad/utils/utils.ts
 /** Airpad markup mount node (set on mount, cleared on unmount). Avoid `document.getElementById` — IDs may not be in the document tree (routed host, shadow, iframe). */
 var airpadDomRoot = null;
@@ -1622,205 +1875,6 @@ var KEYBOARD_LAYOUT_UPPER = [
 	]
 ];
 //#endregion
-//#region src/frontend/views/airpad/credential-cache-bridge.ts
-var impl = null;
-/** Called from websocket.ts at module load. */
-function setAirpadCredentialInvalidator(fn) {
-	impl = fn;
-}
-/** Clear AES/HMAC key caches when transport secrets or mode change. */
-function invalidateAirpadTransportCredentials() {
-	try {
-		impl?.();
-	} catch {}
-}
-//#endregion
-//#region src/frontend/views/airpad/config/config.ts
-var STORAGE_KEY = "airpad.remote.connection.v1";
-var toTrimmedString = (value) => {
-	if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
-	return typeof value === "string" ? value.trim() : "";
-};
-var hasExplicitPort = (value) => {
-	const valueTrimmed = value.trim();
-	if (!valueTrimmed) return false;
-	const hostSpec = valueTrimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "").split("/")[0];
-	const at = hostSpec.lastIndexOf(":");
-	if (at <= 0) return false;
-	const port = hostSpec.slice(at + 1);
-	return /^\d{1,5}$/.test(port);
-};
-var appendPort = (value, port) => {
-	const valueTrimmed = value.trim();
-	if (!valueTrimmed) return "";
-	const portTrimmed = port.trim();
-	if (!portTrimmed) return valueTrimmed;
-	if (hasExplicitPort(valueTrimmed)) return valueTrimmed;
-	return `${valueTrimmed}:${portTrimmed}`;
-};
-function loadStoredRemoteConfig() {
-	try {
-		const raw = globalThis?.localStorage?.getItem?.(STORAGE_KEY);
-		if (!raw) return {};
-		const parsed = JSON.parse(raw);
-		if (!parsed || typeof parsed !== "object") return {};
-		const source = parsed;
-		const sourceHost = toTrimmedString(source.host);
-		const sourceTunnelHost = toTrimmedString(source.tunnelHost);
-		const sourcePort = toTrimmedString(source.port);
-		if (!(sourcePort !== "" || sourceTunnelHost !== "")) return parsed;
-		const hostParts = [];
-		const seen = /* @__PURE__ */ new Set();
-		const addHostPart = (hostValue) => {
-			const normalized = (sourcePort ? appendPort(hostValue, sourcePort) : hostValue).trim();
-			if (!normalized || seen.has(normalized)) return;
-			seen.add(normalized);
-			hostParts.push(normalized);
-		};
-		if (sourceHost) addHostPart(sourceHost);
-		if (sourceTunnelHost) addHostPart(sourceTunnelHost);
-		if (!sourceHost && !sourceTunnelHost && sourcePort && location?.hostname) addHostPart(`${location.hostname}:${sourcePort}`);
-		return {
-			...parsed,
-			host: hostParts.join(", "),
-			_legacyMigrated: true
-		};
-	} catch {
-		return {};
-	}
-}
-var readGlobalAirpadValue = (keys) => {
-	const globalValue = globalThis.AIRPAD_CONFIG;
-	for (const key of keys) {
-		const direct = globalThis[key];
-		if (typeof direct === "string" && direct.trim()) return direct.trim();
-		const fromConfig = globalValue && typeof globalValue === "object" && typeof globalValue[key] === "string" ? globalValue[key] : "";
-		if (fromConfig.trim()) return String(fromConfig).trim();
-	}
-	return "";
-};
-function persistRemoteConfig() {
-	try {
-		globalThis?.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify({
-			host: remoteHost,
-			protocol: remoteProtocol,
-			routeTarget: remoteRouteTarget,
-			transportMode: remoteConfig.transportMode,
-			authToken: remoteConfig.authToken,
-			clientId: remoteConfig.clientId,
-			peerInstanceId: remoteConfig.peerInstanceId,
-			transportSecret: remoteConfig.transportSecret,
-			signingSecret: remoteConfig.signingSecret
-		}));
-	} catch {}
-}
-var createPeerInstanceId = () => {
-	if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
-	return `ap-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-};
-var remoteConfig = {
-	transportMode: "plaintext",
-	authToken: "",
-	clientId: "",
-	peerInstanceId: "",
-	transportSecret: "",
-	signingSecret: ""
-};
-var remoteHost = "";
-var remoteProtocol = "auto";
-var remoteRouteTarget = "";
-/**
-* Apply settings from a stored blob (localStorage shape). Safe to call on tab focus / storage events.
-*/
-function hydrateFromStored(stored) {
-	const locHost = typeof location !== "undefined" ? location.hostname || "" : "";
-	remoteHost = (stored.host || locHost || "").trim();
-	remoteProtocol = stored.protocol === "http" || stored.protocol === "https" || stored.protocol === "auto" ? stored.protocol : "auto";
-	remoteRouteTarget = (stored.routeTarget || readGlobalAirpadValue(["AIRPAD_ROUTE_TARGET"]) || "").trim();
-	remoteConfig.transportMode = stored.transportMode === "secure" ? "secure" : "plaintext";
-	remoteConfig.authToken = stored.authToken || "";
-	remoteConfig.clientId = stored.clientId || "";
-	const storedPeer = toTrimmedString(stored.peerInstanceId);
-	if (storedPeer) remoteConfig.peerInstanceId = storedPeer;
-	else if (!remoteConfig.peerInstanceId) remoteConfig.peerInstanceId = createPeerInstanceId();
-	remoteConfig.transportSecret = stored.transportSecret || "";
-	remoteConfig.signingSecret = stored.signingSecret || "";
-}
-var stored = loadStoredRemoteConfig();
-hydrateFromStored(stored);
-if (!toTrimmedString(stored.peerInstanceId)) remoteConfig.peerInstanceId = remoteConfig.peerInstanceId || createPeerInstanceId();
-if (stored._legacyMigrated === true || !stored.peerInstanceId) persistRemoteConfig();
-/** Re-read localStorage (e.g. after another tab saved, or before mounting AirPad). */
-function reloadAirpadRemoteConfigFromStorage() {
-	hydrateFromStored(loadStoredRemoteConfig());
-}
-/** When another tab updates AirPad settings, refresh in-memory state and crypto caches. */
-function attachAirpadCrossTabConfigSync() {
-	const onStorage = (e) => {
-		if (e.key !== STORAGE_KEY || e.newValue == null) return;
-		reloadAirpadRemoteConfigFromStorage();
-		invalidateAirpadTransportCredentials();
-	};
-	globalThis.addEventListener?.("storage", onStorage);
-	return () => globalThis.removeEventListener?.("storage", onStorage);
-}
-function applyAirpadRemoteConfig(input) {
-	let secretsOrModeChanged = false;
-	if (input.host !== void 0) remoteHost = (input.host || "").trim();
-	if (input.protocol !== void 0) remoteProtocol = input.protocol === "http" || input.protocol === "https" ? input.protocol : "auto";
-	if (input.routeTarget !== void 0) remoteRouteTarget = (input.routeTarget || "").trim();
-	if (input.transportMode !== void 0) {
-		const next = input.transportMode === "secure" ? "secure" : "plaintext";
-		if (next !== remoteConfig.transportMode) secretsOrModeChanged = true;
-		remoteConfig.transportMode = next;
-	}
-	if (input.authToken !== void 0) remoteConfig.authToken = input.authToken || "";
-	if (input.clientId !== void 0) remoteConfig.clientId = input.clientId || "";
-	if (input.transportSecret !== void 0) {
-		remoteConfig.transportSecret = input.transportSecret || "";
-		secretsOrModeChanged = true;
-	}
-	if (input.signingSecret !== void 0) {
-		remoteConfig.signingSecret = input.signingSecret || "";
-		secretsOrModeChanged = true;
-	}
-	persistRemoteConfig();
-	if (secretsOrModeChanged) invalidateAirpadTransportCredentials();
-}
-function getRemoteHost() {
-	return remoteHost;
-}
-function getRemoteRouteTarget() {
-	return remoteRouteTarget;
-}
-function getRemoteProtocol() {
-	return remoteProtocol;
-}
-function getAirPadTransportMode() {
-	const envMode = readGlobalAirpadValue(["AIRPAD_TRANSPORT_MODE", "AIRPAD_TRANSPORT"]);
-	if (envMode === "secure" || envMode === "plaintext") return envMode;
-	return remoteConfig.transportMode === "secure" ? "secure" : "plaintext";
-}
-function getAirPadAuthToken() {
-	return remoteConfig.authToken || readGlobalAirpadValue(["AIRPAD_AUTH_TOKEN", "AIRPAD_TOKEN"]);
-}
-function getAirPadClientId() {
-	return remoteConfig.clientId || readGlobalAirpadValue(["AIRPAD_CLIENT_ID", "AIRPAD_CLIENT"]);
-}
-function getAirPadPeerInstanceId() {
-	const env = readGlobalAirpadValue(["AIRPAD_PEER_INSTANCE_ID", "AIRPAD_DEVICE_ID"]);
-	if (env.trim()) return env.trim();
-	return remoteConfig.peerInstanceId || "";
-}
-function getAirPadTransportSecret() {
-	return remoteConfig.transportSecret || readGlobalAirpadValue(["AIRPAD_TRANSPORT_SECRET", "AIRPAD_MASTER_KEY"]);
-}
-function getAirPadSigningSecret() {
-	return remoteConfig.signingSecret || readGlobalAirpadValue(["AIRPAD_SIGNING_SECRET", "AIRPAD_HMAC_SECRET"]);
-}
-var REL_ORIENT_DEADZONE = .001;
-var REL_ORIENT_SMOOTH = .8;
-//#endregion
 //#region src/frontend/views/airpad/network/websocket.ts
 var socket = null;
 var wsConnected = false;
@@ -1847,6 +1901,19 @@ var AIRPAD_CANDIDATE_PARALLEL = 3;
 var AIRPAD_COORDINATOR_TIMEOUT_MS = 8e3;
 var AIRPAD_CONNECTION_TYPE = "exchanger-initiator";
 var AIRPAD_ARCHETYPE = "server-v2";
+/**
+* Chrome/Edge MV3: content-script XHR (Engine.IO polling) to LAN often fails with
+* `xhr poll error` / `unsafeHeaders` / `net::ERR_FAILED` while `wss:` still works.
+* Normal tabs keep polling-first for Private Network Access; extension skips polling to private IPs.
+*/
+var isChromiumExtensionRuntime = () => {
+	try {
+		const chromeApi = globalThis.chrome;
+		return typeof chromeApi?.runtime?.id === "string" && chromeApi.runtime.id.length > 0;
+	} catch {
+		return false;
+	}
+};
 var wsConnectionHandlers = /* @__PURE__ */ new Set();
 var clipboardHandlers = /* @__PURE__ */ new Set();
 var voiceResultHandlers = /* @__PURE__ */ new Set();
@@ -1959,6 +2026,7 @@ var handleCoordinatorPacket = (packet) => {
 		return;
 	}
 	if (packet.what === "clipboard:update") {
+		if (!isShellRemoteClipboardBridgeEnabled()) return;
 		const clipboardPayload = packet.result ?? packet.payload;
 		notifyClipboardHandlers(typeof clipboardPayload?.text === "string" ? clipboardPayload.text : "", { source: clipboardPayload?.source });
 	}
@@ -2407,8 +2475,10 @@ function connectWS() {
 			for (const port of getPortsForProtocol(protocol, hostPortOverride)) {
 				const hostBare = stripWireEndpointIdPrefix(host).trim() || host.trim();
 				const hostLooksPrivate = isIpv4Literal(hostBare) && isPrivateIp(hostBare);
-				const preferPollingFirst = location.protocol === "https:" && !isLocalPageHost && hostLooksPrivate;
-				const useWebSocketOnly = location.protocol === "https:" && isLocalPageHost && hostLooksPrivate;
+				const crossOriginHttpsToPrivateLan = location.protocol === "https:" && !isLocalPageHost && hostLooksPrivate;
+				const inExtension = isChromiumExtensionRuntime();
+				const preferPollingFirst = crossOriginHttpsToPrivateLan && !inExtension;
+				const useWebSocketOnly = location.protocol === "https:" && isLocalPageHost && hostLooksPrivate || inExtension && crossOriginHttpsToPrivateLan && hostLooksPrivate;
 				candidates.push({
 					url: `${protocol}://${host}:${port}`,
 					protocol,
@@ -2572,6 +2642,7 @@ function connectWS() {
 			handleServerMessage(await unwrapIncomingPayload(msg));
 		});
 		socket.on("clipboard:update", async (msg) => {
+			if (!isShellRemoteClipboardBridgeEnabled()) return;
 			const decoded = await unwrapIncomingPayload(msg);
 			notifyClipboardHandlers(typeof decoded?.text === "string" ? decoded.text : "", { source: decoded?.source });
 		});
@@ -2912,6 +2983,10 @@ var createPacketSocketIoKeyboardMessage = (codePoint, flags = 0) => {
 	return buffer;
 };
 var requestPacketSocketIoClipboardRead = async () => {
+	if (!isShellRemoteClipboardBridgeEnabled()) return {
+		ok: false,
+		error: "Remote clipboard bridge disabled in Settings → Server → Embedded shell."
+	};
 	try {
 		const text = await sendCoordinatorRequest("clipboard:get", {});
 		return {
@@ -2926,6 +3001,10 @@ var requestPacketSocketIoClipboardRead = async () => {
 	}
 };
 var requestPacketSocketIoClipboardCopy = async () => {
+	if (!isShellRemoteClipboardBridgeEnabled()) return {
+		ok: false,
+		error: "Remote clipboard bridge disabled in Settings → Server → Embedded shell."
+	};
 	try {
 		await sendCoordinatorRequest("keyboard:tap", {
 			key: "c",
@@ -2941,6 +3020,10 @@ var requestPacketSocketIoClipboardCopy = async () => {
 	}
 };
 var requestPacketSocketIoClipboardCut = async () => {
+	if (!isShellRemoteClipboardBridgeEnabled()) return {
+		ok: false,
+		error: "Remote clipboard bridge disabled in Settings → Server → Embedded shell."
+	};
 	try {
 		await sendCoordinatorRequest("keyboard:tap", {
 			key: "x",
@@ -2956,6 +3039,10 @@ var requestPacketSocketIoClipboardCut = async () => {
 	}
 };
 var requestPacketSocketIoClipboardPaste = async (text) => {
+	if (!isShellRemoteClipboardBridgeEnabled()) return {
+		ok: false,
+		error: "Remote clipboard bridge disabled in Settings → Server → Embedded shell."
+	};
 	try {
 		await sendCoordinatorRequest("clipboard:update", { text });
 		await sleep(20);
@@ -5637,4 +5724,4 @@ function createView(options) {
 /** Alias for createView */
 var createAirpadView = createView;
 //#endregion
-export { unmountAirpadRuntime as a, handleShareTarget as c, ensureServiceWorkerRegistered as d, mountAirpad as i, initReceivers as l, createAirpadView as n, checkPendingShareData as o, createView as r, ensureAppCss as s, AirpadView as t, setupLaunchQueueConsumer as u };
+export { unmountAirpadRuntime as a, ensureAppCss as c, setupLaunchQueueConsumer as d, ensureServiceWorkerRegistered as f, mountAirpad as i, handleShareTarget as l, createAirpadView as n, applyAirpadRuntimeFromAppSettings as o, createView as r, checkPendingShareData as s, AirpadView as t, initReceivers as u };

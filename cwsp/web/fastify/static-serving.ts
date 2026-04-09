@@ -161,6 +161,7 @@ const lookupAssetWithFallback = async (pathname, reply) => {
  * Static file headers helper
  */
 const setStaticHeaders = (res, filePath) => {
+    if (res?.headersSent) return;
     const ext = filePath.split('.').pop()?.toLowerCase();
     const fileName = path.basename(filePath).toLowerCase();
     const isServiceWorkerRuntimeFile =

@@ -23,4 +23,4 @@ fi
 
 adb -s "$DEVICE" forward --remove tcp:9222 2>/dev/null || true
 adb -s "$DEVICE" forward tcp:9222 "localabstract:${SOCKET}"
-echo "[cwsp-adb] tcp:9222 forwarded. In VS Code run: CWSP Android WebView (attach :9222)"
+echo "[cwsp-adb] tcp:9222 forwarded. In VS Code run: CWSP Capacitor: WebView DevTools (attach :9222)"

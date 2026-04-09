@@ -1,5 +1,5 @@
 import { E as BaseElement_default, Fn as loadAsAdopted, Gt as parseDataUrl, It as buildInstructionPrompt, O as renderMathInElement, Pn as ROUTE_HASHES, Rn as removeAdopted, Sn as sendMessage, Ut as isBase64Like, Wt as normalizeDataAsset, a as summarizeForLog, an as H, bn as registerComponent, d as extractJSONFromAIResponse, dt as writeText, g, k as purify, m as src_default, tn as defineElement, vn as initializeComponent, yt as __decorate } from "../com/app.js";
-import { A as fetchCachedShareFiles, C as setActiveInstruction, S as getInstructionRegistry, k as consumeCachedShareTargetPayload, n as actionHistory, t as executionCore, x as getCustomInstructions } from "../com/service.js";
+import { A as consumeCachedShareTargetPayload, C as setActiveInstruction, S as getInstructionRegistry, j as fetchCachedShareFiles, n as actionHistory, t as executionCore, x as getCustomInstructions } from "../com/service.js";
 //#region src/frontend/views/workcenter/ts/WorkCenterState.ts
 var WorkCenterStateManager = class {
 	static STORAGE_KEY = "rs-workcenter-state";

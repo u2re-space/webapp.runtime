@@ -104,7 +104,7 @@ if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_HTTPS_ENABLED")) {
 module.exports = {
     apps: [
         {
-            name: "cwsp-server",
+            name: "cwsp",
             cwd: __dirname,
             script: NODE_BIN,
             args: ["./node_modules/tsx/dist/cli.mjs", "server/index.ts"],

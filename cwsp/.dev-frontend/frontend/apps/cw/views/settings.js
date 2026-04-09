@@ -1,3 +1,4 @@
+import { o as applyAirpadRuntimeFromAppSettings } from "./airpad.js";
 import { Fn as loadAsAdopted, Rn as removeAdopted, S as setString, Tn as DEFAULT_INSTRUCTION_TEMPLATES, U as applyTheme, an as H, fn as ref, ht as BUILTIN_AI_MODELS, mt as saveSettings, pt as loadSettings, un as observe, v as StorageKeys } from "../com/app.js";
 import { C as setActiveInstruction, D as resolveAdminDoorUrls, S as getInstructionRegistry, T as openAdminDoorFromCore, _ as addInstructions, g as addInstruction, v as deleteInstruction, w as updateInstruction } from "../com/service.js";
 import { o as navigateToView } from "../shells/boot-index.js";
@@ -533,11 +534,13 @@ var createSettingsView = (opts) => {
     <section class="card settings-tab-panel" data-tab-panel="server">
       <h3>Server &amp; admin</h3>
       <p class="field-hint" style="margin: 0 0 0.75rem; opacity: 0.88; font-size: 0.9em;">
-        Endpoint sync, TLS hints for cwsp/Electron/Capacitor, and quick links to the CWS admin UI (HTTPS :8443, HTTP :8080).
-        Airpad still has its own peer <strong>Client ID</strong> in the Airpad configuration overlay.
-        On <strong>Android (Capacitor cwsp)</strong>, these values are the same as in the browser; cleartext HTTP to LAN hosts may need extra
-        <code>&lt;domain&gt;</code> entries in cwsp <code>resources/android/network_security_config.xml</code> (re-applied after <code>cap sync</code>).
-        Self-signed HTTPS: install the server CA on the device or use a trusted certificate.
+        Endpoint, admin doors (HTTPS :8443, HTTP :8080), and <strong>associated identity</strong> for cwsp / endpoint env
+        (<code>CWS_ASSOCIATED_ID</code> / <code>CWS_ASSOCIATED_TOKEN</code>).
+        When enabled below, the same User ID / User key can back AirPad transport if its overlay fields are empty.
+        On <strong>Android (Capacitor cwsp)</strong>, cleartext HTTP to LAN may need <code>&lt;domain&gt;</code> rows in
+        <code>resources/android/network_security_config.xml</code> (re-run <code>cap:patch:android-net</code> after <code>cap sync</code>).
+        <strong>ADB WebView debug:</strong> run task <code>cwsp: adb forward WebView devtools (9222)</code>, then attach with
+        <code>CWSP Android WebView (attach :9222)</code> (device default <code>192.168.0.196:5555</code>, override <code>CWS_ADB_DEVICE</code>).
       </p>
       <label class="field">
         <span>Core mode</span>
@@ -551,12 +554,16 @@ var createSettingsView = (opts) => {
         <input class="form-input" type="url" inputmode="url" autocomplete="off" placeholder="https://host:6065 or http://localhost:6065" data-field="core.endpointUrl" />
       </label>
       <label class="field">
-        <span>User ID</span>
-        <input class="form-input" type="text" autocomplete="off" data-field="core.userId" />
+        <span>Associated client ID (User ID)</span>
+        <input class="form-input" type="text" autocomplete="off" data-field="core.userId" placeholder="CWS_ASSOCIATED_ID / bridge client" />
       </label>
       <label class="field">
-        <span>User key</span>
-        <input class="form-input" type="password" autocomplete="off" data-field="core.userKey" />
+        <span>Associated token (User key)</span>
+        <input class="form-input" type="password" autocomplete="off" data-field="core.userKey" placeholder="CWS_ASSOCIATED_TOKEN" />
+      </label>
+      <label class="field checkbox form-checkbox">
+        <input type="checkbox" data-field="core.useCoreIdentityForAirPad" />
+        <span>Use these for AirPad when overlay Client ID / token are empty</span>
       </label>
       <label class="field checkbox form-checkbox">
         <input type="checkbox" data-field="core.preferBackendSync" />
@@ -598,6 +605,34 @@ var createSettingsView = (opts) => {
         <button class="btn" type="button" data-action="copy-admin-http">Copy HTTP URL</button>
       </div>
       <p class="mcp-empty-note" data-admin-preview style="margin-top: 0.75rem; word-break: break-all;"></p>
+      <h4>Embedded shell (Capacitor / WebView)</h4>
+      <p class="field-hint" style="margin: 0 0 0.75rem; opacity: 0.88; font-size: 0.9em;">
+        Defaults for AirPad hub/tunnel and coordinator features (aligned with CWSAndroid-style toggles). Clipboard gate applies to web AirPad coordinator calls; SMS/contacts are stored for future native bridges.
+      </p>
+      <label class="field">
+        <span>AirPad connect host(s)</span>
+        <input class="form-input" type="text" autocomplete="off" data-field="shell.airPadConnectHosts" placeholder="host:port or https://host:443 (comma-separated)" />
+      </label>
+      <label class="field">
+        <span>AirPad destination / route target ID</span>
+        <input class="form-input" type="text" autocomplete="off" data-field="shell.airPadRouteTarget" placeholder="peer or device id" />
+      </label>
+      <label class="field checkbox form-checkbox">
+        <input type="checkbox" data-field="shell.syncAirPadHostFromEndpointUrl" />
+        <span>Set AirPad connect host from Endpoint base URL origin (when saved)</span>
+      </label>
+      <label class="field checkbox form-checkbox">
+        <input type="checkbox" data-field="shell.enableRemoteClipboardBridge" />
+        <span>Enable remote clipboard bridge (coordinator / server clipboard)</span>
+      </label>
+      <label class="field checkbox form-checkbox">
+        <input type="checkbox" data-field="shell.enableNativeSms" />
+        <span>Allow native SMS bridge (shell must implement)</span>
+      </label>
+      <label class="field checkbox form-checkbox">
+        <input type="checkbox" data-field="shell.enableNativeContacts" />
+        <span>Allow native contacts bridge (shell must implement)</span>
+      </label>
     </section>
 
     <section class="card settings-tab-panel" data-tab-panel="instructions" data-section="instructions">
@@ -707,6 +742,13 @@ var createSettingsView = (opts) => {
 	const coreAdminHttps = field("[data-field=\"core.admin.httpsOrigin\"]");
 	const coreAdminHttp = field("[data-field=\"core.admin.httpOrigin\"]");
 	const coreAdminPath = field("[data-field=\"core.admin.path\"]");
+	const coreUseCoreIdentityAirpad = field("[data-field=\"core.useCoreIdentityForAirPad\"]");
+	const shellAirPadHosts = field("[data-field=\"shell.airPadConnectHosts\"]");
+	const shellAirPadRoute = field("[data-field=\"shell.airPadRouteTarget\"]");
+	const shellSyncEndpointHost = field("[data-field=\"shell.syncAirPadHostFromEndpointUrl\"]");
+	const shellClipboard = field("[data-field=\"shell.enableRemoteClipboardBridge\"]");
+	const shellSms = field("[data-field=\"shell.enableNativeSms\"]");
+	const shellContacts = field("[data-field=\"shell.enableNativeContacts\"]");
 	const adminPreview = root.querySelector("[data-admin-preview]");
 	const mcpSection = root.querySelector("[data-mcp-section]");
 	const extSection = root.querySelector("[data-section=\"extension\"]");
@@ -784,6 +826,7 @@ var createSettingsView = (opts) => {
 		preferBackendSync: (corePreferBackendSync?.checked ?? true) !== false,
 		appClientId: coreAppClientId?.value?.trim() || "",
 		allowInsecureTls: Boolean(coreAllowInsecureTls?.checked),
+		useCoreIdentityForAirPad: (coreUseCoreIdentityAirpad?.checked ?? true) !== false,
 		admin: {
 			httpsOrigin: coreAdminHttps?.value?.trim() || "",
 			httpOrigin: coreAdminHttp?.value?.trim() || "",
@@ -942,13 +985,21 @@ var createSettingsView = (opts) => {
 		if (corePreferBackendSync) corePreferBackendSync.checked = (s?.core?.preferBackendSync ?? true) !== false;
 		if (coreEncrypt) coreEncrypt.checked = Boolean(s?.core?.encrypt);
 		if (coreAppClientId) coreAppClientId.value = (s?.core?.appClientId || "").trim();
+		if (coreUseCoreIdentityAirpad) coreUseCoreIdentityAirpad.checked = (s?.core?.useCoreIdentityForAirPad ?? true) !== false;
 		if (coreAllowInsecureTls) coreAllowInsecureTls.checked = Boolean(s?.core?.allowInsecureTls);
 		if (coreOpsAllowUnencrypted) coreOpsAllowUnencrypted.checked = Boolean(s?.core?.ops?.allowUnencrypted);
 		if (coreAdminHttps) coreAdminHttps.value = (s?.core?.admin?.httpsOrigin || "").trim();
 		if (coreAdminHttp) coreAdminHttp.value = (s?.core?.admin?.httpOrigin || "").trim();
 		if (coreAdminPath) coreAdminPath.value = (s?.core?.admin?.path || "/").trim() || "/";
+		if (shellAirPadHosts) shellAirPadHosts.value = (s?.shell?.airPadConnectHosts || "").trim();
+		if (shellAirPadRoute) shellAirPadRoute.value = (s?.shell?.airPadRouteTarget || "").trim();
+		if (shellSyncEndpointHost) shellSyncEndpointHost.checked = Boolean(s?.shell?.syncAirPadHostFromEndpointUrl);
+		if (shellClipboard) shellClipboard.checked = (s?.shell?.enableRemoteClipboardBridge ?? true) !== false;
+		if (shellSms) shellSms.checked = (s?.shell?.enableNativeSms ?? true) !== false;
+		if (shellContacts) shellContacts.checked = (s?.shell?.enableNativeContacts ?? true) !== false;
 		refreshAdminDoorPreview();
 		renderMcpConfigurations(Array.isArray(s?.ai?.mcp) ? s.ai.mcp : []);
+		applyAirpadRuntimeFromAppSettings(s);
 		opts.onTheme?.(theme?.value || "auto");
 	}).catch(() => {
 		renderMcpConfigurations([]);
@@ -1062,6 +1113,7 @@ var createSettingsView = (opts) => {
 					preferBackendSync: (corePreferBackendSync?.checked ?? true) !== false,
 					appClientId: coreAppClientId?.value?.trim() || "",
 					allowInsecureTls: Boolean(coreAllowInsecureTls?.checked),
+					useCoreIdentityForAirPad: (coreUseCoreIdentityAirpad?.checked ?? true) !== false,
 					admin: {
 						...current.core?.admin || {},
 						httpsOrigin: coreAdminHttps?.value?.trim() || "",
@@ -1072,6 +1124,15 @@ var createSettingsView = (opts) => {
 						...current.core?.ops || {},
 						allowUnencrypted: Boolean(coreOpsAllowUnencrypted?.checked)
 					}
+				},
+				shell: {
+					...current.shell || {},
+					airPadConnectHosts: shellAirPadHosts?.value?.trim() || "",
+					airPadRouteTarget: shellAirPadRoute?.value?.trim() || "",
+					syncAirPadHostFromEndpointUrl: Boolean(shellSyncEndpointHost?.checked),
+					enableRemoteClipboardBridge: (shellClipboard?.checked ?? true) !== false,
+					enableNativeSms: (shellSms?.checked ?? true) !== false,
+					enableNativeContacts: (shellContacts?.checked ?? true) !== false
 				},
 				appearance: {
 					theme: theme?.value || "auto",
@@ -1108,6 +1169,7 @@ var createSettingsView = (opts) => {
 					}
 				}
 			});
+			applyAirpadRuntimeFromAppSettings(saved);
 			applyTheme(saved);
 			opts.onTheme?.(saved.appearance?.theme || "auto");
 			setNote("Saved.");

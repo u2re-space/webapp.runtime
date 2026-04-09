@@ -74,6 +74,18 @@ const isStaticFilePath = (pathname) => {
     return ext && ext.length > 1 && !pathname.endsWith('/');
 };
 
+const isResponseCommitted = (reply) => {
+    if (!reply) return false;
+    if (reply.sent) return true;
+    const raw = reply.raw;
+    if (!raw) return false;
+    if (raw.headersSent) return true;
+    if (raw.writableEnded) return true;
+    const stream = raw.stream;
+    if (stream?.headersSent) return true;
+    return false;
+};
+
 export function registerErrorHandling(fastify, options = {}) {
     // ========================================================================
     // SPA FALLBACK & 404 HANDLING
@@ -118,20 +130,39 @@ export function registerErrorHandling(fastify, options = {}) {
     // Custom error handler for 500s and other errors
     fastify.setErrorHandler(async (error, req, reply) => {
         const statusCode = error.statusCode || 500;
+        const code = error?.code ? String(error.code) : '';
+
+        if (code === 'ERR_HTTP_HEADERS_SENT' || isResponseCommitted(reply)) {
+            console.error(
+                `[Error ${statusCode}] (response already started, not sending body)`,
+                error.message,
+                req.url
+            );
+            return;
+        }
         console.error(`[Error ${statusCode}]`, error.message, req.url);
 
         if (statusCode === 404) {
-            return reply
-                .code(404)
-                .header('Content-Type', 'text/html; charset=utf-8')
-                .send(generate404Page(req.url));
+            try {
+                return await reply
+                    .code(404)
+                    .header('Content-Type', 'text/html; charset=utf-8')
+                    .send(generate404Page(req.url));
+            } catch (sendErr) {
+                if (sendErr?.code === 'ERR_HTTP_HEADERS_SENT') return;
+                throw sendErr;
+            }
         }
 
-        // For other errors, return JSON error response
-        return reply.code(statusCode).send({
-            ok: false,
-            error: error.message || 'Internal Server Error',
-            statusCode
-        });
+        try {
+            return await reply.code(statusCode).send({
+                ok: false,
+                error: error.message || 'Internal Server Error',
+                statusCode
+            });
+        } catch (sendErr) {
+            if (sendErr?.code === 'ERR_HTTP_HEADERS_SENT') return;
+            throw sendErr;
+        }
     });
 }

@@ -6,6 +6,7 @@ import { normalizeInboundPacket } from "./packet.ts";
 import type { Packet } from "./types.ts";
 import { normalizeIpForMatch } from "../../utils/ip-match.ts";
 import { readServerV2ConfigSnapshot } from "../config/storage.ts";
+import { normalizeNetworkAliasMap, resolveNetworkAlias } from "@utils/topology.ts";
 
 //
 export const SELF_DATA = {
@@ -42,7 +43,27 @@ const FAILED_NODE_RETRY_MS = Math.max(1000, Number(process.env.CWS_SOCKET_FAILED
 const isSocketTraceEnabled = () => {
     const verbose = String(process.env.CWS_AIRPAD_VERBOSE || "").trim().toLowerCase();
     const tunnelDebug = String(process.env.CWS_TUNNEL_DEBUG || "").trim().toLowerCase();
-    return ["1", "true", "yes", "on"].includes(verbose) || ["1", "true", "yes", "on"].includes(tunnelDebug);
+    const socketTrace = String(process.env.CWS_SOCKET_TRACE || "").trim().toLowerCase();
+    return (
+        ["1", "true", "yes", "on"].includes(verbose) ||
+        ["1", "true", "yes", "on"].includes(tunnelDebug) ||
+        ["1", "true", "yes", "on"].includes(socketTrace)
+    );
+};
+
+const isRouteLogEnabled = () =>
+    ["1", "true", "yes", "on"].includes(String(process.env.CWS_ROUTE_LOG || "").trim().toLowerCase());
+
+const routeLog = (msg: string, details: Record<string, unknown> = {}) => {
+    if (!isRouteLogEnabled()) return;
+    console.log(
+        JSON.stringify({
+            ts: new Date().toISOString(),
+            channel: "cwsp-route",
+            msg,
+            ...details
+        })
+    );
 };
 
 const TRACE_SUPPRESSION_WINDOW_MS = 1000;
@@ -292,6 +313,28 @@ export const resolveKnownClientId = (candidate: unknown): string | null => {
     return pickCanonicalKnownClientId(entry, normalized);
 };
 
+/** Map portable `networkAliases` + knownClients so outbound dial uses the canonical endpointIDs key. */
+const resolveDialTargetId = (rawId: string): string | null => {
+    const normalized = normalizeNodeId(rawId);
+    if (!normalized) return null;
+    const directEntry = getKnownClientConfig(normalized);
+    if (directEntry) {
+        return pickCanonicalKnownClientId(directEntry, normalized) || normalized;
+    }
+    const snap = readServerV2ConfigSnapshot() as Record<string, unknown>;
+    const aliasMap = normalizeNetworkAliasMap(snap.networkAliases || {});
+    const mapped = resolveNetworkAlias(aliasMap, normalized.toLowerCase());
+    if (!mapped || mapped === normalized.toLowerCase()) return null;
+    for (const key of knownClients.keys()) {
+        if (!key) continue;
+        if (key.toLowerCase() === mapped || normalizeNodeId(key).toLowerCase() === mapped) {
+            const entry = knownClients.get(key);
+            return entry ? pickCanonicalKnownClientId(entry, key) || key : key;
+        }
+    }
+    return null;
+};
+
 const resolveConfiguredForwardNode = (selfId: string): string | null => {
     const selfConfig = getKnownClientConfig(selfId);
     if (!selfConfig?.flags?.gateway) {
@@ -483,7 +526,17 @@ const resolveLegacyTargetNodes = (socket: SocketConnect | SocketClient, selfId: 
         }
     }
     const knownOnly = resolved.filter((nodeId) => getKnownClientConfig(nodeId));
-    let out: string[] = knownOnly.length > 0 ? [...knownOnly] : resolved.length > 0 ? [...resolved] : [];
+    const hasUnknownExplicitTarget = resolved.some((nodeId) => !getKnownClientConfig(nodeId));
+    // If any handshake target is not in endpointIDs, keep the full explicit list — otherwise
+    // "knownOnly ⊂ resolved" drops LAN peers (e.g. L-192.168.0.110) when only the gateway id was registered.
+    let out: string[] =
+        resolved.length === 0
+            ? []
+            : hasUnknownExplicitTarget
+              ? uniqueNodeIds(resolved)
+              : knownOnly.length > 0
+                ? [...knownOnly]
+                : [...resolved];
 
     // Tunnel clients often send __airpad_route = WAN IP or host that aliases to this gateway (L-192.168.0.200).
     // populateToOthers excludes selfId, so "only gateway" collapses to [] and nothing reaches AirPad PC.
@@ -496,8 +549,17 @@ const resolveLegacyTargetNodes = (socket: SocketConnect | SocketClient, selfId: 
         const forward = resolveConfiguredForwardNode(selfId);
         if (out.length === 0 && forward) {
             out.push(forward);
+            routeLog("tunnel-inject-forward", { selfId, forward, query: { __airpad_via: query.__airpad_via, __airpad_endpoint: query.__airpad_endpoint } });
         }
     }
+
+    routeLog("resolve-legacy-targets", {
+        selfId,
+        resolved,
+        out,
+        isTunnelClient,
+        hasUnknownExplicitTarget
+    });
 
     if (out.length > 0) {
         return uniqueNodeIds(out);
@@ -1449,13 +1511,16 @@ const resolveTlsServername = (targetConfig: any, normalizedOrigin: string): stri
 
 //
 export const initiateConnection = async (forId: string, fromId: string): Promise<SocketWrapper | undefined> => { 
-    const targetConfig = getKnownClientConfig(forId);
+    const dialId = resolveDialTargetId(forId) || forId;
+    const targetConfig = getKnownClientConfig(dialId);
     if (!targetConfig) {
         traceSocket("initiate-skip", {
             from: fromId,
             target: forId,
+            dialId,
             reason: "missing-target-config"
         });
+        routeLog("initiate-skip", { from: fromId, target: forId, dialId, reason: "missing-target-config" });
         return undefined;
     }
     const origins = Array.isArray(targetConfig?.origins) ? targetConfig.origins : [];
@@ -1502,10 +1567,12 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
     traceSocket("initiate-start", {
         from: fromId,
         target: forId,
+        dialId,
         origins,
         candidateOrigins,
         rejectUnauthorized
     });
+    routeLog("initiate-start", { from: fromId, target: forId, dialId, candidateOriginsCount: candidateOrigins.length });
     for (const normalizedOrigin of candidateOrigins) {
         const tlsServername = resolveTlsServername(targetConfig, normalizedOrigin);
         const handshake = buildServerV2SocketHandshake({
@@ -1544,6 +1611,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
                 traceSocket("initiate-connect", {
                     from: fromId,
                     target: forId,
+                    dialId,
                     origin: normalizedOrigin,
                     tlsServername,
                     socketId: (rawSocket as any)?.id
@@ -1555,6 +1623,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
                 traceSocket("initiate-error", {
                     from: fromId,
                     target: forId,
+                    dialId,
                     origin: normalizedOrigin,
                     reason: normalizedError,
                     tlsHint: /ssl|tls|certificate|self[-\s]?signed|wrong version number|protocol/i.test(normalizedError)
@@ -1568,6 +1637,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
                 traceSocket("initiate-timeout", {
                     from: fromId,
                     target: forId,
+                    dialId,
                     origin: normalizedOrigin
                 });
                 rawSocket.close();
@@ -1583,57 +1653,77 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
     }
     traceSocket("initiate-failed", {
         from: fromId,
-        target: forId
+        target: forId,
+        dialId
     });
+    routeLog("initiate-failed", { from: fromId, target: forId, dialId });
     return undefined;
 }
 
 //
 export const findOrInitiateConnection = (id: string, selfId: string): SocketWrapper | Promise<SocketWrapper | undefined> | undefined => {
-    const localPeers = resolveLocalSocketWrappersForTarget(id);
+    const dialId = resolveDialTargetId(id) || id;
+    let localPeers = resolveLocalSocketWrappersForTarget(id);
+    if (localPeers.length === 0 && dialId !== id) {
+        localPeers = resolveLocalSocketWrappersForTarget(dialId);
+    }
     if (localPeers.length > 0) {
         const first = localPeers[0];
         traceSocket("find-cache-hit", {
             from: selfId,
             target: id,
+            dialId,
             cachedType: first instanceof SocketWrapper ? "socket" : "promise",
             localPeerCount: localPeers.length
         });
         return first;
     }
-    const retryInMs = getFailedNodeRetryDelay(id);
+    const retryInMs = getFailedNodeRetryDelay(id) || (dialId !== id ? getFailedNodeRetryDelay(dialId) : 0);
     if (retryInMs > 0) {
         traceSocket("find-cooldown", {
             from: selfId,
             target: id,
+            dialId,
             retryInMs
         });
         return undefined;
     }
     traceSocket("find-cache-miss", {
         from: selfId,
-        target: id
+        target: id,
+        dialId
     });
 
     const initiated: Promise<SocketWrapper | undefined> = initiateConnection(id, selfId)
         .then((socket) => {
             if (socket) {
-                clearFailedNodeConnection(id, socket.socketId, socket.peerId);
+                clearFailedNodeConnection(id, dialId, socket.socketId, socket.peerId);
                 traceSocket("find-cache-store", {
                     from: selfId,
                     target: id,
+                    dialId,
                     socketId: socket.socketId,
                     peer: socket.peerId
                 });
                 cacheNodeConnection(id, socket);
+                if (dialId !== id) {
+                    cacheNodeConnection(dialId, socket);
+                }
                 cacheNodeConnection(socket.socketId, socket);
             } else {
                 markFailedNodeConnection(id);
+                if (dialId !== id) {
+                    markFailedNodeConnection(dialId);
+                }
                 traceSocket("find-empty", {
                     from: selfId,
-                    target: id
+                    target: id,
+                    dialId
                 });
                 deleteCachedNodeConnection(id);
+                if (dialId !== id) {
+                    deleteCachedNodeConnection(dialId);
+                }
             }
             return socket;
         })

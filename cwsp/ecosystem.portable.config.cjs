@@ -1,6 +1,12 @@
 const path = require("node:path");
 
-/** PM2 from `cwsp/`: `npm run start:pm2`. From monorepo `runtime/`: `pm2 start ecosystem.config.cjs` (uses ../launcher.mjs). */
+/**
+ * PM2 — **compiled portable** (`npm run build:portable` → `dist/portable/cwsp.mjs`).
+ *   cd runtime/cwsp && npm run build:portable && pm2 start ecosystem.portable.config.cjs --only cwsp --update-env
+ *
+ * For **TS source** (tsx + `server/index.ts`), use `ecosystem.server.config.cjs` instead:
+ *   pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env
+ */
 module.exports = {
     apps: [
         {

@@ -1,5 +1,5 @@
 import { Bt as getCachedComponent, Cn as unifiedMessaging, Dt as clearAllCache, Fn as loadAsAdopted, Nn as BROADCAST_CHANNELS, St as testIconRacing, Tt as reinitializeRegistry, _n as hasPendingMessages, an as H, bn as registerComponent, bt as clearIconCaches, gn as enqueuePendingMessage, hn as createMessageWithOverrides, pt as loadSettings, s as createFileHandler, vn as initializeComponent, wt as ensureStyleSheet, xt as debugIconSystem, yn as processInitialContent } from "../com/app.js";
-import { j as fetchSwCachedEntries, r as createTemplateManager } from "../com/service.js";
+import { M as fetchSwCachedEntries, r as createTemplateManager } from "../com/service.js";
 import { i as views_default } from "../shells/base.js";
 //#region src/frontend/shared/routing/channel-unknown.ts
 var CHANNELS = {

@@ -1,5 +1,6 @@
-import { c as handleShareTarget, d as ensureServiceWorkerRegistered, l as initReceivers, o as checkPendingShareData, s as ensureAppCss, u as setupLaunchQueueConsumer } from "./views/airpad.js";
+import { c as ensureAppCss, d as setupLaunchQueueConsumer, f as ensureServiceWorkerRegistered, l as handleShareTarget, o as applyAirpadRuntimeFromAppSettings, s as checkPendingShareData, u as initReceivers } from "./views/airpad.js";
 import { Fn as loadAsAdopted, r as initializeAppChannels } from "./com/app.js";
+import { k as loadSettings } from "./com/service.js";
 import { b as pickEnabledView, i as views_default } from "./shells/base.js";
 import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, s as initializeLayers, t as ensureAppLayers } from "./shells/boot-index.js";
 //#region src/frontend/pwa/pwa-handling.ts
@@ -23,9 +24,19 @@ var isExtension$1 = () => {
 		return false;
 	}
 };
+var isCapacitorNative = () => {
+	try {
+		const c = globalThis.Capacitor;
+		return typeof c?.isNativePlatform === "function" && Boolean(c.isNativePlatform());
+	} catch {
+		return false;
+	}
+};
 var isServiceWorkerAllowedContext = () => {
 	const protocol = (globalThis?.location?.protocol || "").toLowerCase();
 	if (protocol === "chrome-extension:" || protocol === "file:" || protocol === "about:") return false;
+	if (protocol === "capacitor:" || protocol === "ionic:") return true;
+	if (isCapacitorNative() && (protocol === "https:" || protocol === "http:")) return true;
 	return protocol === "https:" || protocol === "http:";
 };
 /**
@@ -561,6 +572,7 @@ async function index(mountElement) {
 	console.log("[Index] Starting CrossWord frontend loader");
 	console.log("[Index] Initializing uniform channels...");
 	initializeAppChannels();
+	loadSettings().then((s) => applyAirpadRuntimeFromAppSettings(s)).catch(() => void 0);
 	setLoadingState(mountElement, "Initializing CrossWord...");
 	try {
 		const pwaPromise = initPWA();
