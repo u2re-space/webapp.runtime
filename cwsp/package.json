@@ -47,6 +47,7 @@
     "debug": "node --inspect-brk -r tsx server/index.ts"
   },
   "devDependencies": {
+    "@cap-js-community/websocket": "^1.10.0",
     "@capacitor/android": ">=8.3.0",
     "@capacitor/cli": ">=8.3.0",
     "@capacitor/core": ">=8.3.0",
@@ -70,6 +71,7 @@
     "socket.io": ">=4.8.3",
     "socket.io-client": ">=4.8.3",
     "tsx": ">=4.7.1",
-    "typescript": ">=6.0.0-beta"
+    "typescript": ">=6.0.0-beta",
+    "vite": "^8.0.7"
   }
 }
