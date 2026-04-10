@@ -20,6 +20,20 @@ const { build } = requireFromCwsp("esbuild");
 
 const outDir = resolve(pkgRoot, "dist/portable");
 
+/** Match `runtime/cwsp/tsconfig.json` `compilerOptions.paths` — esbuild does not read tsconfig paths. */
+const cwspTsPathAliases = {
+    // `@server-v2` must precede `@server` (prefix overlap).
+    "@server-v2": resolve(pkgRoot, "server"),
+    "@server": resolve(pkgRoot, "server"),
+    "@protocol": resolve(pkgRoot, "server/protocol"),
+    "@admin": resolve(pkgRoot, "server/admin"),
+    "@config": resolve(pkgRoot, "server/config"),
+    "@legacy": resolve(pkgRoot, "server/legacy"),
+    "@inputs": resolve(pkgRoot, "server/inputs"),
+    "@utils": resolve(pkgRoot, "server/utils"),
+    "@old": resolve(pkgRoot, "../endpoint/endpoint/server")
+};
+
 const readableBundle =
     process.argv.includes("--readable") ||
     process.argv.includes("--no-minify") ||
@@ -62,7 +76,8 @@ async function runBuild() {
                 "socket.io-client",
                 "@rs-core/service/AI-ops/RecognizeData"
             ],
-            format: "esm"
+            format: "esm",
+            alias: cwspTsPathAliases
         });
         console.log(`[build:portable] Done: ${resolve(outDir, "cwsp.mjs")}`);
         await import(pathToFileURL(resolve(__dirname, "verify-portable.mjs")).href);
