@@ -1,1 +1,0 @@
-../endpoint/ecosystem.config.cjs

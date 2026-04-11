@@ -1,0 +1,1 @@
+../server/protocol/socket/client-contract.ts

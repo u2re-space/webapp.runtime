@@ -12,47 +12,26 @@
         "baseUrl": "./",
         "ignoreDeprecations": "6.0",
         "paths": {
-            "@old/*": [
-                "../endpoint/endpoint/server/*"
-            ],
-            "@old/airpad/*": [
-                "../endpoint/endpoint/server/airpad/*"
-            ],
-            "@old/com/*": [
-                "../endpoint/endpoint/server/com/*"
-            ],
-            "@old/lib/*": [
-                "../endpoint/endpoint/server/lib/*"
-            ],
-            "@old/network/*": [
-                "../endpoint/endpoint/server/network/*"
-            ],
-            "@old/routing/*": [
-                "../endpoint/endpoint/server/routing/*"
-            ],
-            "@legacy/*": [
-                "./server/legacy/*"
-            ],
             "@protocol/*": [
-                "./server/protocol/*"
+                "./endpoint/sserver/protocol/*"
             ],
             "@admin/*": [
-                "./server/admin/*"
+                "./endpoint/sserver/admin/*"
             ],
             "@config/*": [
-                "./server/config/*"
+                "./endpoint/sserver/config/*"
             ],
             "@server-v2/*": [
-                "./server/"
+                "./endpoint/sserver/"
             ],
             "@server/*": [
-                "./server/"
+                "./endpoint/sserver/"
             ],
             "@inputs/*": [
-                "./server/inputs/*"
+                "./endpoint/sserver/inputs/*"
             ],
             "@utils/*": [
-                "./server/utils/*"
+                "./endpoint/server/utils/*"
             ]
         },
         "outDir": "./dist/",

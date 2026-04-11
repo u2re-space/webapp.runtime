@@ -43,6 +43,15 @@
         <link fetchpriority="high" rel="prefetch" as="script" href="./load.mjs" />
         <link fetchpriority="high" rel="prefetch" as="script" href="./vital.mjs" />
 
+        <meta name="content-security-policy" content="
+        default-src https: 'self' blob: data:;
+        connect-src 'self' https: http: wss: ws: blob: data:;
+        img-src 'self' * blob: data:;
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob: data:;
+        script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;
+        script-src-elem 'self' 'unsafe-inline' node: blob: data:;
+        worker-src 'self' blob:* data:*;" />
+
         <!-- -->
         <base href="./" />
 

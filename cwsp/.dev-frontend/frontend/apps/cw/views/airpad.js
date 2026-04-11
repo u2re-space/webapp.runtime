@@ -1449,14 +1449,8 @@ function persistRemoteConfig() {
 	try {
 		globalThis?.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify({
 			host: remoteHost,
-			protocol: remoteProtocol,
-			routeTarget: remoteRouteTarget,
-			transportMode: remoteConfig.transportMode,
 			authToken: remoteConfig.authToken,
-			clientId: remoteConfig.clientId,
-			peerInstanceId: remoteConfig.peerInstanceId,
-			transportSecret: remoteConfig.transportSecret,
-			signingSecret: remoteConfig.signingSecret
+			peerInstanceId: remoteConfig.peerInstanceId
 		}));
 	} catch {}
 }
@@ -1465,12 +1459,8 @@ var createPeerInstanceId = () => {
 	return `ap-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
 };
 var remoteConfig = {
-	transportMode: "plaintext",
 	authToken: "",
-	clientId: "",
-	peerInstanceId: "",
-	transportSecret: "",
-	signingSecret: ""
+	peerInstanceId: ""
 };
 /** IndexedDB “Server” tab: userId/userKey as fallbacks for AirPad when local client/token empty (CWS_ASSOCIATED_*). */
 var coreIdentityBridgeUserId = "";
@@ -1486,24 +1476,16 @@ var shellMaintainHubSocket = false;
 var shellNativeSmsEnabled = true;
 var shellNativeContactsEnabled = true;
 var remoteHost = "";
-var remoteProtocol = "auto";
-var remoteRouteTarget = "";
 /**
 * Apply settings from a stored blob (localStorage shape). Safe to call on tab focus / storage events.
 */
 function hydrateFromStored(stored) {
 	const locHost = typeof location !== "undefined" ? location.hostname || "" : "";
 	remoteHost = (stored.host || locHost || "").trim();
-	remoteProtocol = stored.protocol === "http" || stored.protocol === "https" || stored.protocol === "auto" ? stored.protocol : "auto";
-	remoteRouteTarget = (stored.routeTarget || readGlobalAirpadValue(["AIRPAD_ROUTE_TARGET"]) || "").trim();
-	remoteConfig.transportMode = stored.transportMode === "secure" ? "secure" : "plaintext";
 	remoteConfig.authToken = stored.authToken || "";
-	remoteConfig.clientId = stored.clientId || "";
 	const storedPeer = toTrimmedString(stored.peerInstanceId);
 	if (storedPeer) remoteConfig.peerInstanceId = storedPeer;
 	else if (!remoteConfig.peerInstanceId) remoteConfig.peerInstanceId = createPeerInstanceId();
-	remoteConfig.transportSecret = stored.transportSecret || "";
-	remoteConfig.signingSecret = stored.signingSecret || "";
 }
 var stored = loadStoredRemoteConfig();
 hydrateFromStored(stored);
@@ -1524,27 +1506,9 @@ function attachAirpadCrossTabConfigSync() {
 	return () => globalThis.removeEventListener?.("storage", onStorage);
 }
 function applyAirpadRemoteConfig(input) {
-	let secretsOrModeChanged = false;
 	if (input.host !== void 0) remoteHost = (input.host || "").trim();
-	if (input.protocol !== void 0) remoteProtocol = input.protocol === "http" || input.protocol === "https" ? input.protocol : "auto";
-	if (input.routeTarget !== void 0) remoteRouteTarget = (input.routeTarget || "").trim();
-	if (input.transportMode !== void 0) {
-		const next = input.transportMode === "secure" ? "secure" : "plaintext";
-		if (next !== remoteConfig.transportMode) secretsOrModeChanged = true;
-		remoteConfig.transportMode = next;
-	}
 	if (input.authToken !== void 0) remoteConfig.authToken = input.authToken || "";
-	if (input.clientId !== void 0) remoteConfig.clientId = input.clientId || "";
-	if (input.transportSecret !== void 0) {
-		remoteConfig.transportSecret = input.transportSecret || "";
-		secretsOrModeChanged = true;
-	}
-	if (input.signingSecret !== void 0) {
-		remoteConfig.signingSecret = input.signingSecret || "";
-		secretsOrModeChanged = true;
-	}
 	persistRemoteConfig();
-	if (secretsOrModeChanged) invalidateAirpadTransportCredentials();
 }
 var endpointUrlToAirpadConnectHost = (endpointUrl) => {
 	try {
@@ -1574,12 +1538,10 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	shellNativeSmsEnabled = (shell?.enableNativeSms ?? true) !== false;
 	shellNativeContactsEnabled = (shell?.enableNativeContacts ?? true) !== false;
 	const input = {};
-	if (shell?.syncAirPadHostFromEndpointUrl && core?.endpointUrl?.trim()) {
+	if (core?.endpointUrl?.trim()) {
 		const origin = endpointUrlToAirpadConnectHost(core.endpointUrl.trim());
 		if (origin) input.host = origin;
-	} else if (shell?.airPadConnectHosts?.trim()) input.host = shell.airPadConnectHosts.trim();
-	const routeT = (shell?.airPadRouteTarget || "").trim();
-	if (routeT) input.routeTarget = routeT;
+	}
 	if (Object.keys(input).length) applyAirpadRemoteConfig(input);
 	try {
 		globalThis.__CWS_SHELL_FEATURES__ = {
@@ -1607,11 +1569,11 @@ function getClipboardPushIntervalMs() {
 var parseClipboardTargetList = (value) => {
 	return Array.from(new Set(value.split(/[;,]/).map((item) => item.trim()).filter(Boolean)));
 };
-/** Device ids for outbound clipboard acts (Settings → clipboard broadcast targets, else route target). */
+/** Device ids for outbound clipboard acts (Settings → clipboard broadcast targets). */
 function getClipboardBroadcastTargetNodes() {
 	const explicit = parseClipboardTargetList(shellClipboardBroadcastTargets);
 	if (explicit.length) return explicit;
-	return parseClipboardTargetList(remoteRouteTarget);
+	return [];
 }
 /** Background Socket.IO to cwsp / endpoint hub (any shell, not only AirPad view). */
 function isMaintainHubSocketConnectionEnabled() {
@@ -1620,16 +1582,14 @@ function isMaintainHubSocketConnectionEnabled() {
 function getRemoteHost() {
 	return remoteHost;
 }
-function getRemoteRouteTarget() {
-	return remoteRouteTarget;
-}
 function getRemoteProtocol() {
-	return remoteProtocol;
+	return "auto";
+}
+function getRemoteRouteTarget() {
+	return "";
 }
 function getAirPadTransportMode() {
-	const envMode = readGlobalAirpadValue(["AIRPAD_TRANSPORT_MODE", "AIRPAD_TRANSPORT"]);
-	if (envMode === "secure" || envMode === "plaintext") return envMode;
-	return remoteConfig.transportMode === "secure" ? "secure" : "plaintext";
+	return "plaintext";
 }
 function getAirPadAuthToken() {
 	const local = (remoteConfig.authToken || "").trim();
@@ -1638,8 +1598,6 @@ function getAirPadAuthToken() {
 	return readGlobalAirpadValue(["AIRPAD_AUTH_TOKEN", "AIRPAD_TOKEN"]);
 }
 function getAirPadClientId() {
-	const local = (remoteConfig.clientId || "").trim();
-	if (local) return local;
 	if (coreIdentityUseForAirpad && coreIdentityBridgeUserId.trim()) return coreIdentityBridgeUserId.trim();
 	return readGlobalAirpadValue(["AIRPAD_CLIENT_ID", "AIRPAD_CLIENT"]);
 }
@@ -1649,10 +1607,7 @@ function getAirPadPeerInstanceId() {
 	return remoteConfig.peerInstanceId || "";
 }
 function getAirPadTransportSecret() {
-	return remoteConfig.transportSecret || readGlobalAirpadValue(["AIRPAD_TRANSPORT_SECRET", "AIRPAD_MASTER_KEY"]);
-}
-function getAirPadSigningSecret() {
-	return remoteConfig.signingSecret || readGlobalAirpadValue(["AIRPAD_SIGNING_SECRET", "AIRPAD_HMAC_SECRET"]);
+	return "";
 }
 var REL_ORIENT_DEADZONE = .001;
 var REL_ORIENT_SMOOTH = .8;
@@ -1714,276 +1669,7 @@ function log(msg) {
 	console.log("[LOG]", msg);
 }
 //#endregion
-//#region src/frontend/views/airpad/input/keyboard/api.ts
-var virtualKeyboardAPI = null;
-function initVirtualKeyboardAPI() {
-	if ("virtualKeyboard" in navigator && navigator.virtualKeyboard) {
-		virtualKeyboardAPI = navigator.virtualKeyboard;
-		virtualKeyboardAPI.overlaysContent = true;
-		log("VirtualKeyboard API available");
-		return true;
-	}
-	return false;
-}
-function getVirtualKeyboardAPI() {
-	return virtualKeyboardAPI;
-}
-function hasVirtualKeyboardAPI() {
-	return virtualKeyboardAPI !== null;
-}
-//#endregion
-//#region src/frontend/views/airpad/input/keyboard/state.ts
-var keyboardVisible = false;
-var keyboardElement = null;
-var toggleButton = null;
-var remoteKeyboardEnabled = false;
-function setKeyboardVisible(visible) {
-	keyboardVisible = visible;
-}
-function isKeyboardVisible() {
-	return keyboardVisible;
-}
-function setKeyboardElement(element) {
-	keyboardElement = element;
-}
-function getKeyboardElement() {
-	return keyboardElement;
-}
-function setToggleButton(button) {
-	toggleButton = button;
-}
-function getToggleButton() {
-	return toggleButton;
-}
-function setRemoteKeyboardEnabled$1(enabled) {
-	remoteKeyboardEnabled = enabled;
-}
-function isRemoteKeyboardEnabled() {
-	return remoteKeyboardEnabled;
-}
-if ("visualViewport" in globalThis) {
-	const VIEWPORT_VS_CLIENT_HEIGHT_RATIO = .75;
-	globalThis?.visualViewport?.addEventListener?.("resize", function(event) {
-		if (event.target.height * event.target.scale / globalThis?.screen?.height < VIEWPORT_VS_CLIENT_HEIGHT_RATIO) keyboardVisible = true;
-		else keyboardVisible = false;
-	});
-}
-if ("virtualKeyboard" in globalThis?.navigator) {
-	navigator.virtualKeyboard.overlaysContent = true;
-	navigator.virtualKeyboard.addEventListener("geometrychange", (event) => {
-		const { x, y, width, height } = event.target.boundingRect;
-		if (height > 0) keyboardVisible = true;
-		else keyboardVisible = false;
-	});
-}
-//#endregion
-//#region src/frontend/views/airpad/input/keyboard/constants.ts
-var EMOJI_CATEGORIES = {
-	"smileys": [
-		"😀",
-		"😃",
-		"😄",
-		"😁",
-		"😆",
-		"😅",
-		"🤣",
-		"😂",
-		"🙂",
-		"🙃",
-		"😉",
-		"😊",
-		"😇",
-		"🥰",
-		"😍",
-		"🤩",
-		"😘",
-		"😗",
-		"😚",
-		"😙"
-	],
-	"gestures": [
-		"👋",
-		"🤚",
-		"🖐",
-		"✋",
-		"🖖",
-		"👌",
-		"🤌",
-		"🤏",
-		"✌️",
-		"🤞",
-		"🤟",
-		"🤘",
-		"🤙",
-		"👈",
-		"👉",
-		"👆",
-		"🖕",
-		"👇",
-		"☝️",
-		"👍"
-	],
-	"symbols": [
-		"❤️",
-		"🧡",
-		"💛",
-		"💚",
-		"💙",
-		"💜",
-		"🖤",
-		"🤍",
-		"🤎",
-		"💔",
-		"❣️",
-		"💕",
-		"💞",
-		"💓",
-		"💗",
-		"💖",
-		"💘",
-		"💝",
-		"💟",
-		"☮️"
-	],
-	"objects": [
-		"⌚",
-		"📱",
-		"📲",
-		"💻",
-		"⌨️",
-		"🖥️",
-		"🖨️",
-		"🖱️",
-		"🖲️",
-		"🕹️",
-		"🗜️",
-		"💾",
-		"💿",
-		"📀",
-		"📼",
-		"📷",
-		"📸",
-		"📹",
-		"🎥",
-		"📽️"
-	],
-	"arrows": [
-		"⬆️",
-		"↗️",
-		"➡️",
-		"↘️",
-		"⬇️",
-		"↙️",
-		"⬅️",
-		"↖️",
-		"↕️",
-		"↔️",
-		"↩️",
-		"↪️",
-		"⤴️",
-		"⤵️",
-		"🔃",
-		"🔄",
-		"🔙",
-		"🔚",
-		"🔛",
-		"🔜"
-	]
-};
-var KEYBOARD_LAYOUT = [
-	[
-		"1",
-		"2",
-		"3",
-		"4",
-		"5",
-		"6",
-		"7",
-		"8",
-		"9",
-		"0"
-	],
-	[
-		"q",
-		"w",
-		"e",
-		"r",
-		"t",
-		"y",
-		"u",
-		"i",
-		"o",
-		"p"
-	],
-	[
-		"a",
-		"s",
-		"d",
-		"f",
-		"g",
-		"h",
-		"j",
-		"k",
-		"l"
-	],
-	[
-		"z",
-		"x",
-		"c",
-		"v",
-		"b",
-		"n",
-		"m"
-	]
-];
-var KEYBOARD_LAYOUT_UPPER = [
-	[
-		"!",
-		"@",
-		"#",
-		"$",
-		"%",
-		"^",
-		"&",
-		"*",
-		"(",
-		")"
-	],
-	[
-		"Q",
-		"W",
-		"E",
-		"R",
-		"T",
-		"Y",
-		"U",
-		"I",
-		"O",
-		"P"
-	],
-	[
-		"A",
-		"S",
-		"D",
-		"F",
-		"G",
-		"H",
-		"J",
-		"K",
-		"L"
-	],
-	[
-		"Z",
-		"X",
-		"C",
-		"V",
-		"B",
-		"N",
-		"M"
-	]
-];
-//#endregion
-//#region src/frontend/views/airpad/network/websocket.ts
+//#region src/frontend/shared/transport/websocket.ts
 var socket = null;
 var wsConnected = false;
 var isConnecting = false;
@@ -2161,7 +1847,7 @@ var nextPacketId = () => {
 var isCoordinatorPacket = (value) => {
 	return !!value && typeof value === "object" && ("op" in value || "what" in value || "uuid" in value || "result" in value || "error" in value);
 };
-var handleCoordinatorPacket = (packet) => {
+var handleCoordinatorPacket = async (packet) => {
 	const uuid = typeof packet.uuid === "string" ? packet.uuid : "";
 	if (uuid && coordinatorPending.has(uuid)) {
 		const pending = coordinatorPending.get(uuid);
@@ -2173,6 +1859,27 @@ var handleCoordinatorPacket = (packet) => {
 				error: "Unknown coordinator error"
 			});
 			else pending.resolve(packet.result);
+		}
+		return;
+	}
+	if (packet.op === "ask" && packet.what === "clipboard:get") {
+		try {
+			const text = await readClipboardTextFromDevice();
+			emitCoordinatorPacket({
+				...buildCoordinatorPacket("result", packet.what, null, {
+					uuid,
+					nodes: packet.from ? [packet.from] : void 0
+				}),
+				result: typeof text === "string" ? text : String(text || "")
+			});
+		} catch (error) {
+			emitCoordinatorPacket({
+				...buildCoordinatorPacket("error", packet.what, null, {
+					uuid,
+					nodes: packet.from ? [packet.from] : void 0
+				}),
+				error: error?.message || String(error)
+			});
 		}
 		return;
 	}
@@ -2516,26 +2223,36 @@ function connectWS() {
 	const parsedConfiguredRouteTarget = configuredRouteTarget ? parseHostAndPort(configuredRouteTarget) : void 0;
 	const pageHost = location.hostname || "";
 	const isLocalPageHost = /^(localhost|127\.0\.0\.1)$/.test(pageHost) || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(pageHost) && (pageHost.startsWith("10.") || pageHost.startsWith("192.168.") || /^172\.(1[6-9]|2\d|3[01])\./.test(pageHost));
-	if (location.protocol === "https:" && remoteProtocol === "http") {
+	if (location.protocol === "https:" && remoteProtocol === "http" && !isCapacitorNativeShell()) {
 		log("Socket.IO error: browser blocks ws/http from https page (mixed content). Open Airpad via http:// or use valid HTTPS cert on endpoint.");
 		isConnecting = false;
 		setWsStatus(false);
 		updateButtonLabel();
 		return;
 	}
-	const inferProtocol = () => {
-		if (remoteProtocol === "http" || remoteProtocol === "https") return remoteProtocol;
-		if (remotePort === "443" || remotePort === "8443" || remotePort === "8444") return "https";
-		if (remotePort === "80" || remotePort === "8080") return "http";
-		return location.protocol === "https:" ? "https" : "http";
-	};
 	const remoteHostSpec = remoteHostSpecs[0];
 	const parsedRemoteHost = remoteHostSpec?.host || resolvedRemoteHost;
 	const parsedRemotePort = remoteHostSpec?.port;
 	const routeTargetForQuery = parsedConfiguredRouteTarget?.host || configuredRouteTarget || "";
 	const routeTargetPortForQuery = (parsedConfiguredRouteTarget?.port || "").trim();
+	const rawProbeHostEarly = (parsedRemoteHost || resolvedRemoteHost || "").trim();
+	const firstHostBare = rawProbeHostEarly.length > 0 ? stripWireEndpointIdPrefix(rawProbeHostEarly) || rawProbeHostEarly : "";
+	const firstHostIpv4 = (() => {
+		const b = firstHostBare.trim();
+		if (!b) return "";
+		const at = b.lastIndexOf(":");
+		if (at > 0 && isLikelyPort(b.slice(at + 1))) return b.slice(0, at);
+		return b;
+	})();
+	const inferProtocol = () => {
+		if (remoteProtocol === "http" || remoteProtocol === "https") return remoteProtocol;
+		if (remotePort === "443" || remotePort === "8443" || remotePort === "8444") return "https";
+		if (remotePort === "80" || remotePort === "8080") return "http";
+		if (isCapacitorNativeShell() && firstHostIpv4 && isIpv4Literal(firstHostIpv4) && isPrivateIp(firstHostIpv4)) return "http";
+		return location.protocol === "https:" ? "https" : "http";
+	};
 	const primaryProtocol = inferProtocol();
-	const rawProbeHost = (parsedRemoteHost || resolvedRemoteHost || "").trim();
+	const rawProbeHost = rawProbeHostEarly;
 	const probeHost = stripWireEndpointIdPrefix(rawProbeHost) || rawProbeHost;
 	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${remotePort || (primaryProtocol === "https" ? "8443" : "8080")}`, probeHost);
 	const fallbackProtocol = primaryProtocol === "https" ? "http" : "https";
@@ -2615,8 +2332,10 @@ function connectWS() {
 	const candidateHostEntries = Array.from(uniqueHostEntries.values());
 	const httpsOrderedHostEntries = reorderHostEntriesForHttps(candidateHostEntries);
 	const candidates = [];
+	/** Capacitor WebView: mixed content allowed in {@code CapacitorWebActivity} so `ws:` to LAN HTTP works. */
+	const allowHttpSocketFromHttpsShell = isCapacitorNativeShell();
 	for (const protocol of protocolOrder) {
-		if (location.protocol === "https:" && protocol === "http") continue;
+		if (location.protocol === "https:" && protocol === "http" && !allowHttpSocketFromHttpsShell) continue;
 		const hostList = protocol === "https" ? httpsOrderedHostEntries : candidateHostEntries;
 		for (const hostEntry of hostList) {
 			const { host, source, preferPort } = hostEntry;
@@ -3007,6 +2726,275 @@ function handleWsConnectButtonClick() {
 	if (isConnecting || wsConnected || socket && socket.connected || socket?.connecting) disconnectWS();
 	else connectWS();
 }
+//#endregion
+//#region src/frontend/views/airpad/input/keyboard/api.ts
+var virtualKeyboardAPI = null;
+function initVirtualKeyboardAPI() {
+	if ("virtualKeyboard" in navigator && navigator.virtualKeyboard) {
+		virtualKeyboardAPI = navigator.virtualKeyboard;
+		virtualKeyboardAPI.overlaysContent = true;
+		log("VirtualKeyboard API available");
+		return true;
+	}
+	return false;
+}
+function getVirtualKeyboardAPI() {
+	return virtualKeyboardAPI;
+}
+function hasVirtualKeyboardAPI() {
+	return virtualKeyboardAPI !== null;
+}
+//#endregion
+//#region src/frontend/views/airpad/input/keyboard/state.ts
+var keyboardVisible = false;
+var keyboardElement = null;
+var toggleButton = null;
+var remoteKeyboardEnabled = false;
+function setKeyboardVisible(visible) {
+	keyboardVisible = visible;
+}
+function isKeyboardVisible() {
+	return keyboardVisible;
+}
+function setKeyboardElement(element) {
+	keyboardElement = element;
+}
+function getKeyboardElement() {
+	return keyboardElement;
+}
+function setToggleButton(button) {
+	toggleButton = button;
+}
+function getToggleButton() {
+	return toggleButton;
+}
+function setRemoteKeyboardEnabled$1(enabled) {
+	remoteKeyboardEnabled = enabled;
+}
+function isRemoteKeyboardEnabled() {
+	return remoteKeyboardEnabled;
+}
+if ("visualViewport" in globalThis) {
+	const VIEWPORT_VS_CLIENT_HEIGHT_RATIO = .75;
+	globalThis?.visualViewport?.addEventListener?.("resize", function(event) {
+		if (event.target.height * event.target.scale / globalThis?.screen?.height < VIEWPORT_VS_CLIENT_HEIGHT_RATIO) keyboardVisible = true;
+		else keyboardVisible = false;
+	});
+}
+if ("virtualKeyboard" in globalThis?.navigator) {
+	navigator.virtualKeyboard.overlaysContent = true;
+	navigator.virtualKeyboard.addEventListener("geometrychange", (event) => {
+		const { x, y, width, height } = event.target.boundingRect;
+		if (height > 0) keyboardVisible = true;
+		else keyboardVisible = false;
+	});
+}
+//#endregion
+//#region src/frontend/views/airpad/input/keyboard/constants.ts
+var EMOJI_CATEGORIES = {
+	"smileys": [
+		"😀",
+		"😃",
+		"😄",
+		"😁",
+		"😆",
+		"😅",
+		"🤣",
+		"😂",
+		"🙂",
+		"🙃",
+		"😉",
+		"😊",
+		"😇",
+		"🥰",
+		"😍",
+		"🤩",
+		"😘",
+		"😗",
+		"😚",
+		"😙"
+	],
+	"gestures": [
+		"👋",
+		"🤚",
+		"🖐",
+		"✋",
+		"🖖",
+		"👌",
+		"🤌",
+		"🤏",
+		"✌️",
+		"🤞",
+		"🤟",
+		"🤘",
+		"🤙",
+		"👈",
+		"👉",
+		"👆",
+		"🖕",
+		"👇",
+		"☝️",
+		"👍"
+	],
+	"symbols": [
+		"❤️",
+		"🧡",
+		"💛",
+		"💚",
+		"💙",
+		"💜",
+		"🖤",
+		"🤍",
+		"🤎",
+		"💔",
+		"❣️",
+		"💕",
+		"💞",
+		"💓",
+		"💗",
+		"💖",
+		"💘",
+		"💝",
+		"💟",
+		"☮️"
+	],
+	"objects": [
+		"⌚",
+		"📱",
+		"📲",
+		"💻",
+		"⌨️",
+		"🖥️",
+		"🖨️",
+		"🖱️",
+		"🖲️",
+		"🕹️",
+		"🗜️",
+		"💾",
+		"💿",
+		"📀",
+		"📼",
+		"📷",
+		"📸",
+		"📹",
+		"🎥",
+		"📽️"
+	],
+	"arrows": [
+		"⬆️",
+		"↗️",
+		"➡️",
+		"↘️",
+		"⬇️",
+		"↙️",
+		"⬅️",
+		"↖️",
+		"↕️",
+		"↔️",
+		"↩️",
+		"↪️",
+		"⤴️",
+		"⤵️",
+		"🔃",
+		"🔄",
+		"🔙",
+		"🔚",
+		"🔛",
+		"🔜"
+	]
+};
+var KEYBOARD_LAYOUT = [
+	[
+		"1",
+		"2",
+		"3",
+		"4",
+		"5",
+		"6",
+		"7",
+		"8",
+		"9",
+		"0"
+	],
+	[
+		"q",
+		"w",
+		"e",
+		"r",
+		"t",
+		"y",
+		"u",
+		"i",
+		"o",
+		"p"
+	],
+	[
+		"a",
+		"s",
+		"d",
+		"f",
+		"g",
+		"h",
+		"j",
+		"k",
+		"l"
+	],
+	[
+		"z",
+		"x",
+		"c",
+		"v",
+		"b",
+		"n",
+		"m"
+	]
+];
+var KEYBOARD_LAYOUT_UPPER = [
+	[
+		"!",
+		"@",
+		"#",
+		"$",
+		"%",
+		"^",
+		"&",
+		"*",
+		"(",
+		")"
+	],
+	[
+		"Q",
+		"W",
+		"E",
+		"R",
+		"T",
+		"Y",
+		"U",
+		"I",
+		"O",
+		"P"
+	],
+	[
+		"A",
+		"S",
+		"D",
+		"F",
+		"G",
+		"H",
+		"J",
+		"K",
+		"L"
+	],
+	[
+		"Z",
+		"X",
+		"C",
+		"V",
+		"B",
+		"N",
+		"M"
+	]
+];
 //#endregion
 //#region src/frontend/views/airpad/network/rails/packet-socketio.ts
 var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -5130,46 +5118,12 @@ function createConfigUI() {
                     <label for="remoteHost">Connect URL / Relay Host (optional, comma separated):</label>
                     <input type="text" id="remoteHost" />
                 </div>
-
-                <div class="config-group">
-                    <label for="remoteRouteTarget">Remote Host [optional] (peerId/deviceId/alias/IP):</label>
-                    <input type="text" id="remoteRouteTarget" placeholder="optional target after connect" />
-                </div>
-
                 <div class="config-group">
                     <strong>Routing / identifiers</strong>
-                </div>
-
-                <div class="config-group">
-                    <label for="remoteProtocol">Remote Protocol:</label>
-                    <select id="remoteProtocol">
-                        <option value="auto">Auto (recommended)</option>
-                        <option value="https">HTTPS / WSS</option>
-                        <option value="http">HTTP / WS</option>
-                    </select>
-                </div>
-                <div class="config-group">
-                    <label for="airpadTransportMode">Transport:</label>
-                    <select id="airpadTransportMode">
-                        <option value="plaintext">Plaintext</option>
-                        <option value="secure">Secure (signed envelope)</option>
-                    </select>
                 </div>
                 <div class="config-group">
                     <label for="airpadAuthToken">Airpad Auth Token:</label>
                     <input type="text" id="airpadAuthToken" />
-                </div>
-                <div class="config-group">
-                    <label for="airpadClientId">Airpad Client ID:</label>
-                    <input type="text" id="airpadClientId" />
-                </div>
-                <div class="config-group">
-                    <label for="airpadTransportSecret">Secure Transport Secret:</label>
-                    <input type="text" id="airpadTransportSecret" />
-                </div>
-                <div class="config-group">
-                    <label for="airpadSigningSecret">Signing Secret (HMAC):</label>
-                    <input type="password" id="airpadSigningSecret" />
                 </div>
             </div>
 
@@ -5180,23 +5134,11 @@ function createConfigUI() {
         </div>
     `;
 	const hostInput = overlay.querySelector("#remoteHost");
-	const routeTargetInput = overlay.querySelector("#remoteRouteTarget");
-	const protocolInput = overlay.querySelector("#remoteProtocol");
-	const transportModeInput = overlay.querySelector("#airpadTransportMode");
 	const authTokenInput = overlay.querySelector("#airpadAuthToken");
-	const clientIdInput = overlay.querySelector("#airpadClientId");
-	const transportSecretInput = overlay.querySelector("#airpadTransportSecret");
-	const signingSecretInput = overlay.querySelector("#airpadSigningSecret");
 	const saveButton = overlay.querySelector("#saveConfig");
 	const cancelButton = overlay.querySelector("#cancelConfig");
 	hostInput.value = getRemoteHost();
-	routeTargetInput.value = getRemoteRouteTarget();
-	protocolInput.value = getRemoteProtocol();
-	transportModeInput.value = getAirPadTransportMode();
 	authTokenInput.value = getAirPadAuthToken();
-	clientIdInput.value = getAirPadClientId();
-	transportSecretInput.value = getAirPadTransportSecret();
-	signingSecretInput.value = getAirPadSigningSecret();
 	const closeOverlay = () => {
 		overlay.classList.remove("flex");
 		overlay.style.display = "none";
@@ -5205,13 +5147,7 @@ function createConfigUI() {
 	saveButton.addEventListener("click", () => {
 		applyAirpadRemoteConfig({
 			host: hostInput.value,
-			routeTarget: routeTargetInput.value,
-			protocol: protocolInput.value,
-			transportMode: transportModeInput.value,
-			authToken: authTokenInput.value,
-			clientId: clientIdInput.value,
-			transportSecret: transportSecretInput.value,
-			signingSecret: signingSecretInput.value
+			authToken: authTokenInput.value
 		});
 		reconnectAirPadSessionAfterConfigChange({ delayMs: 100 });
 		closeOverlay();
@@ -5238,21 +5174,9 @@ function showConfigUI() {
 		host.appendChild(overlay);
 	} else {
 		const hostInput = overlay.querySelector("#remoteHost");
-		const routeTargetInput = overlay.querySelector("#remoteRouteTarget");
-		const protocolInput = overlay.querySelector("#remoteProtocol");
-		const transportModeInput = overlay.querySelector("#airpadTransportMode");
 		const authTokenInput = overlay.querySelector("#airpadAuthToken");
-		const clientIdInput = overlay.querySelector("#airpadClientId");
-		const transportSecretInput = overlay.querySelector("#airpadTransportSecret");
-		const signingSecretInput = overlay.querySelector("#airpadSigningSecret");
 		if (hostInput) hostInput.value = getRemoteHost();
-		if (routeTargetInput) routeTargetInput.value = getRemoteRouteTarget();
-		if (protocolInput) protocolInput.value = getRemoteProtocol();
-		if (transportModeInput) transportModeInput.value = getAirPadTransportMode();
 		if (authTokenInput) authTokenInput.value = getAirPadAuthToken();
-		if (clientIdInput) clientIdInput.value = getAirPadClientId();
-		if (transportSecretInput) transportSecretInput.value = getAirPadTransportSecret();
-		if (signingSecretInput) signingSecretInput.value = getAirPadSigningSecret();
 	}
 	syncAirpadConfigOverlayShellTheme(overlay, doc);
 	overlay.classList.add("flex");

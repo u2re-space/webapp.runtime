@@ -1,0 +1,32 @@
+{
+    "version": 2,
+    "listenPort": 8443,
+    "httpPort": 8080,
+    "networkAliases": {
+        "192.168.0.200": "L-192.168.0.200",
+        "192.168.0.110": "L-192.168.0.110",
+        "45.147.121.152": "L-192.168.0.200",
+        "100.76.202.88": "L-192.168.0.200",
+        "l-45.147.121.152": "L-192.168.0.200",
+        "L-45.147.121.152": "L-192.168.0.200"
+    },
+    "endpoints": [
+        "https://45.147.121.152:8443/",
+        "https://192.168.0.200:8443/",
+        "https://192.168.0.110:8443/"
+    ],
+    "protocols": {
+        "websocket": {
+            "timeoutMs": 10000,
+            "maxConnections": 100
+        },
+        "http": {
+            "timeoutMs": 10000,
+            "maxConnections": 100
+        }
+    },
+    "allowedOrigins": ["*"],
+    "allowedInsecureOrigins": ["*"],
+    "allowedInvalidCredentials": true,
+    "allowedInvalidTls": true
+}
