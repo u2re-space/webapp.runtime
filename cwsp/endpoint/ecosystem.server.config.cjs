@@ -107,7 +107,7 @@ module.exports = {
             name: "cwsp",
             cwd: __dirname,
             script: NODE_BIN,
-            args: ["./node_modules/tsx/dist/cli.mjs", "endpoint/server/index.ts"],
+            args: ["./node_modules/tsx/dist/cli.mjs", "server/index.ts"],
             interpreter: "none",
             exec_mode: "fork",
             instances: 1,

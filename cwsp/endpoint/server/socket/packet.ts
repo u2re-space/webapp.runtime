@@ -3,7 +3,7 @@ import {
     isKeyboardMessage,
     isMouseMessage,
     parseBinaryMessage
-} from "../inputs/drivers/adapters/message.ts";
+} from "@inputs/drivers/adapters/message.ts";
 import {
     FLAG_DOUBLE,
     MSG_TYPE_CLICK,
@@ -11,7 +11,7 @@ import {
     MSG_TYPE_MOUSE_UP,
     MSG_TYPE_MOVE,
     MSG_TYPE_SCROLL
-} from "../inputs/drivers/adapters/constants.ts";
+} from "@inputs/drivers/adapters/constants.ts";
 import type { Packet } from "./types.ts";
 
 export const inferWhatFromLegacyType = (value: unknown): string | undefined => {

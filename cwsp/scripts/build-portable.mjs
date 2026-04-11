@@ -30,8 +30,7 @@ const cwspTsPathAliases = {
     "@config": resolve(pkgRoot, "server/config"),
     "@legacy": resolve(pkgRoot, "server/legacy"),
     "@inputs": resolve(pkgRoot, "server/inputs"),
-    "@utils": resolve(pkgRoot, "server/utils"),
-    "@old": resolve(pkgRoot, "../endpoint/endpoint/server")
+    "@utils": resolve(pkgRoot, "server/utils")
 };
 
 const readableBundle =
@@ -41,7 +40,7 @@ const readableBundle =
 
 async function runBuild() {
     await mkdir(outDir, { recursive: true });
-    const entry = resolve(pkgRoot, "endpoint/server/index.ts");
+    const entry = resolve(pkgRoot, "server/index.ts");
     console.log(
         `[build:portable] Bundling CWSP server entry${readableBundle ? " (readable: sourcemap + keepNames, no minify)" : ""}...`
     );

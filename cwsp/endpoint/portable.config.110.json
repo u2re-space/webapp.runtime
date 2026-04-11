@@ -19,7 +19,9 @@
             "node_modules",
             ".data",
             ".endpoint.config.json",
-            ".config.endpoint.json"
+            ".config.endpoint.json",
+            "portable.config.json",
+            "portable.config.110.json"
         ]
     },
     "remote": {
@@ -35,11 +37,14 @@
             "node_modules",
             ".data",
             ".endpoint.config.json",
-            ".config.endpoint.json"
+            ".config.endpoint.json",
+            "portable.config.json",
+            "portable.config.110.json"
         ]
     },
     "launcherEnv": {
         "CWS_AIRPAD_VERBOSE": 1,
+        "CWS_PORTABLE_CONFIG_PATH": "./portable.config.110.json",
         "CWS_BRIDGE_ENABLED": true,
         "CWS_BRIDGE_MODE": "active",
         "CWS_BRIDGE_CONNECTION_TYPE": "exchanger-initiator",
@@ -47,15 +52,16 @@
         "CWS_BRIDGE_ENDPOINTS": [
             "https://45.147.121.152:8443/",
             "https://100.76.202.88:8443/",
-            "https://192.168.0.200:8443/"
+            "https://192.168.0.200:8443/",
+            "https://192.168.0.110:8443/"
         ],
         "CWS_BRIDGE_PRECONNECT_TARGETS": [
-            "L-192.168.0.200"
+            "L-192.168.0.200",
+            "L-192.168.0.110"
         ],
         "CWS_BRIDGE_RECONNECT_MS": 3000,
         "CWS_BRIDGE_REJECT_UNAUTHORIZED": "false",
         "CWS_PORTABLE_DATA_PATH": "./.data",
-        "CWS_PORTABLE_CONFIG_PATH": "./portable.config.json",
         "CWS_HTTPS_ENABLED": true,
         "CWS_ROLES": [
             "responser-initiated",

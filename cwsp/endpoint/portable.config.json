@@ -19,7 +19,10 @@
             "node_modules",
             ".data",
             ".endpoint.config.json",
-            ".config.endpoint.json"
+            ".config.endpoint.json",
+            "portable.config.json",
+            "portable.config.110.json",
+            "portable.config.vds.json"
         ]
     },
     "remote": {
@@ -35,7 +38,10 @@
             "node_modules",
             ".data",
             ".endpoint.config.json",
-            ".config.endpoint.json"
+            ".config.endpoint.json",
+            "portable.config.json",
+            "portable.config.110.json",
+            "portable.config.vds.json"
         ]
     },
     "launcherEnv": {

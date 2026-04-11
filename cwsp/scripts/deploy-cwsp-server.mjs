@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sync CWSP **TypeScript source** (server + web + control + package metadata) over SSH.
+ * Sync CWSP **TypeScript source** (server + frontend + web + control + package metadata) over SSH.
  * Intended for `npx tsx server/index.ts` on the host — same layout as the repo, not `dist/portable`.
  *
  * Env (shared with deploy-cwsp-portable where noted):
@@ -20,8 +20,8 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
-import { stageCwspServerRuntime } from "../cwsp/scripts/stage-cwsp-server-runtime.mjs";
+import { resolveCwspPackageRoot } from "../scripts/resolve-cwsp-root.mjs";
+import { stageCwspServerRuntime } from "../scripts/stage-cwsp-server-runtime.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolveCwspPackageRoot(__dirname);
@@ -52,7 +52,7 @@ function psEscapeSingle(s) {
     return s.replace(/'/g, "''");
 }
 
-/** Materialize a temp tree with symlinks followed (so `web` → frontend works on the remote). */
+/** Materialize a temp tree with symlinks followed (`frontend`, `web`, etc.). */
 async function materializeStage() {
     const stage = await mkdtemp(join(tmpdir(), "cwsp-server-deploy-"));
     try {

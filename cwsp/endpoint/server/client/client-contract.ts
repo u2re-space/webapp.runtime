@@ -1,1 +1,1 @@
-../server/protocol/socket/client-contract.ts
+../socket/client-contract.ts

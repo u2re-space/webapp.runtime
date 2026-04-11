@@ -5,7 +5,7 @@ import { buildServerV2SocketHandshake, normalizeWireNodeId } from "./client-cont
 import { normalizeInboundPacket } from "./packet.ts";
 import type { Packet } from "./types.ts";
 import { normalizeIpForMatch } from "@utils/ip-match.ts";
-import { readServerV2ConfigSnapshot } from "../config/storage.ts";
+import { readServerV2ConfigSnapshot } from "@config/storage.ts";
 import { normalizeNetworkAliasMap, resolveNetworkAlias } from "@utils/topology.ts";
 
 //
@@ -229,6 +229,22 @@ export const excludeSelf = (lists: string[], self: string) => {
 
 const normalizeNodeId = (value: unknown): string => {
     return String(value || "").trim();
+};
+
+/** `packet.nodes` often carries the raw engine id; `peerInstanceId` is usually `io-` + id */
+const looksLikeSocketEngineSessionId = (raw: unknown): boolean => {
+    const t = normalizeNodeId(raw);
+    if (!t || t.includes(".") || /^L-/i.test(t)) return false;
+    if (/^l-\d{1,3}\.\d/.test(t)) return false;
+    const body = t.toLowerCase().startsWith("io-") ? t.slice(3) : t;
+    if (!/^[a-zA-Z0-9_-]{8,32}$/.test(body)) return false;
+    if (/^[a-z]+(-[a-z]+)+$/i.test(body)) return false;
+    return /[0-9]/.test(body) || /[A-Z]/.test(body);
+};
+
+const looksLikeRoutingUuid = (raw: unknown): boolean => {
+    const t = normalizeNodeId(raw);
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
 };
 
 //
@@ -498,6 +514,40 @@ const splitLegacyTargets = (value: unknown): string[] => {
     return raw.split(/[;,]/).map((entry) => normalizeNodeId(entry)).filter(Boolean);
 };
 
+/**
+ * When the client route only names the gateway, `populate()` drops that id via excludeSelf(serverSelfId)
+ * and clipboard fan-out never reaches other LAN peers (e.g. Android). Union `runtime.clipboardPeerTargets`
+ * (portable config) and exclude the sender — mirrors the HTTP `/clipboard` fallback in `utils/routes.ts`.
+ */
+const mergeConfiguredClipboardPeerTargets = (socket: SocketConnect | SocketClient, current: string[]): string[] => {
+    const snap = readServerV2ConfigSnapshot() as Record<string, unknown>;
+    let extra: unknown[] | undefined = Array.isArray(snap.clipboardPeerTargets) ? [...snap.clipboardPeerTargets] : undefined;
+    if (!extra?.length) {
+        // Same deterministic lab fallback as `resolveSourceEndpointPolicy` (HTTP clipboard relay).
+        const ips = collectNormalizedRemoteIps(socket);
+        const hintedLc = normalizeNodeId(
+            (socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId
+        ).toLowerCase();
+        const looksLikeLaptop110 = ips.includes("192.168.0.110") || hintedLc === "l-192.168.0.110";
+        if (looksLikeLaptop110) {
+            extra = ["L-192.168.0.196", "L-192.168.0.208"];
+        }
+    }
+    if (!extra?.length) return current;
+
+    const hinted = normalizeNodeId(
+        (socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId
+    );
+    const senderCanon = hinted ? resolveKnownClientId(hinted) || hinted : "";
+
+    const filtered = extra
+        .map((entry: unknown) => normalizeNodeId(entry))
+        .filter((id) => id && !(senderCanon && areNodeIdsEquivalent(id, senderCanon)));
+
+    if (!filtered.length) return current;
+    return uniqueNodeIds([...current, ...filtered]);
+};
+
 const resolveLegacyTargetNodes = (socket: SocketConnect | SocketClient, selfId: string): string[] => {
     const query = getSocketHandshakeQuery(socket);
     const candidates = [
@@ -552,6 +602,8 @@ const resolveLegacyTargetNodes = (socket: SocketConnect | SocketClient, selfId: 
             routeLog("tunnel-inject-forward", { selfId, forward, query: { __airpad_via: query.__airpad_via, __airpad_endpoint: query.__airpad_endpoint } });
         }
     }
+
+    out = mergeConfiguredClipboardPeerTargets(socket, out);
 
     routeLog("resolve-legacy-targets", {
         selfId,
@@ -642,6 +694,14 @@ export const resolveLocalSocketWrappersForTarget = (
     if (direct) {
         out.push(direct);
         return out;
+    }
+    const tid = normalizeNodeId(targetId);
+    if (tid && !/^io-/i.test(tid) && looksLikeSocketEngineSessionId(tid)) {
+        const ioPrefixed = nodeMap.get(`io-${tid}`);
+        if (ioPrefixed) {
+            out.push(ioPrefixed);
+            return out;
+        }
     }
     const peerIds = new Set<string>();
     const token = normalizeNodeId(targetId).toLowerCase();
@@ -810,6 +870,16 @@ export class SocketWrapper {
         this.socketId = peerInstance;
         internalNodeMap.set(peerInstance, this.socket);
         cachePeerInstanceOnly(peerInstance, this);
+        const rawEngineId = normalizeNodeId((this.socket as any)?.id);
+        if (rawEngineId) {
+            if (peerInstance !== rawEngineId) {
+                cachePeerInstanceOnly(rawEngineId, this);
+            }
+            const ioEngine = `io-${rawEngineId}`;
+            if (peerInstance !== ioEngine) {
+                cachePeerInstanceOnly(ioEngine, this);
+            }
+        }
         const cand = normalizeNodeId(candidate);
         const handshakeClient = normalizeNodeId(
             (this.socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(this.socket).clientId
@@ -821,6 +891,22 @@ export class SocketWrapper {
             expanded.push(...getKnownClientAliases(h));
         }
         registerAccountPeersForSocket(peerInstance, expanded);
+        // Ensure `nodeMap` resolves policy ids (e.g. `L-192.168.0.196`) to this live socket, not only
+        // peerInstance / accountPeerByAlias — avoids intermittent fan-out misses when routing by endpoint key.
+        try {
+            const canonFromPeer = resolveKnownClientIdForPeerInstance(peerInstance);
+            if (canonFromPeer) {
+                cacheNodeConnection(canonFromPeer, this);
+            }
+            for (const hint of this.accountRoutingHints) {
+                const rid = resolveKnownClientId(hint);
+                if (rid) {
+                    cacheNodeConnection(rid, this);
+                }
+            }
+        } catch {
+            /* ignore cache failures */
+        }
         return peerInstance;
     }
 
@@ -1316,8 +1402,12 @@ export class SocketWrapper {
                 lastObservedClipboardText = text;
                 suppressClipboardWatchUntil = Date.now() + clipboardWatchIntervalMs * 2;
                 const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
-                await this.handleAct("clipboard:update", { text }, packet, this.selfId);
+                // Fan-out first: `handleAct` writes the **server** clipboard (clipboardy / headless) and must not
+                // block delivery to `L-*` peers when that I/O is slow, stalls, or throws.
                 void this.reply(packet);
+                void Promise.resolve(this.handleAct("clipboard:update", { text }, packet, this.selfId)).catch((err) => {
+                    console.warn("[clipboard:update] server local clipboard write failed (non-fatal):", err);
+                });
                 if (typeof ack === "function") ack({ ok: true });
             } catch (error: any) {
                 if (typeof ack === "function") {
@@ -1332,8 +1422,10 @@ export class SocketWrapper {
                 lastObservedClipboardText = text;
                 suppressClipboardWatchUntil = Date.now() + clipboardWatchIntervalMs * 2;
                 const packet = makeLegacyLocalPacket(socket, this.selfId, { what: "clipboard:update", payload: { text } });
-                await this.handleAct("clipboard:update", { text }, packet, this.selfId);
                 void this.reply(packet);
+                void Promise.resolve(this.handleAct("clipboard:update", { text }, packet, this.selfId)).catch((err) => {
+                    console.warn("[clipboard:paste] server local clipboard write failed (non-fatal):", err);
+                });
                 socket.emit("clipboard:update", { text, source: "local" });
 
                 // Best-effort: paste the clipboard content via Ctrl+V.
@@ -1678,6 +1770,21 @@ export const findOrInitiateConnection = (id: string, selfId: string): SocketWrap
         });
         return first;
     }
+    if (
+        !getKnownClientConfig(dialId) &&
+        (looksLikeSocketEngineSessionId(id) ||
+            looksLikeSocketEngineSessionId(dialId) ||
+            looksLikeRoutingUuid(id) ||
+            looksLikeRoutingUuid(dialId))
+    ) {
+        traceSocket("find-skip-ephemeral", {
+            from: selfId,
+            target: id,
+            dialId,
+            reason: "non-endpoint-routing-token"
+        });
+        return undefined;
+    }
     const retryInMs = getFailedNodeRetryDelay(id) || (dialId !== id ? getFailedNodeRetryDelay(dialId) : 0);
     if (retryInMs > 0) {
         traceSocket("find-cooldown", {
@@ -1711,15 +1818,26 @@ export const findOrInitiateConnection = (id: string, selfId: string): SocketWrap
                 }
                 cacheNodeConnection(socket.socketId, socket);
             } else {
-                markFailedNodeConnection(id);
-                if (dialId !== id) {
-                    markFailedNodeConnection(dialId);
+                const policyId = resolveDialTargetId(id) || id;
+                if (getKnownClientConfig(policyId)) {
+                    markFailedNodeConnection(id);
+                    if (dialId !== id) {
+                        markFailedNodeConnection(dialId);
+                    }
+                    traceSocket("find-empty", {
+                        from: selfId,
+                        target: id,
+                        dialId,
+                        reason: "dial-failed"
+                    });
+                } else {
+                    traceSocket("find-empty", {
+                        from: selfId,
+                        target: id,
+                        dialId,
+                        reason: "no-endpoint-policy"
+                    });
                 }
-                traceSocket("find-empty", {
-                    from: selfId,
-                    target: id,
-                    dialId
-                });
                 deleteCachedNodeConnection(id);
                 if (dialId !== id) {
                     deleteCachedNodeConnection(dialId);

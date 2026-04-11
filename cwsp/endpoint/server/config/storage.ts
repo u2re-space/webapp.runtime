@@ -266,7 +266,8 @@ const resolveRuntimeDefaults = () => {
     const endpointRuntime = asRecord(PORTABLE_ENDPOINT.runtime);
     const coreRuntime = asRecord(PORTABLE_CORE.runtime);
     const networkRuntime = asRecord(PORTABLE_NETWORK.runtime);
-    const runtime = { ...coreRuntime, ...endpointRuntime };
+    // network.json `runtime` supplies defaults (e.g. clipboardPeerTargets) aligned with clients.json / gateway broadcast
+    const runtime = { ...networkRuntime, ...coreRuntime, ...endpointRuntime };
     const networkListen =
         parsePortableInteger((PORTABLE_NETWORK as Record<string, unknown>).listenPort) ??
         parsePortableInteger(networkRuntime.listenPort);
