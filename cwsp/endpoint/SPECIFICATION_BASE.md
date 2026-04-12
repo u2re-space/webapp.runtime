@@ -21,7 +21,7 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     what: ACTION_TYPE, # what needs to achieve/reach/get
     payload: ENCODED_DATA, # Body, POST-like payload
     results: ENCODED_DATA, # Results, alike in response
-    role: [("requestor" | "responser" | "acceptor" | "executor" | "actor" | "bridge" | "link")...], # what role will after request, also "bridge" or "link", I don't know how to name truly...
+    role: [("requestor" | "responser" | "acceptor" | "executor" | "actor" | "bridge" | "link" | "exchanger")...], # what role will after request, also "bridge" or "link", I don't know how to name truly...
     status: number,             # status code (when response)
     ids: [ID_NAME...],          # passthrough ID's
     urls: [urls...],            # found/used URLs (physically)
@@ -53,7 +53,8 @@ Client permission and routing (destination) topology
     "L-192.168.0.200": {
         "origins": ["192.168.0.200", "192.168.0.201", "100.76.202.88", "45.147.121.152"],
         "tokens": [],
-        "roles": ["responser-initiated", "requestor-initiated", "responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
+        "platform": ["linux", "web", "chrome"],
+        "roles": ["responser", "requestor", "exchanger", "bridge", "link"],
         "relations": {
             "L-192.168.0.196": "both ws,socketio,http,tcp",
             "L-192.168.0.208": "both ws,socketio,http,tcp",
@@ -80,6 +81,8 @@ Client permission and routing (destination) topology
             }
         },
         "flags": {
+            "initiator": true,
+            "initiated": true,
             "mobile": true,
             "gateway": true,
             "direct": true
@@ -112,7 +115,8 @@ Client permission and routing (destination) topology
     "L-192.168.0.110": {
         "origins": ["192.168.0.110", "192.168.0.111", "100.110.152.73"],
         "tokens": [],
-        "roles": ["responser-initiated", "requestor-initiated", "responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
+        "roles": ["responser", "requestor", "exchanger", "actor", "executor", "bridge", "link"],
+        "platform": ["windows", "web", "chrome"],
         "relations": {
             "L-192.168.0.200": "both ws,socketio,http,tcp",
             "L-192.168.0.196": "both ws,socketio,http,tcp",
@@ -120,6 +124,8 @@ Client permission and routing (destination) topology
             "L-wan-client": "both ws,socketio,http,tcp"
         },
         "flags": {
+            "initiator": true,
+            "initiated": true,
             "mobile": true,
             "gateway": false,
             "direct": true
@@ -170,7 +176,8 @@ Client permission and routing (destination) topology
     "L-192.168.0.208": {
         "origins": ["192.168.0.208", "100.90.155.65"],
         "tokens": ["inline:n3v3rm1nd", "inline:n3v3rm1nd-2", "env:CWS_ASSOCIATED_TOKEN"],
-        "roles": ["responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
+        "roles": ["responser", "requestor", "exchanger", "actor", "executor"],
+        "platform": ["android", "web"],
         "relations": {
             "L-192.168.0.110": "both ws,socketio,http,tcp",
             "L-192.168.0.200": "both ws,socketio,http,tcp",
@@ -178,6 +185,8 @@ Client permission and routing (destination) topology
             "L-wan-client": "both ws,socketio,http,tcp"
         },
         "flags": {
+            "initiator": true,
+            "initiated": false,
             "mobile": true,
             "gateway": false,
             "direct": false
@@ -222,7 +231,8 @@ Client permission and routing (destination) topology
     "L-192.168.0.196": {
         "origins": ["192.168.0.196", "100.99.178.6"],
         "tokens": ["inline:n3v3rm1nd", "inline:n3v3rm1nd-2", "env:CWS_ASSOCIATED_TOKEN"],
-        "roles": ["responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
+        "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger"],
+        "platform": ["android", "web"],
         "relations": {
             "L-192.168.0.110": "both ws,socketio,http,tcp",
             "L-192.168.0.200": "both ws,socketio,http,tcp",
@@ -230,6 +240,8 @@ Client permission and routing (destination) topology
             "L-wan-client": "both ws,socketio,http,tcp"
         },
         "flags": {
+            "initiator": true,
+            "initiated": false,
             "mobile": true,
             "gateway": false,
             "direct": false
@@ -274,7 +286,7 @@ Client permission and routing (destination) topology
     "L-wan-client": {
         "origins": ["u2re.space", "www.u2re.space"],
         "tokens": ["inline:VDS-client", "env:CWS_ASSOCIATED_TOKEN"],
-        "roles": ["responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
+        "roles": ["responser", "requestor", "exchanger"],
         "relations": {
             "L-192.168.0.110": "both ws,socketio,http,tcp",
             "L-192.168.0.200": "both ws,socketio,http,tcp",
@@ -282,6 +294,8 @@ Client permission and routing (destination) topology
             "L-192.168.0.208": "both ws,socketio,http,tcp"
         },
         "flags": {
+            "initiator": true,
+            "initiated": false,
             "mobile": true,
             "gateway": false,
             "direct": false
@@ -326,7 +340,7 @@ Client permission and routing (destination) topology
     "*": {
         "origins": ["*"],
         "tokens": ["*"],
-        "roles": ["responser-initiator", "requestor-initiator"],
+        "roles": ["responser", "requestor"],
         "flags": {
             "mobile": true,
             "gateway": true,
