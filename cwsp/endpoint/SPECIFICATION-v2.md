@@ -9,8 +9,12 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
 ```
 {
     redirect: boolean,
+    flags: {...}, # specific/special flags of message
     op: "act" | "ask",
-    type: "response" | "request" | "ack" | "redirect",
+    protocol: "socket" | "http" | "local" | "chrome"   # what protocol was used...
+    srcPlatform: "android" | "windows" | "linux" # etc. used platform of message
+    dstPlatform: "android" | "windows" | "linux" # etc. for what platform used message
+    type: "response" | "request" | "ack" | "redirect", # redirect same as request
     uuid: UUIDv4, # UUID of message series
     timestamp: number, # when first of message was generated
     what: ACTION_TYPE, # what needs to achieve/reach/get
@@ -18,10 +22,10 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     results: ENCODED_DATA, # Results, alike in response
     role: [("requestor" | "responser" | "bridge")...], # what role will after request, also "bridge" or "link", I don't know how to name truly...
     status: number,
-    ids: [ID_NAME...],   # passthrough ID's
-    urls: [urls...],     # found/used URLs (physically)
-    tokens: [tokens...], # clients/peers tokens used
-    sender: ID_NAME,   # who originally sended message
+    ids: [ID_NAME...],     # passthrough ID's
+    urls: [urls...],       # found/used URLs (physically)
+    tokens: [tokens...],   # clients/peers tokens used
+    sender: ID_NAME | URL, # who originally sended message
     destinations: [ID_NAME...], # where &ould be acted or asked
     flags: {}, # special options/flags of message
     extensions: [...] # additional/special protocol extensions to used
@@ -45,7 +49,7 @@ Client permission and routing (destination) topology
     "l-45.147.121.152": "alias:L-192.168.0.200",
     "l-wan-client": "alias:L-wan-client",
     "L-192.168.0.200": {
-        "origins": ["192.168.0.200", "100.76.202.88", "45.147.121.152"],
+        "origins": ["192.168.0.200", "192.168.0.201", "100.76.202.88", "45.147.121.152"],
         "tokens": [],
         "roles": ["responser-initiated", "requestor-initiated", "responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
         "relations": {
@@ -104,7 +108,7 @@ Client permission and routing (destination) topology
         }
     },
     "L-192.168.0.110": {
-        "origins": ["192.168.0.110", "100.110.152.73"],
+        "origins": ["192.168.0.110", "192.168.0.111", "100.110.152.73"],
         "tokens": [],
         "roles": ["responser-initiated", "requestor-initiated", "responser-initiator", "requestor-initiator", "exchanger-initiator", "exchanger-initiated"],
         "relations": {
