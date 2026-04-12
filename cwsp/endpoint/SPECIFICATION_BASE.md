@@ -11,6 +11,7 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     redirect: boolean,
     flags: {...}, # specific/special flags of message
     op: "act" | "ask",
+    purpose: "airpad" | "mouse" | "input" | "clipboard" | "contact" | "sms" | "generic" | "general" | "storage",
     protocol: "socket" | "http" | "local" | "chrome" | "worker" # what protocol was used...
     srcPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. used platform of message
     dstPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. for what platform used used message
