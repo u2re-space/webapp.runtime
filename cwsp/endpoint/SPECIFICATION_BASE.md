@@ -15,7 +15,7 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     protocol: "socket" | "http" | "local" | "chrome" | "worker" # what protocol was used...
     srcPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. used platform of message, may be multiple (array) or ommited
     dstPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. for what platform used message, may be multiple (array) or ommited
-    type: "response" | "request" | "ack" | "redirect" | "signal" | "act" | "broadcast", # redirect same as request, signal isn't waiting a response, act also have no requirements to waiting response
+    type: "response" | "request" | "ack" | "redirect" | "signal" | "act" | "broadcast" | "initial", # redirect same as request, signal isn't waiting a response, act also have no requirements to waiting response
     uuid: UUIDv4, # UUID of message series
     timestamp: number, # when first of message was generated
     what: ACTION_TYPE, # what needs to achieve/reach/get
