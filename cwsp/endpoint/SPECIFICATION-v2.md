@@ -30,7 +30,7 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     destinations: [ID_NAME...], # where &ould be sent, acted or asked
     flags: {}, # special options/flags of message
     extensions?: [...], # additional/special protocol extensions to used
-    defer?: "none" | "idb" | "storage" | "promise" | "allowed" # can be message be deferred effect?
+    defer?: "none" | "cache" | "idb" | "storage" | "promise" | "allowed" # can be message be deferred effect?
 }
 ```
 
