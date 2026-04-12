@@ -13,23 +13,24 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     op: "act" | "ask",
     purpose: "airpad" | "mouse" | "input" | "clipboard" | "contact" | "sms" | "generic" | "general" | "storage",
     protocol: "socket" | "http" | "local" | "chrome" | "worker" # what protocol was used...
-    srcPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. used platform of message
-    dstPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. for what platform used used message
-    type: "response" | "request" | "ack" | "redirect", # redirect same as request
+    srcPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. used platform of message, may be multiple (array) or ommited
+    dstPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. for what platform used message, may be multiple (array) or ommited
+    type: "response" | "request" | "ack" | "redirect" | "signal" | "act" | "broadcast", # redirect same as request, signal isn't waiting a response
     uuid: UUIDv4, # UUID of message series
     timestamp: number, # when first of message was generated
     what: ACTION_TYPE, # what needs to achieve/reach/get
     payload: ENCODED_DATA, # Body, POST-like payload
     results: ENCODED_DATA, # Results, alike in response
-    role: [("requestor" | "responser" | "bridge")...], # what role will after request, also "bridge" or "link", I don't know how to name truly...
-    status: number,
-    ids: [ID_NAME...],     # passthrough ID's
-    urls: [urls...],       # found/used URLs (physically)
-    tokens: [tokens...],   # clients/peers tokens used
-    sender: ID_NAME | URL, # who originally sended message
-    destinations: [ID_NAME...], # where &ould be acted or asked
+    role: [("requestor" | "responser" | "bridge" | "link")...], # what role will after request, also "bridge" or "link", I don't know how to name truly...
+    status: number,             # status code (when response)
+    ids: [ID_NAME...],          # passthrough ID's
+    urls: [urls...],            # found/used URLs (physically)
+    tokens: [tokens...],        # clients/peers tokens used
+    sender: ID_NAME | URL,      # who originally sended message
+    destinations: [ID_NAME...], # where &ould be sent, acted or asked
     flags: {}, # special options/flags of message
-    extensions: [...] # additional/special protocol extensions to used
+    extensions?: [...], # additional/special protocol extensions to used
+    defer?: "none" | "idb" | "storage" | "promise" | "allowed" # can be message be deferred effect?
 }
 ```
 
