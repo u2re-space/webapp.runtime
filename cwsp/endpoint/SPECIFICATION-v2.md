@@ -42,26 +42,27 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
 ## Specific cases (in payloads)
 
 Operations:
-- `{ "op": "sms:delivery", "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "contact:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "sms:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "contact:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
 - `{ "op": "contact:ask", "params": [...] }`
 - `{ "op": "notification:ask", "params": [...] }`
-- `{ "op": "notification:delivery", "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "clipboard:delivery", "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "clipboard:write", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "notification:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "clipboard:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "clipboard:write", "params": [...], "data": BASE_64_ENCODED_DATA }`
 - `{ "op": "clipboard:read", "params": [...] }`
-- `{ "op": "airpad:mouse", "data": BASE_64_ENCODED_DATA_16_BYTE }`
-- `{ "op": "airpad:keyboard", "data": BASE_64_ENCODED_DATA_16_BYTE }`
-- `{ "op": "airpad:clipboard:write", "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "airpad:clipboard:read", "params": [...] }`
-- `{ "op": "airpad:clipboard:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "airpad:mouse", "params": [...], "data": BASE_64_ENCODED_DATA_16_BYTE }`
+- `{ "op": "airpad:keyboard", "params": [...], "data": BASE_64_ENCODED_DATA_16_BYTE }`
+- `{ "op": "airpad:clipboard:write", "params": [...], "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "airpad:clipboard:read" , "params": [...] }`
+- `{ "op": "airpad:clipboard:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
 - `{ "op": "ai:process" , "params": [...], "token": STRING, "data": [JSON_DATA | INSTRUCTION | IMAGES_IN_BASE64] }`
 - `{ "op": "assets:load", "params": [...] }`
 - `{ "op": "assets:save", "params": [...], "token": STRING, "data": [JSON_DATA | TEXT_DATA | IMAGES | BINARY] }`
 
 When/where:
 - `BASE_64_ENCODED_DATA_16_BYTE` may/can be encrypted or unencrypted, also is binary code
-- `BASE_64_ENCODED_DATA` may/can be encrypted or unencrypted
+- `BASE_64_ENCODED_DATA`         may/can be encrypted or unencrypted
+- In `"params": [...]`           may/can be described where, when, how to use those data
 
 ## Config example
 
