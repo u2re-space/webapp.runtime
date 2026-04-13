@@ -39,6 +39,30 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
 - Message with same UUID (and/or some data) isn't/&ouldn't accepted or resend twice and/or more than twice in timing window (100ms or 300ms), for avoid recursion issues.
 - Sender can't/won't allowed to get (for act or accept) same message, that he sended.
 
+## Specific cases (in payloads)
+
+Operations:
+- `{ "op": "sms:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "contact:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "contact:ask", "params": [...] }`
+- `{ "op": "notification:ask", "params": [...] }`
+- `{ "op": "notification:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "clipboard:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "clipboard:write", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "clipboard:read", "params": [...] }`
+- `{ "op": "airpad:mouse", "data": BASE_64_ENCODED_DATA_16_BYTE }`
+- `{ "op": "airpad:keyboard", "data": BASE_64_ENCODED_DATA_16_BYTE }`
+- `{ "op": "airpad:clipboard:write", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "airpad:clipboard:read", "params": [...] }`
+- `{ "op": "airpad:clipboard:delivery", "data": BASE_64_ENCODED_DATA }`
+- `{ "op": "ai:process" , "params": [...], "token": STRING, "data": [JSON_DATA | INSTRUCTION | IMAGES_IN_BASE64] }`
+- `{ "op": "assets:load", "params": [...] }`
+- `{ "op": "assets:save", "params": [...], "token": STRING, "data": [JSON_DATA | TEXT_DATA | IMAGES | BINARY] }`
+
+When/where:
+- `BASE_64_ENCODED_DATA_16_BYTE` may/can be encrypted or unencrypted, also is binary code
+- `BASE_64_ENCODED_DATA` may/can be encrypted or unencrypted
+
 ## Config example
 
 Client permission and routing (destination) topology
