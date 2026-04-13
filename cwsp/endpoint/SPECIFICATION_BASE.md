@@ -21,7 +21,7 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     what: ACTION_TYPE, # what needs to achieve/reach/get
     payload: ENCODED_DATA, # Body, POST-like payload
     results: ENCODED_DATA, # Results, alike in response
-    toRole: [("requestor" | "responser" | "acceptor" | "executor" | "actor" | "bridge" | "link" | "exchanger" | "sender")...], # what role will enabled after request (initial), also "bridge" or "link", I don't know how to name truly...
+    toRoles: [("requestor" | "responser" | "acceptor" | "executor" | "actor" | "bridge" | "link" | "exchanger" | "sender")...], # what role will enabled after request (initial), also "bridge" or "link", I don't know how to name truly...
     status: number,             # status code (when response)
     ids: [ID_NAME...],          # passthrough ID's
     urls: [urls...],            # found/used URLs (physically)
