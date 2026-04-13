@@ -27,7 +27,7 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     urls: [urls...],            # found/used URLs (physically)
     tokens: [tokens...],        # clients/peers tokens used
     sender: ID_NAME | URL,      # who originally sended message
-    destinations: [ID_NAME...], # where &ould be sent, acted or asked
+    destinations: [(ID_NAME | URL)...], # where &ould be sent, acted or asked
     flags: {}, # special options/flags of message
     extensions?: [...], # additional/special protocol extensions to used
     defer?: "none" | "cache" | "idb" | "storage" | "promise" | "allowed" # can be message be deferred effect?
