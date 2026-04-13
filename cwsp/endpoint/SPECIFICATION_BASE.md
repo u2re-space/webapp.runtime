@@ -22,10 +22,10 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
     payload: ENCODED_DATA, # Body, POST-like payload
     results: ENCODED_DATA, # Results, alike in response
     toRoles: [("requestor" | "responser" | "acceptor" | "executor" | "actor" | "bridge" | "link" | "exchanger" | "sender")...], # what role will enabled after request (initial), also "bridge" or "link", I don't know how to name truly...
-    status: number,             # status code (when response)
-    ids: [ID_NAME...],          # passthrough ID's
+    status?: number,            # status code (when response)
+    ids: [ID_NAME...],          # passthrough ID's (broadcasting, tunneling)
     urls: [urls...],            # found/used URLs (physically)
-    tokens: [tokens...],        # clients/peers tokens used
+    tokens: [tokens...],        # clients/peers tokens used (to DST)
     sender: ID_NAME | URL,      # who originally sended message
     destinations: [(ID_NAME | URL)...], # where &ould be sent, acted or asked
     flags: {}, # special options/flags of message
