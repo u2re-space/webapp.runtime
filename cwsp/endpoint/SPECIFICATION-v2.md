@@ -10,12 +10,12 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
 {
     redirect: boolean,
     flags: {...}, # specific/special flags of message
-    op: "act" | "ask",
+    op: "act" | "ask" | "signal" | "request" | "response" | "redirect" | "notify",
+    type: "response" | "request" | "ack" | "redirect" | "signal" | "act" | "broadcast" | "initial" | "notify", # redirect same as request, signal isn't waiting a response, act also have no requirements to waiting response
     purpose: "airpad" | "mouse" | "input" | "clipboard" | "contact" | "sms" | "generic" | "general" | "storage",
     protocol: "socket" | "http" | "local" | "chrome" | "worker" # what protocol was used...
     srcPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. used platform of message, may be multiple (array) or ommited
     dstPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. for what platform used message, may be multiple (array) or ommited
-    type: "response" | "request" | "ack" | "redirect" | "signal" | "act" | "broadcast" | "initial", # redirect same as request, signal isn't waiting a response, act also have no requirements to waiting response
     uuid: UUIDv4, # UUID of message series
     timestamp: number, # when first of message was generated
     what: ACTION_TYPE, # what needs to achieve/reach/get
@@ -63,7 +63,7 @@ Client permission and routing (destination) topology
         },
         "forward": [{
             "id": "L-192.168.0.110",
-            "conditions": ["airpad", "mouse", "keyboard"]
+            "conditions": ["airpad", "input", "mouse", "keyboard"]
         }, "self"],
         "broadcast": [{
             "targets": ["L-192.168.0.196", "L-192.168.0.110", "L-192.168.0.208", "L-wan-client"],
@@ -71,6 +71,7 @@ Client permission and routing (destination) topology
         }],
         "protocols": {
             "websocket": {
+                "reverse": true,
                 "client": true,
                 "server": true,
                 "tunnel": true
@@ -85,7 +86,8 @@ Client permission and routing (destination) topology
             "initiated": true,
             "mobile": true,
             "gateway": true,
-            "direct": true
+            "direct": true,
+            "firstOrder": true
         },
         "tls": {
             "enabled": true,
@@ -128,7 +130,8 @@ Client permission and routing (destination) topology
             "initiated": true,
             "mobile": true,
             "gateway": false,
-            "direct": true
+            "direct": true,
+            "firstOrder": true
         },
         "forward": ["self"],
         "ports": {
@@ -146,6 +149,7 @@ Client permission and routing (destination) topology
         },
         "protocols": {
             "websocket": {
+                "reverse": true,
                 "client": true,
                 "server": true,
                 "tunnel": true
@@ -189,7 +193,8 @@ Client permission and routing (destination) topology
             "initiated": false,
             "mobile": true,
             "gateway": false,
-            "direct": false
+            "direct": false,
+            "firstOrder": false
         },
         "forward": ["self"],
         "tls": {
@@ -244,7 +249,8 @@ Client permission and routing (destination) topology
             "initiated": false,
             "mobile": true,
             "gateway": false,
-            "direct": false
+            "direct": false,
+            "firstOrder": false
         },
         "forward": ["self"],
         "tls": {
@@ -263,7 +269,8 @@ Client permission and routing (destination) topology
             "websocket": {
                 "client": true,
                 "reverse": true,
-                "keepalive": true
+                "keepalive": true,
+                "server": true
             },
             "http": {
                 "enabled": true,
@@ -296,6 +303,7 @@ Client permission and routing (destination) topology
         "flags": {
             "initiator": true,
             "initiated": false,
+            "firstOrder": false,
             "mobile": true,
             "gateway": false,
             "direct": false
@@ -317,7 +325,8 @@ Client permission and routing (destination) topology
             "websocket": {
                 "client": true,
                 "reverse": true,
-                "keepalive": true
+                "keepalive": true,
+                "server": true
             },
             "http": {
                 "enabled": true,

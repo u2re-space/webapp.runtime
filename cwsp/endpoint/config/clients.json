@@ -22,7 +22,7 @@
         },
         "forward": [{
             "id": "L-192.168.0.110",
-            "conditions": ["airpad", "mouse", "keyboard"]
+            "conditions": ["airpad", "input", "mouse", "keyboard"]
         }, "self"],
         "broadcast": [{
             "targets": ["L-192.168.0.196", "L-192.168.0.110", "L-192.168.0.208", "L-wan-client"],
@@ -30,6 +30,7 @@
         }],
         "protocols": {
             "websocket": {
+                "reverse": true,
                 "client": true,
                 "server": true,
                 "tunnel": true
@@ -44,7 +45,8 @@
             "initiated": true,
             "mobile": true,
             "gateway": true,
-            "direct": true
+            "direct": true,
+            "firstOrder": true
         },
         "tls": {
             "enabled": true,
@@ -87,7 +89,8 @@
             "initiated": true,
             "mobile": true,
             "gateway": false,
-            "direct": true
+            "direct": true,
+            "firstOrder": true
         },
         "forward": ["self"],
         "ports": {
@@ -105,6 +108,7 @@
         },
         "protocols": {
             "websocket": {
+                "reverse": true,
                 "client": true,
                 "server": true,
                 "tunnel": true
@@ -148,7 +152,8 @@
             "initiated": false,
             "mobile": true,
             "gateway": false,
-            "direct": false
+            "direct": false,
+            "firstOrder": false
         },
         "forward": ["self"],
         "tls": {
@@ -203,7 +208,8 @@
             "initiated": false,
             "mobile": true,
             "gateway": false,
-            "direct": false
+            "direct": false,
+            "firstOrder": false
         },
         "forward": ["self"],
         "tls": {
@@ -222,7 +228,8 @@
             "websocket": {
                 "client": true,
                 "reverse": true,
-                "keepalive": true
+                "keepalive": true,
+                "server": true
             },
             "http": {
                 "enabled": true,
@@ -255,6 +262,7 @@
         "flags": {
             "initiator": true,
             "initiated": false,
+            "firstOrder": false,
             "mobile": true,
             "gateway": false,
             "direct": false
@@ -276,7 +284,8 @@
             "websocket": {
                 "client": true,
                 "reverse": true,
-                "keepalive": true
+                "keepalive": true,
+                "server": true
             },
             "http": {
                 "enabled": true,
