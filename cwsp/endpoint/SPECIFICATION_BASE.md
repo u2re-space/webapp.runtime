@@ -34,6 +34,11 @@ New specification of messages (for example, in websockets, or HTTP body [POST]).
 }
 ```
 
+## Guards
+
+- Message with same UUID (and/or some data) isn't/&ouldn't accepted or resend twice and/or more than twice in timing window (100ms or 300ms), for avoid recursion issues.
+- Sender can't/won't allowed to get (for act or accept) same message, that he sended.
+
 ## Config example
 
 Client permission and routing (destination) topology
