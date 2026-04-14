@@ -100,6 +100,33 @@ for (const [key, value] of Object.entries(envFromFile)) {
 if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_HTTPS_ENABLED")) {
     envFromFile.CWS_HTTPS_ENABLED = "true";
 }
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_NETWORK_SCHEMA_VERSION")) {
+    envFromFile.CWS_NETWORK_SCHEMA_VERSION = "2";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COORDINATOR_MODE")) {
+    envFromFile.CWS_COORDINATOR_MODE = "unified";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CORS_ALLOW_PRIVATE_NETWORK")) {
+    envFromFile.CORS_ALLOW_PRIVATE_NETWORK = "true";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COEP_POLICY")) {
+    envFromFile.CWS_COEP_POLICY = "unsafe-none";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COOP_POLICY")) {
+    envFromFile.CWS_COOP_POLICY = "same-origin-allow-popups";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_CORP_POLICY")) {
+    envFromFile.CWS_CORP_POLICY = "cross-origin";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_CSP_ENABLED")) {
+    envFromFile.CWS_CSP_ENABLED = "true";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_ELECTRON_WEB_SECURITY")) {
+    envFromFile.CWS_ELECTRON_WEB_SECURITY = "true";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_ELECTRON_ALLOW_INSECURE_CONTENT")) {
+    envFromFile.CWS_ELECTRON_ALLOW_INSECURE_CONTENT = "true";
+}
 
 module.exports = {
     apps: [

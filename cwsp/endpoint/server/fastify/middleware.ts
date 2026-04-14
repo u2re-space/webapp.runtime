@@ -17,6 +17,13 @@ const parseCsv = (value) =>
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean);
+const parseBool = (value, fallback = false) => {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    if (!normalized) return fallback;
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+    return fallback;
+};
 
 const NON_HASHED_SCRIPT_STYLE_RE = /\.(js|mjs|css)$/i;
 const HASHED_ASSET_RE = /\.[a-f0-9]{8,}\.(css|js|mjs|woff2|png|webp|svg|jpg|jpeg|gif|ico)$/i;
@@ -56,8 +63,12 @@ const createCorsOriginMatcher = () => {
         "http://100.110.152.73",
         "https://192.168.0.200",
         "http://192.168.0.200",
+        "https://192.168.0.201",
+        "http://192.168.0.201",
         "https://192.168.0.110",
         "http://192.168.0.110",
+        "https://192.168.0.111",
+        "http://192.168.0.111",
         "https://localhost",
         "http://localhost",
         "https://127.0.0.1",
@@ -152,17 +163,31 @@ export async function registerMiddleware(fastify, options: { cacheSegment?: stri
     ].join(", ");
 
     //
+    const enableCsp = parseBool(process.env.CWS_CSP_ENABLED, true);
+    const cspExtraConnectSrc = parseCsv(process.env.CWS_CSP_CONNECT_SRC).join(" ");
+    const coepPolicy = String(process.env.CWS_COEP_POLICY || "unsafe-none").trim() || "unsafe-none";
+    const coopPolicy = String(process.env.CWS_COOP_POLICY || "same-origin-allow-popups").trim() || "same-origin-allow-popups";
+    const corpPolicy = String(process.env.CWS_CORP_POLICY || "cross-origin").trim() || "cross-origin";
     fastify.addHook("onSend", function (req, reply, payload, next) {
-        reply.header("Cross-Origin-Embedder-Policy", "require-corp");
-        reply.header("Cross-Origin-Opener-Policy", "same-origin");
-        reply.header("Content-Security-Policy",
-            "default-src https: 'self' blob: data:;" +
-            "connect-src 'self' https: http: wss: ws: blob: data:;" +
-            "img-src 'self' * blob: data:;" +
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob: data:;" +
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" + //'strict-dynamic'
-            "script-src-elem 'self' 'unsafe-inline' node: blob: data:;" +
-            "worker-src 'self' blob:* data:*;");
+        reply.header("Cross-Origin-Embedder-Policy", coepPolicy);
+        reply.header("Cross-Origin-Opener-Policy", coopPolicy);
+        reply.header("Cross-Origin-Resource-Policy", corpPolicy);
+        if (enableCsp) {
+            const connectSrc = ["'self'", "https:", "http:", "wss:", "ws:", "blob:", "data:", cspExtraConnectSrc]
+                .filter(Boolean)
+                .join(" ");
+            reply.header("Content-Security-Policy",
+                "default-src https: http: 'self' blob: data:;" +
+                `connect-src ${connectSrc};` +
+                "img-src 'self' * blob: data:;" +
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com blob: data:;" +
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' node: blob: data:;" +
+                "script-src-elem 'self' 'unsafe-inline' node: blob: data:;" +
+                "frame-src 'self' https: http: data: blob:;" +
+                "worker-src 'self' blob:* data:*;");
+        } else {
+            reply.removeHeader("Content-Security-Policy");
+        }
 
         reply.header("Content-Language", "*");
         reply.header("Access-Control-Request-Headers", "*");

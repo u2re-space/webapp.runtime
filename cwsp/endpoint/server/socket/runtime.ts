@@ -2,7 +2,7 @@ import type { Server as HttpServer } from "node:http";
 import type { Server as HttpsServer } from "node:https";
 
 import type { Packet } from "./types.ts";
-import { inferWhatFromLegacyType } from "./packet.ts";
+import { inferWhatFromLegacyType, normalizeInboundPacket } from "./packet.ts";
 import {
     SELF_DATA,
     areNodeIdsEquivalent,
@@ -16,6 +16,7 @@ import {
     resolveKnownClientId,
     socketMatchesRoutingTarget
 } from "./coordinator.ts";
+import { WsGatewayCanonical, wsGatewayPath } from "./ws-gateway.ts";
 
 type SocketServerInput = HttpServer | HttpsServer;
 
@@ -32,6 +33,7 @@ type ConnectionProfile = {
 };
 
 const normalizeToken = (value: unknown): string => String(value || "").trim().toLowerCase();
+const COORDINATOR_VERBS = new Set(["ask", "act", "resolve", "result", "error"]);
 
 const asRecord = (value: unknown): Record<string, unknown> => {
     return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -59,6 +61,65 @@ const splitList = (value: unknown): string[] => {
 
 const packetClone = (packet: Packet): Packet => JSON.parse(JSON.stringify(packet || {})) as Packet;
 
+const normalizeCoordinatorOp = (value: unknown): Packet["op"] => {
+    const op = normalizeString(value).toLowerCase();
+    if (!op) return "act";
+    if (op === "request") return "ask";
+    if (op === "response") return "result";
+    if (op === "signal" || op === "notify" || op === "redirect") return "act";
+    if (COORDINATOR_VERBS.has(op)) return op as Packet["op"];
+    return "act";
+};
+
+const inferPurposeFromWhat = (what: string): string => {
+    const normalized = normalizeString(what).toLowerCase();
+    if (normalized.startsWith("airpad:")) return "airpad";
+    if (normalized.startsWith("mouse:")) return "mouse";
+    if (normalized.startsWith("keyboard:")) return "input";
+    if (normalized.startsWith("clipboard:")) return "clipboard";
+    if (normalized.startsWith("contacts:") || normalized.startsWith("contact:")) return "contact";
+    if (normalized.startsWith("sms:")) return "sms";
+    if (normalized.startsWith("storage:")) return "storage";
+    return "general";
+};
+
+const resolveCoordinatorWhat = (typeOrWhat: unknown, data: unknown): string => {
+    const preferred = inferWhatFromLegacyType(typeOrWhat) || normalizeString(typeOrWhat);
+    if (preferred) return preferred;
+    const payload = asRecord(data);
+    const fromPayload = normalizeString(payload.what || payload.type || payload.action);
+    if (fromPayload) return inferWhatFromLegacyType(fromPayload) || fromPayload;
+    const payloadOp = normalizeString(payload.op || "");
+    if (payloadOp && !COORDINATOR_VERBS.has(payloadOp.toLowerCase())) {
+        return payloadOp;
+    }
+    return "dispatch";
+};
+
+const normalizeOutgoingPacket = (payload: Record<string, unknown>, fallbackFrom: string): Packet => {
+    const normalized = normalizeInboundPacket(payload);
+    if (normalized) {
+        normalized.op = normalizeCoordinatorOp(normalized.op);
+        normalized.byId ||= fallbackFrom;
+        normalized.from ||= fallbackFrom;
+        normalized.timestamp ||= Date.now();
+        return normalized;
+    }
+    const packet = payload as Packet;
+    const what = resolveCoordinatorWhat(packet.what || packet.type || packet.op, packet.payload ?? packet.data ?? packet);
+    return {
+        ...packet,
+        op: normalizeCoordinatorOp(packet.op),
+        what,
+        purpose: normalizeString((packet as any).purpose) || inferPurposeFromWhat(what),
+        protocol: normalizeString((packet as any).protocol) || "socket",
+        byId: packet.byId || fallbackFrom,
+        from: packet.from || fallbackFrom,
+        timestamp: packet.timestamp || Date.now(),
+        nodes: Array.isArray(packet.nodes) ? packet.nodes : Array.isArray((packet as any).destinations) ? (packet as any).destinations : packet.nodes
+    } as Packet;
+};
+
 const collectTargetIds = (packet: Packet): string[] => {
     const targets = new Set<string>();
     if (Array.isArray(packet.nodes)) {
@@ -71,6 +132,12 @@ const collectTargetIds = (packet: Packet): string[] => {
         const normalized = normalizeToken(candidate);
         if (normalized) targets.add(normalized);
     }
+    if (Array.isArray((packet as any).destinations)) {
+        for (const entry of (packet as any).destinations as unknown[]) {
+            const normalized = normalizeToken(entry);
+            if (normalized) targets.add(normalized);
+        }
+    }
     return Array.from(targets);
 };
 
@@ -80,7 +147,9 @@ export class ServerV2SocketRuntime {
     private readonly clientSeed: Record<string, any>;
     private readonly bridgeConfig: Record<string, unknown>;
     private socketServer?: ReturnType<typeof makeSocketServer>;
+    private wsGateway?: WsGatewayCanonical;
     private preconnectTimer?: ReturnType<typeof setInterval>;
+    private readonly compatSocketIo: boolean = ["1", "true", "yes", "on"].includes(String(process.env.CWS_COMPAT_SOCKETIO || "false").trim().toLowerCase());
 
     constructor(selfId: string, token: string, clientSeed: Record<string, any> = {}, bridgeConfig: Record<string, unknown> = {}) {
         this.selfId = selfId || "server-v2";
@@ -99,7 +168,13 @@ export class ServerV2SocketRuntime {
             loadFromClientsConfig(this.clientSeed as any);
         }
         const [primary, ...extras] = nodes;
-        this.socketServer = makeSocketServer(primary as any, this.selfId, extras as any);
+        if (this.compatSocketIo) {
+            this.socketServer = makeSocketServer(primary as any, this.selfId, extras as any);
+        }
+        this.wsGateway = new WsGatewayCanonical(this.selfId, this.token);
+        for (const node of nodes) {
+            this.wsGateway.attach(node);
+        }
         this.startBridgePreconnect();
     }
 
@@ -111,6 +186,8 @@ export class ServerV2SocketRuntime {
         for (const io of this.socketServer?.servers ?? []) {
             io.close();
         }
+        this.wsGateway?.close();
+        this.wsGateway = undefined;
         this.socketServer = undefined;
     }
 
@@ -124,9 +201,14 @@ export class ServerV2SocketRuntime {
 
     getStatus() {
         return {
+            ws: {
+                path: wsGatewayPath(),
+                ...(this.wsGateway?.getStatus() || { connected: 0, ids: [] as string[] })
+            },
             socketio: {
-                connected: this.getConnectedDevices().length,
-                ids: this.getConnectedDevices()
+                enabled: this.compatSocketIo,
+                connected: this.compatSocketIo ? this.getConnectedDevices().length : 0,
+                ids: this.compatSocketIo ? this.getConnectedDevices() : []
             }
         };
     }
@@ -137,9 +219,10 @@ export class ServerV2SocketRuntime {
     }
 
     multicast(_ownerId: string, payload: Record<string, unknown>, _namespace?: string): boolean {
+        const outbound = normalizeOutgoingPacket(payload, this.selfId);
         let delivered = false;
         for (const socket of internalNodeMap.values()) {
-            socket.emit("data", payload);
+            socket.emit("data", outbound);
             delivered = true;
         }
         return delivered;
@@ -156,8 +239,9 @@ export class ServerV2SocketRuntime {
     }
 
     dispatchPacket(packet: Packet): boolean {
-        const targets = collectTargetIds(packet).filter((entry) => entry !== normalizeToken(this.selfId));
-        const outbound = packetClone(packet);
+        const normalized = normalizeInboundPacket(packet) || packet;
+        const targets = collectTargetIds(normalized).filter((entry) => entry !== normalizeToken(this.selfId));
+        const outbound = packetClone(normalized);
         if (!outbound.byId) outbound.byId = this.selfId;
         if (!outbound.from) outbound.from = this.selfId;
         if (!outbound.timestamp) outbound.timestamp = Date.now();
@@ -195,18 +279,33 @@ export class ServerV2SocketRuntime {
         return delivered;
     }
 
-    sendLegacyMessage(targets: string[], type: string, data: unknown, from?: string): boolean {
+    sendCoordinatorMessage(
+        targets: string[],
+        typeOrWhat: string,
+        data: unknown,
+        from?: string,
+        op: Packet["op"] = "act"
+    ): boolean {
+        const what = resolveCoordinatorWhat(typeOrWhat, data);
+        const normalizedOp = normalizeCoordinatorOp(op);
         return this.dispatchPacket({
-            op: "act",
-            what: inferWhatFromLegacyType(type),
-            type,
+            op: normalizedOp,
+            what,
+            type: normalizeString(typeOrWhat) || what,
+            purpose: inferPurposeFromWhat(what),
+            protocol: "socket",
             data,
             payload: data,
             nodes: targets,
+            destinations: targets,
             byId: from || this.selfId,
             from: from || this.selfId,
             timestamp: Date.now()
         } as Packet);
+    }
+
+    sendLegacyMessage(targets: string[], type: string, data: unknown, from?: string): boolean {
+        return this.sendCoordinatorMessage(targets, type, data, from, "act");
     }
 
     private hasEquivalentLiveConnection(targetId: string): boolean {
@@ -258,6 +357,7 @@ export class ServerV2SocketRuntime {
     }
 
     private startBridgePreconnect(): void {
+        if (!this.compatSocketIo) return;
         const bridge = asRecord(this.bridgeConfig);
         if (bridge.enabled === false) return;
 

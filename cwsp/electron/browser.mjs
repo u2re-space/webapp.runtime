@@ -4,6 +4,13 @@ import path from 'path';
 
 //
 const { BrowserWindow } = electron;
+const toBool = (value, fallback) => {
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (!normalized) return fallback;
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+    if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+    return fallback;
+};
 
 //
 export default class BrowserApp {
@@ -17,14 +24,18 @@ export default class BrowserApp {
     init() {
         if (!this.browser) {
             const {width, height} = electron.screen.getPrimaryDisplay().workAreaSize;
+            const enableWebSecurity = toBool(process.env.CWS_ELECTRON_WEB_SECURITY, true);
+            const allowInsecureContent = toBool(process.env.CWS_ELECTRON_ALLOW_INSECURE_CONTENT, true);
+            const enableNodeIntegration = toBool(process.env.CWS_ELECTRON_NODE_INTEGRATION, true);
+            const openDevtools = toBool(process.env.CWS_ELECTRON_DEVTOOLS, true);
             const webPreferences = {
-                allowRunningInsecureContent: true,
-                webSecurity: false,
+                allowRunningInsecureContent: allowInsecureContent,
+                webSecurity: enableWebSecurity,
                 experimentalFeatures: true,
-                contextBridge: true,
-                nodeIntegration: true,
+                contextIsolation: true,
+                nodeIntegration: enableNodeIntegration,
                 sandbox: false,
-                devTools: true,
+                devTools: openDevtools,
                 transparent: true,
                 preload: path.resolve(import.meta.dirname, "./injector.mjs")
             };
@@ -52,7 +63,9 @@ export default class BrowserApp {
             this.shown = true;
             await this.browser.loadURL(index);
             this.browser.show();
-            this.browser.webContents.openDevTools();
+            if (toBool(process.env.CWS_ELECTRON_DEVTOOLS, true)) {
+                this.browser.webContents.openDevTools();
+            }
         }
     }
 
@@ -62,7 +75,9 @@ export default class BrowserApp {
             this.shown = true;
             this.browser.loadFile(index);
             this.browser.show();
-            this.browser.webContents.openDevTools();
+            if (toBool(process.env.CWS_ELECTRON_DEVTOOLS, true)) {
+                this.browser.webContents.openDevTools();
+            }
         }
     }
 

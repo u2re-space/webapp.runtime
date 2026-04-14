@@ -38,11 +38,12 @@
     "cap:add:android": "node scripts/ensure-capacitor-android.mjs",
     "cap:open:android": "npx cap open android",
     "cap:sync": "node scripts/build-capacitor-web.mjs --skip-portable && npx cap sync android && node scripts/patch-capacitor-android-network.mjs",
+    "cap:sync:lan": "CWS_CAP_CLEAR_DOMAINS=${CWS_CAP_CLEAR_DOMAINS:-localhost,127.0.0.1,10.0.2.2,192.168.0.200,192.168.0.201,192.168.0.110,192.168.0.111} CWS_CAP_ALLOW_NAVIGATION=${CWS_CAP_ALLOW_NAVIGATION:-https://localhost,http://localhost,https://192.168.0.200,http://192.168.0.200,https://192.168.0.201,http://192.168.0.201,https://192.168.0.110,http://192.168.0.110,https://192.168.0.111,http://192.168.0.111} npm run cap:sync",
     "cap:patch:android-net": "node scripts/patch-capacitor-android-network.mjs",
     "hint:capacitor-apk": "node scripts/hint-capacitor-apk.mjs",
     "start": "node dist/portable/cwsp.mjs",
     "start:pm2": "pm2 start ecosystem.portable.config.cjs --only cwsp --update-env",
-    "start:pm2:server": "pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env",
+    "start:pm2:server": "pm2 start ecosystem.server.config.cjs --only cwsp --update-env",
     "deploy:portable:ssh": "node ./scripts/deploy-cwsp-portable.mjs",
     "pack:portable": "node ./pack-portable.mjs",
     "pack:extension": "node ./pack-extension.mjs",
@@ -55,7 +56,6 @@
     "@capacitor/cli": ">=8.3.0",
     "@capacitor/clipboard": "^8.0.1",
     "@capacitor/core": ">=8.3.0",
-    "capacitor-cws-bridge": "file:plugins/capacitor-cws-bridge",
     "@electron/rebuild": ">=4.0.3",
     "@fastify/caching": ">=9.0.3",
     "@fastify/compress": ">=8.3.1",
@@ -67,6 +67,7 @@
     "@gachlab/capacitor-permissions": "^2.1.0",
     "@phosphor-icons/core": "^2.1.1",
     "@webviewjs/webview": ">=0.1.4",
+    "capacitor-cws-bridge": "file:plugins/capacitor-cws-bridge",
     "capacitor-native-settings": "^8.1.0",
     "clipboardy": ">=5.3.1",
     "close-with-grace": ">=2.1.0",
@@ -80,5 +81,8 @@
     "tsx": ">=4.7.1",
     "typescript": ">=6.0.0-beta",
     "vite": "^8.0.7"
+  },
+  "dependencies": {
+    "ws": "^8.20.0"
   }
 }

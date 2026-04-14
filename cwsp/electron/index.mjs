@@ -2,6 +2,7 @@
 import electron from 'electron';
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import BrowserApp from './browser.mjs';
@@ -12,6 +13,31 @@ const browser = new BrowserApp(app);
 
 /** @type {import('node:child_process').ChildProcess | null} */
 let cwspChild = null;
+const ELECTRON_SETTINGS_FILE = 'cwsp-electron-settings.json';
+
+const isObject = (value) => Boolean(value && typeof value === 'object' && !Array.isArray(value));
+
+const getSettingsPath = () => path.join(app.getPath('userData'), ELECTRON_SETTINGS_FILE);
+
+const loadElectronSettings = async () => {
+    const settingsPath = getSettingsPath();
+    try {
+        const raw = await readFile(settingsPath, 'utf8');
+        const parsed = JSON.parse(raw);
+        return isObject(parsed) ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+
+const saveElectronSettings = async (next) => {
+    const settingsPath = getSettingsPath();
+    const dir = path.dirname(settingsPath);
+    await mkdir(dir, { recursive: true });
+    await writeFile(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+};
+
+const toRecord = (value) => (isObject(value) ? value : {});
 
 /** Admin Fastify (health + /api/admin); default matches CWS_HTTPS_PORT (8443). */
 const defaultAdminBase = () =>
@@ -211,6 +237,62 @@ ipcMain.handle('theme-color:change', (event, [color, symbolColor]) => {
         color: color || '#000000',
         symbolColor: symbolColor || '#FFFFFF'
     });
+});
+
+ipcMain.handle('cws:ipc:get-shell-info', () => ({
+    shell: 'electron',
+    bridge: 'electronBridge',
+    native: true,
+    platform: 'electron'
+}));
+
+ipcMain.handle('cws:ipc:invoke', async (event, input) => {
+    const request = toRecord(input);
+    const channel = String(request.channel || 'default').trim() || 'default';
+    const payload = toRecord(request.payload);
+    const envelope = toRecord(request.envelope);
+    if (channel === 'settings:get') {
+        const appSettings = await loadElectronSettings();
+        return {
+            ok: true,
+            channel,
+            appSettings,
+            echo: payload,
+            envelope
+        };
+    }
+    if (channel === 'settings:patch') {
+        const patch = toRecord(payload.appSettings);
+        const current = await loadElectronSettings();
+        const next = { ...current, ...patch };
+        await saveElectronSettings(next);
+        return {
+            ok: true,
+            channel,
+            appSettings: next,
+            echo: payload,
+            envelope
+        };
+    }
+    if (channel === 'network:status') {
+        return {
+            ok: true,
+            channel,
+            echo: payload,
+            network: {
+                publicUrl: defaultPublicUrl(),
+                adminUrl: defaultAdminBase(),
+                publicCandidates: publicUrlCandidates()
+            },
+            envelope
+        };
+    }
+    return {
+        ok: true,
+        channel,
+        echo: payload,
+        envelope
+    };
 });
 
 export default main;

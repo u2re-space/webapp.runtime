@@ -83,7 +83,7 @@ const preferredTransportsFor = (
     targetId: string
 ): EndpointTransportMode[] => {
     if (!sourceId || !targetId) {
-        return ["ws", "socketio", "http", "tcp"];
+        return ["ws", "http", "tcp", "socketio"];
     }
     return resolveEndpointTransportPreference(sourceId, targetId, policyMap).transports;
 };
@@ -96,11 +96,13 @@ const pickTransportSender = (
     const explicit = requestedTransport && requestedTransport !== "auto" ? transports[requestedTransport] : undefined;
     if (explicit) return explicit;
     for (const transport of preferred) {
+        if (transport === "ws" && transports.ws) return transports.ws;
+        if (transport === "socketio" && transports.socketio) return transports.socketio;
         if (transport === "http" || transport === "tcp") continue;
         const sender = transports[transport];
         if (sender) return sender;
     }
-    return transports.ws || transports.socketio || transports.bridge;
+    return transports.ws || transports.bridge || transports.socketio;
 };
 
 export const createSocketProtocolHandler = (options: CreateSocketProtocolHandlerOptions) => {

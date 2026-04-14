@@ -18,6 +18,17 @@ const RAW_CLIENTS_CONFIG_PATH = path.join(CONFIG_DIR, "clients.json");
 
 const normalizeString = (value: unknown): string => String(value || "").trim();
 const normalizeToken = (value: unknown): string => String(value || "").trim().toLowerCase();
+const VERB_OPS = new Set(["ask", "act", "resolve", "result", "error", "signal", "request", "response", "redirect", "notify"]);
+
+const resolveDispatchOp = (value: unknown): string => {
+    const op = normalizeString(value).toLowerCase();
+    if (!op) return "act";
+    if (op === "request") return "ask";
+    if (op === "response") return "result";
+    if (op === "signal" || op === "notify" || op === "redirect") return "act";
+    if (VERB_OPS.has(op)) return op;
+    return "act";
+};
 
 const loadEndpointPolicies = () => {
     try {
@@ -103,7 +114,13 @@ const asRecord = (value: unknown): Record<string, unknown> => {
 };
 
 const resolveDispatchType = (body: Record<string, unknown>, fallback = "dispatch"): string => {
-    return normalizeString(body.type || body.action || fallback) || fallback;
+    return resolveActionType(body, fallback);
+};
+
+const resolveActionType = (body: Record<string, unknown>, fallback = "dispatch"): string => {
+    const op = normalizeString(body.op || "");
+    const opAsType = op && !VERB_OPS.has(op.toLowerCase()) ? op : "";
+    return normalizeString(body.what || body.type || body.action || opAsType || fallback) || fallback;
 };
 
 const resolveClipboardPayload = (value: unknown): Record<string, unknown> => {
@@ -124,10 +141,32 @@ const resolveClipboardPayload = (value: unknown): Record<string, unknown> => {
 
 const resolveDispatchPayload = (body: Record<string, unknown>, type: string): unknown => {
     const directPayload = body.payload ?? body.data;
-    if (directPayload != null) {
-        return type.startsWith("clipboard:") ? resolveClipboardPayload(directPayload) : directPayload;
+    if (type.startsWith("airpad:")) {
+        const directRecord = asRecord(directPayload);
+        if (
+            Object.keys(directRecord).length > 0 &&
+            (typeof directRecord.op === "string" || Array.isArray(directRecord.params) || directRecord.data !== undefined)
+        ) {
+            return directRecord;
+        }
+        const params = Array.isArray(body.params) ? body.params : [];
+        const opFromParams = params.length ? normalizeString(params[0]) : "";
+        const op = normalizeString(body.action || body.kind || body.subtype || opFromParams);
+        return {
+            op,
+            params,
+            data: directPayload ?? body.body ?? {}
+        };
     }
-    if (type.startsWith("clipboard:")) {
+    if (directPayload != null) {
+        return type.startsWith("clipboard:") || type.startsWith("airpad:clipboard:")
+            ? resolveClipboardPayload(directPayload)
+            : directPayload;
+    }
+    if (Array.isArray(body.params) && body.params.length > 0) {
+        return body.params;
+    }
+    if (type.startsWith("clipboard:") || type.startsWith("airpad:clipboard:")) {
         const clipboardPayload = resolveClipboardPayload(body.body ?? body);
         if (Object.keys(clipboardPayload).length > 0) return clipboardPayload;
     }
@@ -230,7 +269,7 @@ export const registerTransportHttpHandlers = async (
 
         const targets = normalizeTargets(body);
         if (targets.length) {
-            const delivered = sockets.sendLegacyMessage(targets, "clipboard:update", { text }, selfId);
+            const delivered = sockets.sendCoordinatorMessage(targets, "clipboard:update", { text }, selfId, "act");
             return { ok: delivered, delivered: delivered ? "socketio" : "none", targets };
         }
 
@@ -283,6 +322,7 @@ export const registerTransportHttpHandlers = async (
         const auth = await verifyRequestUser(endpointPolicies, body);
         if (!auth.ok) return auth;
         const type = resolveDispatchType(body);
+        const op = resolveDispatchOp(body.op);
         const targets = normalizeTargets(body);
         const payload = resolveDispatchPayload(body, type);
         const requestEntries = Array.isArray(body.requests) ? body.requests.map((entry) => asRecord(entry)) : [];
@@ -292,9 +332,11 @@ export const registerTransportHttpHandlers = async (
             .map((entry) => {
                 const target = normalizeString(entry.deviceId || entry.targetId || entry.target);
                 const entryType = resolveDispatchType(entry, type);
+                const entryOp = resolveDispatchOp(entry.op || op);
                 const entryPayload = resolveDispatchPayload(entry, entryType);
                 return {
                     target,
+                    op: entryOp,
                     type: entryType,
                     payload: entryPayload
                 };
@@ -304,12 +346,12 @@ export const registerTransportHttpHandlers = async (
         const deliveryResults = socketRequests.length > 0
             ? socketRequests.map((entry) => ({
                   target: entry.target,
-                  ok: sockets.sendLegacyMessage([entry.target], entry.type, entry.payload, auth.userId),
+                  ok: sockets.sendCoordinatorMessage([entry.target], entry.type, entry.payload, auth.userId, entry.op as any),
                   delivered: "socketio"
               }))
             : targets.map((target) => ({
                   target,
-                  ok: sockets.sendLegacyMessage([target], type, payload, auth.userId),
+                  ok: sockets.sendCoordinatorMessage([target], type, payload, auth.userId, op as any),
                   delivered: "socketio"
               }));
         const httpResults = await Promise.all(externalRequests.map((entry) => forwardHttpRequest(entry)));
@@ -328,11 +370,17 @@ export const registerTransportHttpHandlers = async (
         const body = asRecord(request.body);
         const auth = await verifyRequestUser(endpointPolicies, body);
         if (!auth.ok) return auth;
-        const type = normalizeString(body.type || "dispatch") || "dispatch";
+        const opRaw = normalizeString(body.op || "");
+        const opAsType = opRaw && !VERB_OPS.has(opRaw.toLowerCase()) ? opRaw : "";
+        const type = normalizeString(body.what || body.type || opAsType || "dispatch") || "dispatch";
         const data = body.data ?? body.payload ?? body;
+        const op = resolveDispatchOp(body.op);
         const delivered = sockets.multicast(auth.userId, {
+            op,
+            what: type,
             type,
             data,
+            payload: data,
             from: auth.userId,
             byId: auth.userId,
             timestamp: Date.now()
@@ -349,11 +397,12 @@ export const registerTransportHttpHandlers = async (
         if (!auth.ok) return auth;
         const targets = normalizeTargets(body);
         if (!targets.length) return { ok: false, error: "Missing deviceId" };
-        const delivered = sockets.sendLegacyMessage(
+        const delivered = sockets.sendCoordinatorMessage(
             targets,
-            normalizeString(body.type || body.action || "dispatch") || "dispatch",
+            resolveActionType(body),
             body.data ?? body.payload ?? body,
-            auth.userId
+            auth.userId,
+            "act"
         );
         return { ok: delivered, delivered: delivered ? "socketio" : "none", targets };
     };
@@ -411,7 +460,13 @@ export const registerTransportHttpHandlers = async (
         const broadcast = Boolean(body.broadcast);
         const requestedTargets = targets.length ? targets : broadcast ? sockets.getConnectedDevices(auth.userId) : [];
         const delivered = requestedTargets.length
-            ? sockets.sendLegacyMessage(requestedTargets, normalizeString(body.type || body.action || "dispatch") || "dispatch", body.payload ?? body.data ?? {}, auth.userId)
+            ? sockets.sendCoordinatorMessage(
+                  requestedTargets,
+                  resolveActionType(body),
+                  body.payload ?? body.data ?? {},
+                  auth.userId,
+                  "act"
+              )
             : false;
         return {
             ok: delivered || broadcast,
@@ -457,7 +512,7 @@ export const registerTransportHttpHandlers = async (
         const targets = normalizeTargets(body);
         const payload = body.data ?? body.payload ?? body;
         const delivered = targets.length
-            ? sockets.sendLegacyMessage(targets, featureType, payload, auth.userId)
+            ? sockets.sendCoordinatorMessage(targets, featureType, payload, auth.userId, "act")
             : sockets.notify(auth.userId, featureType, payload);
         return {
             ok: delivered,
@@ -479,7 +534,7 @@ export const registerTransportHttpHandlers = async (
         const targets = normalizeTargets(asRecord(request.body));
         const payload = asRecord(request.body).payload ?? asRecord(request.body).data ?? asRecord(request.body);
         const delivered = targets.length
-            ? sockets.sendLegacyMessage(targets, "notification:speak", payload, auth.userId)
+            ? sockets.sendCoordinatorMessage(targets, "notification:speak", payload, auth.userId, "act")
             : sockets.notify(auth.userId, "notification:speak", payload);
         return { ok: delivered, delivered: delivered ? "socketio" : "none" };
     };

@@ -14,6 +14,12 @@ import { fileURLToPath } from "node:url";
 import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const parseCsv = (value) =>
+    String(value || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+const sanitizeHost = (value) => String(value || "").trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
 
 /**
  * @param {string} pkgRoot - cwsp package root (parent of android/)
@@ -35,6 +41,21 @@ export function patchCapacitorAndroidNetwork(pkgRoot) {
 
     mkdirSync(xmlDir, { recursive: true });
     copyFileSync(srcXml, destXml);
+    let xml = readFileSync(destXml, "utf8");
+    const extraDomains = parseCsv(process.env.CWS_CAP_CLEAR_DOMAINS)
+        .map(sanitizeHost)
+        .filter(Boolean);
+    if (extraDomains.length > 0) {
+        const uniqueDomains = Array.from(new Set(extraDomains));
+        const injectedDomains = uniqueDomains
+            .map((host) => `        <domain includeSubdomains="false">${host}</domain>`)
+            .join("\n");
+        if (/<\/domain-config>/.test(xml)) {
+            xml = xml.replace(/<\/domain-config>/, `${injectedDomains}\n    </domain-config>`);
+            writeFileSync(destXml, xml, "utf8");
+            console.log(`[cap-net] Added cleartext domains from CWS_CAP_CLEAR_DOMAINS: ${uniqueDomains.join(", ")}`);
+        }
+    }
     console.log(`[cap-net] Wrote ${destXml}`);
 
     let manifest = readFileSync(manifestPath, "utf8");

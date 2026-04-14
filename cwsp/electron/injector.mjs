@@ -1,6 +1,6 @@
 (async ()=>{
     const electron = require( 'electron' );//(await import('electron')).default;
-    const { contextBridge, ipcRenderer, webFrame } = electron;
+    const { contextBridge, ipcRenderer } = electron;
 
     //
     contextBridge.exposeInMainWorld('darkMode', {
@@ -13,7 +13,9 @@
         setThemeColor: (color, symbolColor) => {
             ipcRenderer.invoke('theme-color:change', [color, symbolColor]);
             //titleBarOverlay
-        }
+        },
+        getShellInfo: () => ipcRenderer.invoke('cws:ipc:get-shell-info'),
+        invoke: (input) => ipcRenderer.invoke('cws:ipc:invoke', input ?? {})
     });
 
     // Will be used as IPC channeling

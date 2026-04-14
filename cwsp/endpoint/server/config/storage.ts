@@ -26,6 +26,88 @@ const loadReport: ConfigLoadReport = {
     portableModules: []
 };
 
+const STOCK_CONFIG_FILES = [
+    "clients.json",
+    "gateways.json",
+    "network.json",
+    "portable-endpoint.json",
+    "portable-core.json"
+] as const;
+
+const STOCK_HTTPS_FILES = [
+    "multi.crt",
+    "multi.key",
+    "rootCA.crt",
+    "server.cnf"
+] as const;
+
+const STOCK_ROOT_CANDIDATES = (() => {
+    const thisFileDir = path.dirname(new URL(import.meta.url).pathname);
+    return Array.from(
+        new Set(
+            [
+                process.cwd(),
+                path.resolve(process.cwd(), ".."),
+                path.resolve(process.cwd(), "../.."),
+                path.resolve(thisFileDir, "../../"),
+                path.resolve(thisFileDir, "../../../"),
+                path.resolve(CONFIG_DIR, "..")
+            ].map((entry) => path.resolve(entry))
+        )
+    );
+})();
+
+const normalizeFilePath = (value: string): string => {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
+};
+
+const ensureStockRuntimeScaffold = () => {
+    const configDir = path.resolve(loadReport.configDir || CONFIG_DIR);
+    const runtimeRoot = path.resolve(configDir, "..");
+    const httpsLocalDir = path.join(runtimeRoot, "https", "local");
+
+    try {
+        fs.mkdirSync(configDir, { recursive: true });
+        fs.mkdirSync(httpsLocalDir, { recursive: true });
+    } catch {
+        return;
+    }
+
+    for (const fileName of STOCK_CONFIG_FILES) {
+        const target = path.join(configDir, fileName);
+        if (fs.existsSync(target)) continue;
+        for (const root of STOCK_ROOT_CANDIDATES) {
+            const source = path.join(normalizeFilePath(root), "config", fileName);
+            if (!fs.existsSync(source)) continue;
+            try {
+                fs.copyFileSync(source, target);
+                break;
+            } catch {
+                // Keep trying next source candidate.
+            }
+        }
+    }
+
+    for (const fileName of STOCK_HTTPS_FILES) {
+        const target = path.join(httpsLocalDir, fileName);
+        if (fs.existsSync(target)) continue;
+        for (const root of STOCK_ROOT_CANDIDATES) {
+            const source = path.join(normalizeFilePath(root), "https", "local", fileName);
+            if (!fs.existsSync(source)) continue;
+            try {
+                fs.copyFileSync(source, target);
+                break;
+            } catch {
+                // Keep trying next source candidate.
+            }
+        }
+    }
+};
+
 const asRecord = (value: unknown): Record<string, unknown> => {
     return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 };
@@ -186,6 +268,7 @@ const rebuildPortableDerivedTables = (): void => {
  */
 const loadPortableStateFromDisk = (): void => {
     PORTABLE_CONFIG = resolvePortableConfig();
+    ensureStockRuntimeScaffold();
     applyPortableLauncherEnvDefaults();
     rebuildPortableDerivedTables();
 };
@@ -342,8 +425,19 @@ const resolveEndpointIds = (): Record<string, unknown> => {
 const buildSnapshot = (): ServerV2ConfigSnapshot => {
     const bridge = resolveBridgeConfig();
     const runtime = resolveRuntimeDefaults();
+    const schema = asRecord(PORTABLE_CONFIG.schema);
+    const networkSchemaVersion =
+        pickEnvNumberLegacy("CWS_NETWORK_SCHEMA_VERSION") ??
+        parsePortableInteger(schema.network) ??
+        2;
+    const coordinatorMode =
+        pickEnvStringLegacy("CWS_COORDINATOR_MODE") ||
+        String(schema.coordinator || "unified").trim() ||
+        "unified";
     return {
         ...runtime,
+        networkSchemaVersion,
+        coordinatorMode,
         https: resolveHttpsConfig(),
         roles: resolveRoles(),
         bridge,

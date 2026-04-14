@@ -12,7 +12,8 @@ import {
     MSG_TYPE_MOVE,
     MSG_TYPE_SCROLL
 } from "@inputs/drivers/adapters/constants.ts";
-import type { Packet } from "./types.ts";
+import type { NetworkFrame, Packet, PacketVerb } from "./types.ts";
+import { frameToPacket, mapPacketOpToFrame, normalizeIncomingFrameOp, packetToFrame } from "./frame-v2.ts";
 
 export const inferWhatFromLegacyType = (value: unknown): string | undefined => {
     const normalized = String(value || "").trim().toLowerCase();
@@ -38,6 +39,44 @@ const isPacketLike = (value: unknown): value is Packet => {
         "error" in (value as Record<string, unknown>)
     );
 };
+
+const normalizePacketVerb = (value: unknown): PacketVerb | undefined => normalizeIncomingFrameOp(value);
+
+const normalizeNodeList = (...values: unknown[]): string[] => {
+    const out = new Set<string>();
+    for (const value of values) {
+        if (Array.isArray(value)) {
+            for (const entry of value) {
+                const normalized = String(entry || "").trim();
+                if (normalized) out.add(normalized);
+            }
+            continue;
+        }
+        const single = String(value || "").trim();
+        if (single) out.add(single);
+    }
+    return Array.from(out);
+};
+
+const resolvePayloadFromFrame = (frame: NetworkFrame): unknown => {
+    if (frame.payload !== undefined) return frame.payload;
+    if (frame.data !== undefined) return frame.data;
+    if (Array.isArray(frame.params) && frame.params.length > 0) return frame.params;
+    if (frame.body !== undefined) return frame.body;
+    if ((frame as any)?.result !== undefined) return (frame as any).result;
+    return undefined;
+};
+
+const inferWhatFromFramePayload = (frame: NetworkFrame): string | undefined => {
+    const payloadCandidate = (frame.payload ?? frame.data ?? frame.body) as Record<string, unknown> | undefined;
+    if (!payloadCandidate || typeof payloadCandidate !== "object") return undefined;
+    const raw = String(payloadCandidate.op || payloadCandidate.action || payloadCandidate.type || "").trim().toLowerCase();
+    if (!raw) return undefined;
+    if (raw.includes(":")) return raw;
+    return undefined;
+};
+
+const normalizeFrameShape = (value: Record<string, unknown>): Packet => frameToPacket(value);
 
 const normalizeLegacyKeyboardKey = (codePoint: number, flags: number): { what: string; payload: any } | undefined => {
     switch (flags) {
@@ -165,16 +204,14 @@ export const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
     try {
         const parsed = normalizeLegacyIncomingPacket(raw);
         if (!parsed || typeof parsed !== "object") return undefined;
-        const packet = parsed as Packet;
+        const packet = normalizeFrameShape(parsed as Record<string, unknown>);
         if (!packet.what) {
             packet.what = inferWhatFromLegacyType((packet as any)?.type);
         }
         if (packet.payload === undefined && (packet as any)?.data !== undefined) {
             packet.payload = (packet as any).data;
         }
-        if (!packet.op) {
-            packet.op = packet.result !== undefined ? "result" : packet.error !== undefined ? "error" : "act";
-        }
+        packet.op = normalizePacketVerb(packet.op) || (packet.result !== undefined ? "result" : packet.error !== undefined ? "error" : "act");
         return packet;
     } catch {
         return undefined;
@@ -183,4 +220,10 @@ export const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
 
 export const ensurePacket = (raw: unknown): Packet | null => {
     return normalizeInboundPacket(raw) || null;
+};
+
+export const normalizeOutboundFrame = (packet: Record<string, unknown>, defaultSender = "server-v2"): NetworkFrame => {
+    const normalized = packetToFrame(packet, defaultSender);
+    if (!normalized.op) normalized.op = mapPacketOpToFrame((packet as Packet).op || "act") as NetworkFrame["op"];
+    return normalized;
 };

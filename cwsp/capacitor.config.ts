@@ -19,6 +19,10 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const devServerUrl = typeof process !== 'undefined' && process.env?.CWS_CAP_SERVER_URL?.trim()
     ? process.env.CWS_CAP_SERVER_URL.trim()
     : undefined;
+const allowNavigation = String(process.env?.CWS_CAP_ALLOW_NAVIGATION || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
 const config: CapacitorConfig = {
     /** Android `applicationId` for the Capacitor-based / extended CWSP app (Kotlin flavor `cwsp`; distinct from standalone `space.u2re.cws`). */
@@ -32,6 +36,7 @@ const config: CapacitorConfig = {
     server: {
         cleartext: true,
         androidScheme: 'https',
+        allowNavigation,
         ...(devServerUrl
             ? {
                   url: devServerUrl,
