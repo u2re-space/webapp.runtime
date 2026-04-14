@@ -1,1 +1,0 @@
-../pack-extension.sh
