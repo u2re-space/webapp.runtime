@@ -1,3 +1,10 @@
+/**
+ * Socket-frame normalization and action dispatch helpers.
+ *
+ * WHY: incoming transport frames arrive from multiple protocols with slightly
+ * different shapes. This module normalizes those inputs before routing them to
+ * the AirPad, clipboard, AI, and transport-forwarding handlers.
+ */
 import {
     resolveEndpointTransportPreference,
     type EndpointIdPolicyMap,
@@ -34,7 +41,12 @@ type ServerV2SocketFrame = {
     type?: string;
 };
 
-// post-handler for act
+/**
+ * Create a deferred resolver for action flows that need to answer later.
+ *
+ * NOTE: most actions still resolve immediately; only a few legacy clipboard
+ * flows currently use this post-handler bridge.
+ */
 export const makePostHandler = (op, what, payload) => { 
     if (op == "act") {
         switch (what) {
@@ -86,6 +98,8 @@ const extractDispatchLikeAction = (what: string, payload: unknown) => {
     ].includes(normalizedWhat);
     if (!isDispatchLike || !isObject(payload)) return null;
 
+    // Some older relays tunnel the real action under `payload.payload` or
+    // `payload.data` while the outer transport frame only says "dispatch".
     const nested = isObject(payload.payload)
         ? payload.payload
         : isObject(payload.data)
@@ -112,6 +126,7 @@ const extractDispatchLikeAction = (what: string, payload: unknown) => {
     };
 };
 
+/** Normalize inbound transport frames, including binary envelopes, before routing or forwarding. */
 const normalizeFrame = async (frame: ServerV2SocketFrame) => {
     const payload = frame?.payload;
     if (payload instanceof Uint8Array || payload instanceof ArrayBuffer || ArrayBuffer.isView(payload)) {
@@ -125,11 +140,14 @@ const normalizeFrame = async (frame: ServerV2SocketFrame) => {
     }
     return {
         ...frame,
+        // Default type keeps non-binary legacy senders on the generic dispatch
+        // path until `handleAct` / `handleAsk` unwrap a more specific action.
         binary: frame?.binary === true,
         type: frame?.type || "dispatch"
     };
 };
 
+/** Resolve the preferred transport order for one source/target pair from the endpoint policy map. */
 const preferredTransportsFor = (
     policyMap: EndpointIdPolicyMap,
     sourceId: string,
@@ -141,6 +159,7 @@ const preferredTransportsFor = (
     return resolveEndpointTransportPreference(sourceId, targetId, policyMap).transports;
 };
 
+/** Pick the concrete sender implementation for one normalized frame dispatch. */
 const pickTransportSender = (
     transports: ServerV2SocketTransports,
     requestedTransport: ServerV2SocketFrame["transport"],
@@ -158,10 +177,18 @@ const pickTransportSender = (
     return transports.ws || transports.bridge || transports.socketio;
 };
 
+/**
+ * Build the transport-selection facade used by HTTP bridges and socket
+ * handlers when they need to forward a normalized frame to another endpoint.
+ */
 export const createSocketProtocolHandler = (options: CreateSocketProtocolHandlerOptions) => {
     const transports = options.transports || {};
 
     return {
+        /**
+         * Forward one already-authenticated frame using the best available
+         * transport according to explicit request hints plus endpoint policy.
+         */
         async dispatch(frame: ServerV2SocketFrame) {
             const normalized = await normalizeFrame(frame);
             const from = String(normalized?.from || "").trim().toLowerCase();
@@ -177,6 +204,8 @@ export const createSocketProtocolHandler = (options: CreateSocketProtocolHandler
                 };
             }
 
+            // NOTE: attach the preferred transport list to the outbound payload
+            // so bridge/runtime diagnostics can explain *why* one path was chosen.
             await sender({
                 ...normalized,
                 from,
@@ -204,7 +233,10 @@ export const createSocketProtocolHandler = (options: CreateSocketProtocolHandler
     };
 };
 
-//
+/**
+ * Execute a normalized `act` request locally, including dispatch-like envelopes
+ * that embed another action inside a generic transport frame.
+ */
 export const handleAct = async (what: string, payload: any, packet: Packet, selfId: string) => {
     const normalizedWhat = normalizeNestedWhat(what);
     if (normalizedWhat && normalizedWhat !== what) {
@@ -226,6 +258,8 @@ export const handleAct = async (what: string, payload: any, packet: Packet, self
             // Treat them as already-resolved ack payload instead of re-routing as act.
             return unwrapped.payload;
         }
+        // WHY: nested asks like `dispatch -> clipboard:isready` should behave
+        // like asks locally, not fall through the action pipeline.
         if (unwrapped.op === "ask" || unwrapped.what.endsWith(":isready")) {
             return handleAsk(unwrapped.what, unwrapped.payload, packet, selfId);
         }
@@ -273,6 +307,8 @@ export const handleAsk = async (what: string, payload: any, packet: Packet, self
     const aiResult = await handleAiAsk(what, payload, packet);
     if (aiResult !== null) return aiResult;
     if (what == "token") {
+        // NOTE: token asks are the coordinator's liveness/identity probe, so
+        // keep this local and cheap even when no feature handler matches.
         return Promise.resolve(getAssociatedToken(selfId));
     }
     return {

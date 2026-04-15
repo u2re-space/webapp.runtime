@@ -1,3 +1,10 @@
+/**
+ * Canonical socket runtime for the endpoint's peer-to-peer transport layer.
+ *
+ * The runtime attaches WebSocket and optional Socket.IO servers, keeps endpoint
+ * identity/config in sync with the coordinator tables, and provides the
+ * transport-facing status/dispatch helpers used by HTTP and plugin layers.
+ */
 import type { Server as HttpServer } from "node:http";
 import type { Server as HttpsServer } from "node:https";
 
@@ -141,6 +148,9 @@ const collectTargetIds = (packet: Packet): string[] => {
     return Array.from(targets);
 };
 
+/**
+ * Bridge-aware transport runtime shared by the endpoint's socket-facing entrypoints.
+ */
 export class ServerV2SocketRuntime {
     private readonly selfId: string;
     private readonly token: string;
@@ -158,6 +168,10 @@ export class ServerV2SocketRuntime {
         this.bridgeConfig = bridgeConfig;
     }
 
+    /**
+     * Attach one or more HTTP(S) servers to the canonical WS gateway and the
+     * optional compatibility Socket.IO layer.
+     */
     attach(server: SocketServerInput | SocketServerInput[]): void {
         if (this.socketServer) return;
         const nodes = (Array.isArray(server) ? server : [server]).filter(Boolean) as SocketServerInput[];
@@ -178,6 +192,7 @@ export class ServerV2SocketRuntime {
         this.startBridgePreconnect();
     }
 
+    /** Tear down listeners and background preconnect timers created by `attach()`. */
     close(): void {
         if (this.preconnectTimer) {
             clearInterval(this.preconnectTimer);
@@ -191,14 +206,17 @@ export class ServerV2SocketRuntime {
         this.socketServer = undefined;
     }
 
+    /** Return peer instance ids currently visible through the shared coordinator map. */
     getConnectedDevices(_ownerId?: string): string[] {
         return Array.from(new Set(Array.from(internalNodeMap.keys()).filter(Boolean)));
     }
 
+    /** Build lightweight peer rows for admin/status endpoints without exposing raw socket objects. */
     getConnectedPeerProfiles(_ownerId?: string): Array<{ id: string; label: string; userId: string; deviceId: string; transport: string }> {
         return this.getConnectedDevices().map((id) => this.profileFor(id));
     }
 
+    /** Return a transport summary suitable for diagnostics and admin endpoints. */
     getStatus() {
         return {
             ws: {
@@ -218,6 +236,12 @@ export class ServerV2SocketRuntime {
         return getConnectionRegistrySnapshot();
     }
 
+    /**
+     * Broadcast one normalized payload to every live local connection.
+     *
+     * NOTE: this is the fan-out path used when an HTTP route does not target a
+     * specific endpoint and when coordinator packets intentionally address `*`.
+     */
     multicast(_ownerId: string, payload: Record<string, unknown>, _namespace?: string): boolean {
         const outbound = normalizeOutgoingPacket(payload, this.selfId);
         let delivered = false;
@@ -228,6 +252,7 @@ export class ServerV2SocketRuntime {
         return delivered;
     }
 
+    /** Convenience wrapper for legacy callers that still think in `{type,data}` messages. */
     notify(ownerId: string, type: string, data: unknown): boolean {
         return this.multicast(ownerId, {
             type,
@@ -238,6 +263,10 @@ export class ServerV2SocketRuntime {
         });
     }
 
+    /**
+     * Route one already-normalized packet to local peers and, if needed,
+     * compatibility relay sockets that can reach remote targets.
+     */
     dispatchPacket(packet: Packet): boolean {
         const normalized = normalizeInboundPacket(packet) || packet;
         const targets = collectTargetIds(normalized).filter((entry) => entry !== normalizeToken(this.selfId));
@@ -246,6 +275,8 @@ export class ServerV2SocketRuntime {
         if (!outbound.from) outbound.from = this.selfId;
         if (!outbound.timestamp) outbound.timestamp = Date.now();
 
+        // AI-READ: empty targets and wildcard targets both mean "fan out to
+        // every live local peer", not "drop because no routing key exists".
         if (!targets.length || targets.includes("*")) {
             return this.multicast(this.selfId, outbound);
         }
@@ -266,9 +297,12 @@ export class ServerV2SocketRuntime {
         if (pendingTargets.length && this.socketServer) {
             const relaySocket = this.findGatewayRelayConnection(pendingTargets);
             if (relaySocket) {
+                // WHY: when the local runtime cannot satisfy every target, reuse
+                // an already-live gateway socket before dialing new relay paths.
                 relaySocket.emit("data", { ...outbound, nodes: pendingTargets });
                 delivered = true;
             } else {
+                // `populate()` can dial or reuse remote-compatible relay sockets.
                 this.socketServer.populate({ ...outbound, nodes: pendingTargets }, pendingTargets);
                 delivered = true;
             }
@@ -279,6 +313,10 @@ export class ServerV2SocketRuntime {
         return delivered;
     }
 
+    /**
+     * Build and dispatch a coordinator-style packet from legacy HTTP/socket
+     * call sites that only know the high-level `what + payload + targets` shape.
+     */
     sendCoordinatorMessage(
         targets: string[],
         typeOrWhat: string,
@@ -328,6 +366,8 @@ export class ServerV2SocketRuntime {
             if (targetIds.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId))) continue;
             const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(peerInstanceId));
             if (asRecord(relayConfig.flags).gateway === true && typeof (socket as any).emit === "function") {
+                // NOTE: this intentionally picks a gateway socket that is *not*
+                // already one of the direct targets; otherwise we just loop.
                 return socket as { emit: (event: string, payload: unknown) => void };
             }
         }
@@ -372,6 +412,8 @@ export class ServerV2SocketRuntime {
         const reconnectMs = Math.max(1000, toPositiveInteger(preconnect.reconnectMs ?? bridge.reconnectMs, 1000));
         const connectTargets = () => {
             for (const targetId of targets) {
+                // Skip already-routable peers so the preconnect loop stays a
+                // background safety net rather than a noisy reconnect storm.
                 if (this.hasEquivalentLiveConnection(targetId)) continue;
                 void Promise.resolve(findOrInitiateConnection(targetId, this.selfId)).catch(() => undefined);
             }

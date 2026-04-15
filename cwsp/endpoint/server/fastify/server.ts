@@ -1,3 +1,10 @@
+/**
+ * Legacy-style Fastify server factory kept for codepaths that still expect a
+ * single Fastify app instance.
+ *
+ * AI-READ: the newer deployed runtime is assembled in `server/index.ts`, but
+ * this helper remains useful for tests, local bootstraps, and older imports.
+ */
 import closeWithGrace from "close-with-grace";
 
 import { loadFastifyFactory } from "../utils/fastify-loader.ts";
@@ -5,7 +12,7 @@ import { loadFastifyFactory } from "../utils/fastify-loader.ts";
 // Import your application
 import appService, { options } from "./router.ts";
 
-//
+/** Build one Fastify app instance, register routes, and attach graceful-close hooks. */
 export const server = async () => {
     const build = await loadFastifyFactory();
 

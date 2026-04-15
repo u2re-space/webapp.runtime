@@ -1,3 +1,10 @@
+/**
+ * Canonical native-WebSocket gateway for the endpoint runtime.
+ *
+ * This layer adapts raw `ws` connections to the coordinator/socket wrapper
+ * model that older Socket.IO-oriented code expects, so both transports can
+ * share the same message normalization and peer identity logic.
+ */
 import { EventEmitter } from "node:events";
 import type { Server as HttpServer, IncomingMessage } from "node:http";
 import type { Server as HttpsServer } from "node:https";
@@ -9,6 +16,7 @@ import type { Packet } from "./types.ts";
 
 type NodeServer = HttpServer | HttpsServer;
 
+/** Canonical native-WebSocket path used by newer peers instead of `/socket.io`. */
 const WS_PATH = "/ws";
 
 const asRecord = (value: unknown): Record<string, unknown> => {
@@ -44,6 +52,10 @@ const parseBearerToken = (raw: unknown): string => {
     return match?.[1]?.trim() || "";
 };
 
+/**
+ * Socket.IO-shaped shim around a native WebSocket so coordinator code can keep
+ * using familiar `handshake`, `emit("message")`, and disconnect semantics.
+ */
 class WsSocketShim extends EventEmitter {
     public readonly id: string;
     public connected = true;
@@ -140,6 +152,10 @@ class WsSocketShim extends EventEmitter {
         };
     }
 
+    /**
+     * Translate coordinator-facing emits into the JSON frame shapes expected by
+     * the raw WebSocket transport.
+     */
     override emit(event: string, ...args: unknown[]): boolean {
         if (event === "data" || event === "message") {
             const payload = normalizeOutboundFrame(asRecord(args[0] || {}), String(this.handshake.auth.clientId || ""));
@@ -167,6 +183,7 @@ class WsSocketShim extends EventEmitter {
         }
     }
 
+    /** Parse one inbound WS message and re-emit it as coordinator-friendly `data` / `message` events. */
     receive(raw: unknown) {
         const packet = normalizeInboundPacket(raw);
         if (!packet) return;
@@ -175,6 +192,7 @@ class WsSocketShim extends EventEmitter {
     }
 }
 
+/** Native WebSocket server wrapper that plugs into the shared coordinator/runtime layer. */
 export class WsGatewayCanonical {
     private readonly wss = new WebSocketServer({ noServer: true });
     private readonly servers = new Set<NodeServer>();
@@ -182,6 +200,8 @@ export class WsGatewayCanonical {
     private sequence = 0;
 
     constructor(private readonly selfId: string, private readonly token: string) {
+        // NOTE: every accepted native WS connection is wrapped immediately so it
+        // can reuse the same peer identification and hello flow as Socket.IO.
         this.wss.on("connection", (ws, req) => {
             const shim = new WsSocketShim(ws, req, `ws-${++this.sequence}`);
             const wrapper = new SocketWrapper(shim as any, this.selfId, this.token);
@@ -228,6 +248,7 @@ export class WsGatewayCanonical {
         });
     }
 
+    /** Attach upgrade handling for the canonical WS path onto an existing HTTP(S) server. */
     attach(server: NodeServer) {
         if (this.servers.has(server)) return;
         this.servers.add(server);
@@ -240,6 +261,7 @@ export class WsGatewayCanonical {
         });
     }
 
+    /** Close all live WS connections and detach the in-memory gateway state. */
     close() {
         for (const ws of this.wrappers.keys()) {
             try {
@@ -253,6 +275,7 @@ export class WsGatewayCanonical {
         this.servers.clear();
     }
 
+    /** Summarize currently connected peers for diagnostics/admin endpoints. */
     getStatus() {
         const entries = Array.from(this.wrappers.values());
         return {
@@ -262,5 +285,6 @@ export class WsGatewayCanonical {
     }
 }
 
+/** Public helper for route/status code that needs the canonical WS mount path. */
 export const wsGatewayPath = () => WS_PATH;
 

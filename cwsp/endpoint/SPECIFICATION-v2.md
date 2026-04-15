@@ -1,397 +1,547 @@
-# New Specification for Coordination
+# CWSP Network Stack v2 Specification
 
 Available for changing by AI.
 
-## Frame
+## Purpose
 
-New specification of messages (for example, in websockets, or HTTP body [POST]).
+This document describes the current v2 network contract used across:
 
-```
-{
-    redirect: boolean,
-    flags: {...}, # specific/special flags of message
-    op: "act" | "ask" | "signal" | "request" | "response" | "redirect" | "notify",
-    type: "response" | "request" | "ack" | "redirect" | "signal" | "act" | "broadcast" | "initial" | "notify", # redirect same as request, signal isn't waiting a response, act also have no requirements to waiting response
-    purpose: "airpad" | "mouse" | "input" | "clipboard" | "contact" | "sms" | "generic" | "general" | "storage",
-    protocol: "socket" | "http" | "local" | "chrome" | "worker" # what protocol was used...
-    srcPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. used platform of message, may be multiple (array) or ommited
-    dstPlatform?: "android" | "windows" | "linux" | "web" | "chrome" | "crx" # etc. for what platform used message, may be multiple (array) or ommited
-    uuid: UUIDv4, # UUID of message series
-    timestamp: number, # when first of message was generated
-    what: ACTION_TYPE, # what needs to achieve/reach/get
-    payload: ENCODED_DATA, # Body, POST-like payload
-    results: ENCODED_DATA, # Results, alike in response
-    toRoles: [("requestor" | "responser" | "acceptor" | "executor" | "actor" | "bridge" | "link" | "exchanger" | "sender")...], # what role will enabled after request (initial), also "bridge" or "link", I don't know how to name truly...
-    status?: number,            # status code (when response)
-    ids: [ID_NAME...],          # passthrough ID's (broadcasting, tunneling)
-    urls: [urls...],            # found/used URLs (physically)
-    tokens: [tokens...],        # clients/peers tokens used (to DST)
-    sender: ID_NAME | URL,      # who originally sended message
-    destinations: [(ID_NAME | URL)...], # where &ould be sent, acted or asked
-    flags: {}, # special options/flags of message
-    extensions?: [...], # additional/special protocol extensions to used
-    defer?: "none" | "cache" | "idb" | "storage" | "promise" | "allowed" # can be message be deferred effect?
-}
-```
+- `runtime/cwsp/endpoint/server`
+- `apps/CrossWord/src/frontend`
+- `apps/CrossWord/src/pwa`
+- `apps/CrossWord/src/crx`
+- AirPad views and rails
+- native bridges that reuse the same envelope semantics
 
-## Guards
+This specification is intentionally compatibility-first:
 
-- Message with same UUID (and/or some data) isn't/&ouldn't accepted or resend twice and/or more than twice in timing window (100ms or 300ms), for avoid recursion issues.
-- Sender can't/won't allowed to get (for act or accept) same message, that he sended.
+- native WebSocket at `/ws` is the canonical realtime transport
+- Socket.IO remains a compatibility transport and relay path
+- HTTP remains a compatibility and fallback transport
+- clipboard, AirPad, mouse, keyboard, voice, and dispatch flows share one normalized packet contract
 
-## Determination peerId in coordinator
+## Transport Layers
 
-- By initiator ID (when income initiation)
-- By ID where to initate (when outcome initiation)
+### 1. Canonical realtime transport
 
-## Specific cases (in payloads)
+- Path: `/ws`
+- Wire shape: JSON frame
+- Runtime entrypoint: `server/socket/ws-gateway.ts`
+- Canonical server runtime: `server/socket/runtime.ts`
 
-Operations:
-- `{ "op": "sms:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "contact:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "contact:ask", "params": [...] }`
-- `{ "op": "notification:ask", "params": [...] }`
-- `{ "op": "notification:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "clipboard:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "clipboard:write", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "clipboard:read", "params": [...] }`
-- `{ "op": "airpad:mouse", "params": [...], "data": BASE_64_ENCODED_DATA_16_BYTE }`
-- `{ "op": "airpad:keyboard", "params": [...], "data": BASE_64_ENCODED_DATA_16_BYTE }`
-- `{ "op": "airpad:clipboard:write", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "airpad:clipboard:read" , "params": [...] }`
-- `{ "op": "airpad:clipboard:delivery", "params": [...], "data": BASE_64_ENCODED_DATA }`
-- `{ "op": "ai:process" , "params": [...], "token": STRING, "data": [JSON_DATA | INSTRUCTION | IMAGES_IN_BASE64] }`
-- `{ "op": "assets:load", "params": [...] }`
-- `{ "op": "assets:save", "params": [...], "token": STRING, "data": [JSON_DATA | TEXT_DATA | IMAGES | BINARY] }`
+Native WebSocket is the preferred transport for newer peers and for transport debugging.
 
-When/where:
-- `BASE_64_ENCODED_DATA_16_BYTE` may/can be encrypted or unencrypted, also is binary code
-- `BASE_64_ENCODED_DATA`         may/can be encrypted or unencrypted
-- In `"params": [...]`           may/can be described where, when, how to use those data
+### 2. Compatibility realtime transport
 
-## Config example
+- Path: `/socket.io`
+- Purpose: compatibility with older browser/AirPad/native clients and relay connections
+- Coordinator core: `server/socket/coordinator.ts`
 
-Client permission and routing (destination) topology
+Socket.IO should be treated as a compatibility path and bridge, not the long-term canonical transport.
+
+### 3. HTTP compatibility / fallback transport
+
+- `/api/network/dispatch`
+- `/api/broadcast`
+- `/clipboard`
+- `/lna-probe`
+- other legacy compatibility endpoints under `/api/*`
+
+HTTP is used when:
+
+- a peer is not yet websocket-routable
+- legacy clients/scripts only know HTTP
+- clipboard needs a reliability/fan-out fallback
+- diagnostics need a cheap reachability probe before websocket handshake
+
+## Canonical Envelope
+
+The canonical logical message is a normalized packet. It may arrive as a websocket frame, a Socket.IO event payload, or an HTTP body.
 
 ```json
 {
-    "l-192.168.0.200": "alias:L-192.168.0.200",
-    "l-192.168.0.110": "alias:L-192.168.0.110",
-    "l-192.168.0.196": "alias:L-192.168.0.196",
-    "l-192.168.0.208": "alias:L-192.168.0.208",
-    "192.168.0.200": "alias:L-192.168.0.200",
-    "45.147.121.152": "alias:L-192.168.0.200",
-    "100.76.202.88": "alias:L-192.168.0.200",
-    "L-45.147.121.152": "alias:L-192.168.0.200",
-    "l-45.147.121.152": "alias:L-192.168.0.200",
-    "l-wan-client": "alias:L-wan-client",
-    "L-192.168.0.200": {
-        "origins": ["192.168.0.200", "192.168.0.201", "100.76.202.88", "45.147.121.152"],
-        "tokens": [],
-        "platform": ["linux", "web", "chrome"],
-        "roles": ["responser", "requestor", "exchanger", "bridge", "link", "sender"],
-        "relations": {
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
-        },
-        "forward": [{
-            "id": "L-192.168.0.110",
-            "conditions": ["airpad", "input", "mouse", "keyboard"]
-        }, "self"],
-        "broadcast": [{
-            "targets": ["L-192.168.0.196", "L-192.168.0.110", "L-192.168.0.208", "L-wan-client"],
-            "conditions": ["clipboard-tunnel", "clipboard-write", "clipboard-read"]
-        }],
-        "protocols": {
-            "websocket": {
-                "reverse": true,
-                "client": true,
-                "server": true,
-                "tunnel": true
-            },
-            "http": {
-                "enabled": true,
-                "direction": ["accept", "request"]
-            }
-        },
-        "flags": {
-            "initiator": true,
-            "initiated": true,
-            "mobile": true,
-            "gateway": true,
-            "direct": true,
-            "firstOrder": true
-        },
-        "tls": {
-            "enabled": true,
-            "ca": "fs:../https/local/rootCA.crt",
-            "cert": "fs:../https/local/multi.crt",
-            "key": "fs:../https/local/multi.key",
-            "servername": "192.168.0.200"
-        },
-        "ports": {
-            "wss": [8443],
-            "ws": [8080],
-            "http": [8080],
-            "https": [8443]
-        },
-        "allowedForwards": ["L-192.168.0.110", "self"],
-        "allowedIncoming": ["*"],
-        "allowedOutgoing": ["*"],
-        "modules": {
-            "mouse": ["tunnel-only"],
-            "clipboard": ["tunnel-allowed", "write-allowed", "read-allowed",{
-                "shareTo": ["L-192.168.0.196", "L-192.168.0.110", "L-192.168.0.208", "L-wan-client"],
-                "acceptFrom": ["L-192.168.0.196", "L-192.168.0.110", "L-192.168.0.208", "L-wan-client"]
-            }],
-            "keyboard": ["tunnel-only"]
-        }
-    },
-    "L-192.168.0.110": {
-        "origins": ["192.168.0.110", "192.168.0.111", "100.110.152.73"],
-        "tokens": [],
-        "roles": ["responser", "requestor", "exchanger", "actor", "executor", "bridge", "link", "sender"],
-        "platform": ["windows", "web", "chrome"],
-        "relations": {
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
-        },
-        "flags": {
-            "initiator": true,
-            "initiated": true,
-            "mobile": true,
-            "gateway": false,
-            "direct": true,
-            "firstOrder": true
-        },
-        "forward": ["self"],
-        "ports": {
-            "wss": [8443],
-            "ws": [8080],
-            "http": [8080],
-            "https": [8443]
-        },
-        "tls": {
-            "enabled": true,
-            "ca": "fs:../https/local/rootCA.crt",
-            "cert": "fs:../https/local/multi.crt",
-            "key": "fs:../https/local/multi.key",
-            "servername": "192.168.0.200"
-        },
-        "protocols": {
-            "websocket": {
-                "reverse": true,
-                "client": true,
-                "server": true,
-                "tunnel": true
-            },
-            "http": {
-                "enabled": true,
-                "direction": ["accept", "request"]
-            }
-        },
-        "allowedIncoming": ["*"],
-        "allowedOutgoing": ["*"],
-        "modules": {
-            "mouse": ["ahk-used", "tunnel-allowed", "airpad-allowed", {
-                "mode": "relative",
-                "allowed": ["L-192.168.0.196", "L-192.168.0.200", "L-192.168.0.208", "self"]
-            }],
-            "clipboard": ["ahk-used", "write-allowed", "read-allowed", "tunnel-allowed", {
-                "pollInterval": 1000,
-                "shareTo": ["L-192.168.0.196", "L-192.168.0.200", "L-192.168.0.208", "L-wan-client"],
-                "acceptFrom": ["L-192.168.0.196", "L-192.168.0.200", "L-192.168.0.208", "L-wan-client"]
-            }],
-            "keyboard": ["ahk-used", "tunnel-allowed", {
-                "allowed": ["L-192.168.0.196", "L-192.168.0.200", "L-192.168.0.208", "self"],
-                "clipboard": true
-            }]
-        }
-    },
-    "L-192.168.0.208": {
-        "origins": ["192.168.0.208", "100.90.155.65"],
-        "tokens": ["inline:n3v3rm1nd", "inline:n3v3rm1nd-2", "env:CWS_ASSOCIATED_TOKEN"],
-        "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger", "sender"],
-        "platform": ["android", "web"],
-        "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
-        },
-        "flags": {
-            "initiator": true,
-            "initiated": false,
-            "mobile": true,
-            "gateway": false,
-            "direct": false,
-            "firstOrder": false
-        },
-        "forward": ["self"],
-        "tls": {
-            "enabled": true,
-            "ca": "fs:../https/local/rootCA.crt",
-            "cert": "fs:../https/local/multi.crt",
-            "key": "fs:../https/local/multi.key"
-        },
-        "ports": {
-            "wss": [8443],
-            "ws": [8080],
-            "http": [8080],
-            "https": [8443]
-        },
-        "protocols": {
-            "websocket": {
-                "client": true,
-                "reverse": true,
-                "keepalive": true
-            },
-            "http": {
-                "enabled": true,
-                "keepalive": true,
-                "direction": ["request-only"]
-            }
-        },
-        "allowedIncoming": ["*"],
-        "allowedOutgoing": ["*"],
-        "modules": {
-            "mouse": ["client-only"],
-            "clipboard": ["write-allowed", "read-allowed", "tunnel-allowed", {
-                "pollInterval": 1000,
-                "shareTo": ["L-192.168.0.110", "L-192.168.0.200", "L-192.168.0.196", "L-wan-client"],
-                "acceptFrom": ["L-192.168.0.110", "L-192.168.0.200", "L-192.168.0.196", "L-wan-client"]
-            }],
-            "keyboard": ["client-only"]
-        }
-    },
-    "L-192.168.0.196": {
-        "origins": ["192.168.0.196", "100.99.178.6"],
-        "tokens": ["inline:n3v3rm1nd", "inline:n3v3rm1nd-2", "env:CWS_ASSOCIATED_TOKEN"],
-        "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger", "sender"],
-        "platform": ["android", "web"],
-        "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
-        },
-        "flags": {
-            "initiator": true,
-            "initiated": false,
-            "mobile": true,
-            "gateway": false,
-            "direct": false,
-            "firstOrder": false
-        },
-        "forward": ["self"],
-        "tls": {
-            "enabled": true,
-            "ca": "fs:../https/local/rootCA.crt",
-            "cert": "fs:../https/local/multi.crt",
-            "key": "fs:../https/local/multi.key"
-        },
-        "ports": {
-            "wss": [8443],
-            "ws": [8080],
-            "http": [8080],
-            "https": [8443]
-        },
-        "protocols": {
-            "websocket": {
-                "client": true,
-                "reverse": true,
-                "keepalive": true,
-                "server": true
-            },
-            "http": {
-                "enabled": true,
-                "keepalive": true,
-                "direction": ["request-only"]
-            }
-        },
-        "allowedIncoming": ["*"],
-        "allowedOutgoing": ["*"],
-        "modules": {
-            "mouse": ["client-only"],
-            "clipboard": ["write-allowed", "read-allowed", "tunnel-allowed", {
-                "pollInterval": 1000,
-                "shareTo": ["L-192.168.0.110", "L-192.168.0.200", "L-192.168.0.208", "L-wan-client"],
-                "acceptFrom": ["L-192.168.0.110", "L-192.168.0.200", "L-192.168.0.208", "L-wan-client"]
-            }],
-            "keyboard": ["client-only"]
-        }
-    },
-    "L-wan-client": {
-        "origins": ["u2re.space", "www.u2re.space"],
-        "tokens": ["inline:VDS-client", "env:CWS_ASSOCIATED_TOKEN"],
-        "roles": ["responser", "requestor", "exchanger", "sender"],
-        "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp"
-        },
-        "flags": {
-            "initiator": true,
-            "initiated": false,
-            "firstOrder": false,
-            "mobile": true,
-            "gateway": false,
-            "direct": false
-        },
-        "forward": ["self"],
-        "tls": {
-            "enabled": true,
-            "ca": "fs:../https/local/rootCA.crt",
-            "cert": "fs:../https/local/multi.crt",
-            "key": "fs:../https/local/multi.key"
-        },
-        "ports": {
-            "wss": [8443],
-            "ws": [8080],
-            "http": [8080],
-            "https": [8443]
-        },
-        "protocols": {
-            "websocket": {
-                "client": true,
-                "reverse": true,
-                "keepalive": true,
-                "server": true
-            },
-            "http": {
-                "enabled": true,
-                "keepalive": true,
-                "direction": ["request-only"]
-            }
-        },
-        "allowedIncoming": ["*"],
-        "allowedOutgoing": ["*"],
-        "modules": {
-            "mouse": ["client-only"],
-            "clipboard": ["write-allowed", "read-allowed", "tunnel-allowed", {
-                "pollInterval": 1000,
-                "shareTo": ["L-192.168.0.110", "L-192.168.0.200", "L-192.168.0.196", "L-192.168.0.208"],
-                "acceptFrom": ["L-192.168.0.110", "L-192.168.0.200", "L-192.168.0.196", "L-192.168.0.208"]
-            }],
-            "keyboard": ["client-only"]
-        }
-    },
-    "*": {
-        "origins": ["*"],
-        "tokens": ["*"],
-        "roles": ["responser", "requestor"],
-        "flags": {
-            "mobile": true,
-            "gateway": true,
-            "direct": false
-        },
-        "allowedIncoming": ["*"],
-        "allowedOutgoing": []
-    }
+  "op": "ask | act | result | error",
+  "type": "string",
+  "what": "domain:action",
+  "purpose": "airpad | clipboard | input | mouse | sms | contact | notification | storage | general",
+  "protocol": "socket | ws | http | worker | chrome | local",
+  "transport": "ws | socketio | bridge | http",
+  "uuid": "uuid-v4-or-compatible-id",
+  "timestamp": 1710000000000,
+  "payload": {},
+  "data": {},
+  "result": {},
+  "results": {},
+  "error": {},
+  "status": 200,
+  "sender": "peer-id",
+  "byId": "peer-id",
+  "from": "peer-id",
+  "nodes": ["target-id"],
+  "destinations": ["target-id"],
+  "ids": {
+    "byId": "peer-id",
+    "destinations": ["target-id"]
+  },
+  "urls": ["https://host"],
+  "tokens": ["opaque-token"],
+  "flags": {
+    "canonicalV2": true
+  },
+  "extensions": [],
+  "defer": "none | cache | idb | storage | promise | allowed"
 }
 ```
+
+## Verb Semantics
+
+### Logical verbs
+
+- `ask`: request data or readiness and expect a reply
+- `act`: fire-and-forget action, although some legacy flows may still answer
+- `result`: successful answer to a previous `ask` or compatibility response
+- `error`: failed answer to a previous `ask`
+
+### Compatibility verb mapping
+
+The server accepts and normalizes these incoming verb aliases:
+
+- `request` -> `ask`
+- `response` -> `result`
+- `signal` -> `act`
+- `notify` -> `act`
+- `redirect` -> `act`
+- `ack` -> `result`
+- `resolve` -> `result`
+
+When emitting canonical websocket frames, packets are mapped back to frame verbs:
+
+- `ask` -> `request`
+- `result` / `resolve` -> `response`
+- `act` -> `act`
+- `error` -> `error`
+
+## Normalization Rules
+
+### Payload carriers
+
+The stack accepts these payload carriers in order of preference:
+
+1. `payload`
+2. `data`
+3. `body`
+4. `params` for some legacy frame forms
+5. `result` for response-like wrappers
+
+### Action-name inference
+
+The runtime infers `what` from:
+
+1. explicit `what`
+2. `type`
+3. `action`
+4. nested payload `op` / `action` / `type`
+5. fallback `"dispatch"`
+
+Legacy single-word actions are normalized to canonical names, for example:
+
+- `clipboard` -> `clipboard:update`
+- `sms` -> `sms:send`
+- `notifications` / `notify` -> `notification:speak`
+- `dispatch` -> `network:dispatch`
+
+### Binary compatibility
+
+Older AirPad binary packets are still accepted and normalized into canonical actions:
+
+- binary move -> `mouse:move`
+- binary click -> `mouse:click`
+- binary scroll -> `mouse:scroll`
+- binary down/up -> `mouse:down` / `mouse:up`
+- binary keyboard -> `keyboard:type` or `keyboard:tap`
+
+## Identity And Routing
+
+### Canonical peer identity
+
+Routing is performed primarily by normalized node ids such as:
+
+- `L-192.168.0.200`
+- `L-192.168.0.110`
+- `L-192.168.0.196`
+- `L-192.168.0.208`
+- `L-wan-client`
+
+### Accepted identity hints
+
+The coordinator can resolve peers from multiple aliases:
+
+- canonical endpoint id
+- WAN/LAN origin host
+- bare IP
+- `clientId`
+- `userId`
+- `byId`
+- token/account aliases
+- explicit route targets
+
+### Routing fields
+
+These fields may all participate in routing or reply resolution:
+
+- `nodes`
+- `destinations`
+- `target`
+- `targetId`
+- `deviceId`
+- `sender`
+- `byId`
+- `from`
+
+### Important routing behavior
+
+- empty target list means local broadcast/fan-out
+- `*` means wildcard fan-out
+- self-routing is suppressed where appropriate
+- known aliases collapse onto the same live socket wrapper
+- active-peer filtering may temporarily suppress configured peers for diagnostics or automation
+- gateway relay reuse is preferred before opening new remote relay paths
+
+## Transport Preference
+
+Transport preference is resolved per source/target pair from endpoint policy.
+
+Current preference order is generally:
+
+1. `ws`
+2. `http`
+3. `tcp`
+4. `socketio`
+
+Runtime behavior:
+
+- explicit transport hint wins when supported
+- otherwise policy preference order is used
+- if no preferred sender exists, fallback order is `ws -> bridge -> socketio`
+
+The chosen transport may be attached to dispatched payloads for diagnostics.
+
+## Clipboard Contract
+
+### Canonical clipboard actions
+
+- `clipboard:update`
+- `clipboard:write`
+- `clipboard:read`
+- `clipboard:get`
+- `clipboard:clear`
+- `clipboard:isReady`
+
+### AirPad-compatible clipboard aliases
+
+- `airpad:clipboard:write`
+- `airpad:clipboard:read`
+- `airpad:clipboard:delivery`
+- `airpad:clipboard:isReady`
+
+### Payload rules
+
+Clipboard text may arrive in any of these locations:
+
+- `payload.text`
+- `payload.content`
+- `payload.body`
+- `data.text`
+- `data.content`
+- `data.body`
+- direct string payload
+
+Receivers should treat the first usable textual value as the clipboard body.
+
+### Clipboard routing behavior
+
+Clipboard is special:
+
+- legacy Socket.IO clipboard events still exist for compatibility
+- coordinator packets are the canonical internal representation
+- websocket-first delivery may still keep HTTP dispatch as a reliability path
+- duplicate clipboard updates are suppressed in a short timing window
+- local clipboard watch loops are temporarily suppressed after applying remote text to avoid echo storms
+
+### Clipboard events in compatibility mode
+
+Socket.IO compatibility still uses:
+
+- `clipboard:get`
+- `clipboard:copy`
+- `clipboard:cut`
+- `clipboard:update`
+- `clipboard:paste`
+
+These are normalized into the same packet/handler model.
+
+## Input / AirPad Contract
+
+### Canonical input actions
+
+- `mouse:move`
+- `mouse:click`
+- `mouse:scroll`
+- `mouse:down`
+- `mouse:up`
+- `mouse:isReady`
+- `keyboard:type`
+- `keyboard:tap`
+- `keyboard:toggle`
+- `keyboard:isReady`
+- `voice:submit`
+
+### AirPad wrapper actions
+
+The endpoint also accepts spec-style AirPad wrappers:
+
+- `airpad:mouse`
+- `airpad:keyboard`
+
+These wrappers are unwrapped by `server/socket/handlers/airpad.ts` into canonical mouse/keyboard actions.
+
+### AirPad wrapper payload shape
+
+The wrapper payload may use:
+
+- `op`
+- `action`
+- `type`
+- `params[0]`
+
+with a nested `data` object such as:
+
+```json
+{
+  "op": "mouse:move",
+  "data": {
+    "x": 12,
+    "y": -4,
+    "z": 0
+  }
+}
+```
+
+Examples:
+
+```json
+{ "what": "airpad:mouse", "payload": { "op": "move", "data": { "x": 3, "y": -1 } } }
+{ "what": "airpad:mouse", "payload": { "op": "click", "data": { "button": "left", "double": true } } }
+{ "what": "airpad:keyboard", "payload": { "op": "tap", "data": { "key": "enter", "modifier": ["ctrl"] } } }
+{ "what": "airpad:keyboard", "payload": { "op": "type", "data": { "text": "hello" } } }
+{ "what": "voice:submit", "payload": { "text": "open settings" } }
+```
+
+### Input execution
+
+Current input execution model:
+
+- endpoint handlers normalize actions
+- local input access modules perform the platform action
+- voice may be forwarded into the Python assistant bridge
+- readiness asks are local capability probes
+
+## Network Dispatch Contract
+
+### Canonical dispatch action
+
+- `network:dispatch`
+
+Compatibility aliases:
+
+- `network.dispatch`
+- `http:dispatch`
+- `request:dispatch`
+- plain `dispatch`
+
+Dispatch payloads may nest another action inside `payload.payload` or `payload.data`. The runtime unwraps these before local handling so nested clipboard and readiness flows behave correctly.
+
+## App / Shell Notes
+
+### Frontend / web app
+
+`apps/CrossWord/src/frontend/shared/transport/websocket.ts` is the browser-side compatibility layer. It:
+
+- builds canonical coordinator packets
+- sends them over Socket.IO `data`
+- keeps `protocol: "socket"` and `transport: "ws"` metadata
+- handles clipboard ask/result flows
+- probes multiple candidate origins
+- annotates AirPad route metadata in query params
+
+Important AirPad query markers:
+
+- `__airpad_via`
+- `__airpad_endpoint`
+- `__airpad_route`
+- `__airpad_route_target`
+- `__airpad_hop`
+- `__airpad_host`
+- `__airpad_target`
+
+These are transport diagnostics hints, not the canonical packet payload.
+
+### PWA / service worker
+
+The PWA service worker must not intercept control-channel traffic that would break transport:
+
+- `/socket.io`
+- `/lna-probe`
+- private-host `/api/*` control traffic
+
+The reason is simple: service-worker caching/proxying can look like socket failure even when the real problem is the worker intercepting probe or handshake requests.
+
+### CRX / Chrome extension
+
+CRX code should reuse the same logical envelope semantics:
+
+- the action names stay the same
+- `protocol` may be `chrome`
+- `transport` may reflect websocket, message-port, or bridge specifics
+
+### Native / bridge shells
+
+Native bridges may reuse the same packet fields while advertising a different `protocol`, for example:
+
+- `protocol: "local"`
+- `protocol: "worker"`
+- `protocol: "chrome"`
+
+The canonical message meaning is defined by `op`, `what`, `payload`, `nodes`, `uuid`, and identity fields, not by transport-specific event names.
+
+## Diagnostics
+
+### Coordinator trace labels
+
+The socket coordinator emits trace lines such as:
+
+- `[socket:packet-in]`
+- `[socket:packet-normalized]`
+- `[socket:packet-duplicate-suppressed]`
+- `[socket:route-decision]`
+- `[socket:forward-error]`
+- `[socket:forward-skip]`
+- `[socket:hello]`
+- `[socket:transport-connect]`
+- `[socket:transport-reconnect]`
+- `[socket:initiate-start]`
+- `[socket:initiate-connect]`
+- `[socket:initiate-error]`
+- `[socket:initiate-timeout]`
+- `[socket:initiate-failed]`
+- `[socket:find-cache-hit]`
+- `[socket:find-cache-miss]`
+- `[socket:find-cooldown]`
+
+These labels are part of the operational surface of the stack and should be kept stable where possible.
+
+### Route log channel
+
+Structured route-log output uses:
+
+- `channel: "cwsp-route"`
+
+This is used for route resolution and tunnel-forward explanation rather than packet-by-packet transport tracing.
+
+### Suppression behavior
+
+Some trace lines are intentionally suppression-aware:
+
+- repeated identical trace lines within the suppression window are collapsed
+- summary lines like `[socket:<event>-suppressed]` may be emitted instead
+- this is required to keep reconnect storms or route misses from flooding logs
+
+## Guards And Safety
+
+- duplicate replies are suppressed for a short window
+- duplicate clipboard updates are suppressed for a short window
+- sender/self echo is avoided where possible
+- tunnel/gateway routing may inject configured forward nodes when the route collapses back onto the current gateway
+- wildcard broadcast is allowed, but active-peer filtering may narrow it
+- packet payloads are sanitized before wire send to avoid recursive or unserializable structures
+
+## Configuration Shape
+
+The runtime settings layer centers on:
+
+```json
+{
+  "core": {
+    "mode": "endpoint",
+    "roles": ["endpoint", "requestor-initiated", "responser-initiated"],
+    "bridge": {
+      "enabled": true,
+      "mode": "active",
+      "endpoints": [],
+      "preconnect": {
+        "enabled": true,
+        "targets": ["L-192.168.0.200"],
+        "reconnectMs": 1000
+      }
+    },
+    "endpointIDs": {
+      "L-192.168.0.200": {
+        "origins": ["192.168.0.200", "45.147.121.152"],
+        "roles": ["requestor", "responser", "bridge"],
+        "flags": {
+          "gateway": true
+        },
+        "allowedForwards": ["L-192.168.0.110", "self"]
+      }
+    },
+    "ops": {
+      "httpTargets": [],
+      "allowUnencrypted": false,
+      "allowInsecureTls": false,
+      "logLevel": "info"
+    }
+  }
+}
+```
+
+### Meaning of important config areas
+
+- `core.bridge`: compatibility bridge and relay behavior
+- `core.bridge.preconnect`: proactive bridge dialing to keep reverse/tunnel paths warm
+- `core.endpointIDs`: canonical peer registry, aliases, origins, roles, flags, and forward permissions
+- `core.ops.httpTargets`: HTTP dispatch fallback targets
+- `core.ops.allowInsecureTls`: explicit TLS relaxation for environments that need it
+
+## Stable Action Names
+
+The following action names should be treated as stable contract names unless there is a strong migration reason:
+
+- `clipboard:update`
+- `clipboard:write`
+- `clipboard:read`
+- `clipboard:get`
+- `clipboard:clear`
+- `clipboard:isReady`
+- `mouse:move`
+- `mouse:click`
+- `mouse:scroll`
+- `mouse:down`
+- `mouse:up`
+- `mouse:isReady`
+- `keyboard:type`
+- `keyboard:tap`
+- `keyboard:toggle`
+- `keyboard:isReady`
+- `voice:submit`
+- `network:dispatch`
+- `notification:speak`
+- `sms:send`
+
+## Compatibility Notes
+
+- The stack is still mixed-transport and mixed-generation.
+- Canonical packets are the internal contract; transport wrappers are compatibility layers.
+- `payload` and `data` are both still supported.
+- `nodes` and `destinations` are both still supported.
+- `/ws` is the native-first route, but Socket.IO and HTTP remain important compatibility paths.
+- The specification should prefer describing canonical meaning first, then compatibility aliases second.

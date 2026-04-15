@@ -19,6 +19,8 @@ export async function collectCwspServerRuntimeNames(pkgRoot) {
         "tsconfig.json",
         "ecosystem.server.config.cjs"
     ]);
+    // WHY: portable config variants must travel with the staged server tree so
+    // remote/runtime launches keep the same network/bootstrap expectations.
     try {
         const entries = await readdir(pkgRoot);
         for (const f of entries) {

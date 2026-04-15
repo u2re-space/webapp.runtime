@@ -1,8 +1,15 @@
+/**
+ * Lightweight health/readiness/probe handlers for the endpoint runtime.
+ *
+ * WHY: connection debugging often starts here before touching socket traces, so
+ * these routes explain whether the process is up, ready, and PNA-reachable.
+ */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 const BOOT_AT_MS = Date.now();
 const SERVICE_NAME = "cws-v2";
 
+/** Mark probe responses as non-cacheable so diagnostics always reflect live state. */
 const noStore = (reply: FastifyReply): void => {
     reply.header("Cache-Control", "no-store");
     reply.header("Pragma", "no-cache");
@@ -11,6 +18,12 @@ const noStore = (reply: FastifyReply): void => {
 
 const resolveVersion = (): string => String(process.env.npm_package_version || "unknown");
 
+/**
+ * Register operator-facing health and LAN probe routes.
+ *
+ * NOTE: `/lna-probe` exists specifically to make browser Private Network Access
+ * failures easier to diagnose before the Socket.IO/WebSocket handshake begins.
+ */
 export const registerSystemHttpHandlers = async (app: FastifyInstance): Promise<void> => {
     app.get("/api", async () => ({
         ok: true,

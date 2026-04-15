@@ -1,3 +1,10 @@
+/**
+ * Coordinator and routing core for the endpoint's realtime transport stack.
+ *
+ * This file keeps the live peer registry, maps policy/client identities onto
+ * active sockets, performs outbound dialing to known peers, normalizes routing
+ * aliases, and emits the trace lines used when diagnosing delivery failures.
+ */
 import { Server, Socket as SocketClient } from "socket.io";
 import { Socket as SocketConnect, io } from "socket.io-client";
 import { handleAct, handleAsk,makePostHandler } from "./handler.ts";
@@ -8,13 +15,13 @@ import { normalizeIpForMatch } from "@utils/ip-match.ts";
 import { readServerV2ConfigSnapshot } from "@config/storage.ts";
 import { normalizeNetworkAliasMap, resolveNetworkAlias } from "@utils/topology.ts";
 
-//
+/** Process-local identity used when the endpoint itself sends coordinator frames. */
 export const SELF_DATA = {
     ASSOCIATED_ID: "",
     ASSOCIATED_TOKEN: ""
 }
 
-//
+/** Lightweight UUID helper used for request/response correlation and peer instance ids. */
 export const UUIDv4 = () => { 
     const uuid = new Array(36);
     for (let i = 0; i < 36; i++) {
@@ -27,7 +34,12 @@ export const UUIDv4 = () => {
     return uuid.map((x) => x.toString(16)).join('');
 }
 
-//
+/**
+ * Core registries used by routing and diagnostics.
+ *
+ * AI-READ: `internalNodeMap` is the live truth for connected peers, while
+ * `knownClients` is the policy/config view of who *could* exist.
+ */
 export const socketWrapper = new WeakMap<SocketConnect | SocketClient, SocketWrapper>();
 export const internalNodeMap = new Map<string, SocketConnect | SocketClient>();
 export const knownClients = new Map<string, any>();
@@ -85,6 +97,8 @@ const traceSocket = (event: string, details: Record<string, unknown>) => {
     if (existing && now - existing.lastAt < TRACE_SUPPRESSION_WINDOW_MS) {
         existing.lastAt = now;
         existing.count += 1;
+        // NOTE: repeated reconnect / routing misses can flood logs extremely
+        // fast; emit sampled suppression summaries instead of every duplicate.
         const step = existing.count > 20000 ? 2000 : existing.count > 2000 ? 500 : existing.count > 200 ? 50 : 10;
         if (existing.count % step === 0) {
             console.log(`[socket:${event}-suppressed] repeats=${existing.count} windowMs=${TRACE_SUPPRESSION_WINDOW_MS}`);
@@ -239,6 +253,13 @@ const sanitizePacketForWire = (packet: Packet): Packet => {
 };
 
 //
+/**
+ * Deliver one packet to one or more peers, dialing known endpoints on demand.
+ *
+ * WHY: most higher-level helpers eventually flow through here, so trace lines
+ * from `forward-error`, `forward-skip`, and the populate path all share one
+ * delivery contract.
+ */
 export const populateToOthers = (
     channel: "data" | "message",
     packet: Packet,
@@ -251,6 +272,8 @@ export const populateToOthers = (
     const requestedNodes = Array.isArray(nodes)
         ? uniqueNodeIds(nodes.filter((nodeId) => String(nodeId || "").trim().length > 0))
         : ["*"];
+    // WHY: active-peer scoping is applied before dialing so ops/debug sessions
+    // can temporarily suppress noisy/offline peers without rewriting config.
     const scopedRequestedNodes = filterByActivePeers(requestedNodes);
     const candidateNodes = scopedRequestedNodes.includes("*")
         ? [...Array.from(knownClients.keys()), ...Array.from(nodeMap.keys())]
@@ -284,6 +307,8 @@ export const populateToOthers = (
                     }
                     throw new Error(`Unable to connect to node: ${nodeId}`);
                 }
+                // `direct()` keeps one resolver chain per outbound UUID, so all
+                // ask/result/error diagnostics converge on the same call path.
                 return socket.direct(channel, sanitizePacketForWire(outbound));
             })?.catch?.((err) => { 
                 if (rejectOnFailure) {
@@ -794,6 +819,7 @@ export const resolveLocalSocketWrappersForTarget = (
     for (const alias of getKnownClientAliases(targetId)) {
         const cached = nodeMap.get(alias);
         if (cached) {
+            // Fast path: policy ids and alias ids should collapse onto one live wrapper.
             out.push(cached);
             return out;
         }
@@ -925,6 +951,10 @@ const getFailedNodeRetryDelay = (nodeId: string): number => {
 };
 
 //
+/**
+ * One connected peer plus its routing state, dedupe caches, request resolvers,
+ * and helpers for emitting hello/ask/act/result/error frames.
+ */
 export class SocketWrapper {
     public selfId: string;
     public socket: SocketConnect | SocketClient;
@@ -1039,6 +1069,12 @@ export class SocketWrapper {
     }
 
     //
+    /**
+     * Send the canonical token/identity probe to a peer.
+     *
+     * NOTE: this is often the first frame after connect and is one of the key
+     * places to inspect when peers connect but never become routable.
+     */
     async hello(directly: boolean = false) {
         const targetNode = this.peerId || this.socketId || "*";
         const packet = {
@@ -1051,7 +1087,8 @@ export class SocketWrapper {
             timestamp: Date.now()
         } as Packet;
 
-        //
+        // NOTE: direct hello is used when we already know the exact socket to
+        // probe; populated hello uses the broader routing layer/caches instead.
         if (directly) {
             this.socket.emit("data", sanitizePacketForWire(packet));
         } else {
@@ -1103,6 +1140,8 @@ export class SocketWrapper {
         } as Packet;
         this.lastOutboundResolverUuid = uuid;
         this.socket?.emit?.(channel, sanitizePacketForWire(outbound));
+        // WHY: even fire-and-forget sends share the same post-handler map so a
+        // later resolve/result/error can still be correlated if it arrives.
         // @ts-ignore
         return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(outbound.op, outbound.what, outbound.payload) })?.promise;
     }
@@ -1692,6 +1731,7 @@ export class SocketWrapper {
 }
 
 //
+/** Seed the known-client registry from config so runtime routing can resolve policy ids and aliases. */
 export const loadFromClientsConfig = (clientsData: Record<string, any>[]) => { 
     for (const clientId of Object.keys(clientsData)) {
         const isAlias = clientsData[clientId]?.startsWith?.("alias:");
@@ -1703,6 +1743,12 @@ export const loadFromClientsConfig = (clientsData: Record<string, any>[]) => {
 //socket.emit("data", { op: "ask", what: "token"})
 
 //
+/**
+ * Infer the canonical endpoint id for an inbound connection.
+ *
+ * WHY: routing/debugging depends on mapping raw socket handshakes to the same
+ * ids used by `clients.json`, policy tables, and HTTP transport targets.
+ */
 export const identifyNodeIdFromIncomingConnection = async (socket: SocketConnect | SocketClient, packet?: Packet): Promise<string | null> => { 
     if (packet?.byId) { return packet?.byId as string; }
     const hintedId = normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId);
@@ -1844,6 +1890,10 @@ const resolveTlsServername = (targetConfig: any, normalizedOrigin: string): stri
 };
 
 //
+/**
+ * Dial a known peer over Socket.IO websocket transport using its configured
+ * origins and token policy, logging each candidate attempt for diagnostics.
+ */
 export const initiateConnection = async (forId: string, fromId: string): Promise<SocketWrapper | undefined> => { 
     const dialId = resolveDialTargetId(forId) || forId;
     const targetConfig = getKnownClientConfig(dialId);
@@ -1995,6 +2045,10 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
 }
 
 //
+/**
+ * Reuse a live local connection when possible, otherwise start one outbound
+ * dial attempt unless the target is ephemeral or currently in cooldown.
+ */
 export const findOrInitiateConnection = (id: string, selfId: string): SocketWrapper | Promise<SocketWrapper | undefined> | undefined => {
     const dialId = resolveDialTargetId(id) || id;
     let localPeers = resolveLocalSocketWrappersForTarget(id);
@@ -2185,6 +2239,7 @@ export const getConnectionRegistrySnapshot = (): ConnectionRegistryRow[] => {
     return rows;
 };
 
+/** Compatibility Socket.IO server facade kept for legacy callers and relay paths. */
 export class SocketServer {
     /** All Socket.IO servers (e.g. public + admin Fastify HTTP(S) listeners). */
     public readonly servers: Server[];
@@ -2277,6 +2332,7 @@ const buildSocketIoServerOptions = () => {
         allowRequest: (_req: any, callback: (err: string | null, ok: boolean) => void) => callback(null, true)
     } as any;
 };
+/** Build the shared Socket.IO server(s) once and reuse them across the endpoint runtime. */
 export const makeSocketServer = (primaryHttpServer: any, selfId: string, extraHttpServers: any[] = []) => {
     if (existsSocketServer) return existsSocketServer;
     const opts = buildSocketIoServerOptions();

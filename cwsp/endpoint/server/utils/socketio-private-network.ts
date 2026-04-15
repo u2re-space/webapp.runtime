@@ -1,9 +1,16 @@
+/**
+ * Inject Private Network Access headers into Engine.IO/Socket.IO responses.
+ *
+ * WHY: Fastify CORS hooks do not reliably reach the low-level Engine.IO write
+ * path, so `/socket.io` needs its own header injection to satisfy Chrome PNA.
+ */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Server as HttpServer } from "node:http";
 import type { Server as HttpsServer } from "node:https";
 
 const SOCKET_IO_PREFIX = "/socket.io";
 
+/** Append one token to `Vary` without clobbering values already set by Engine.IO/Fastify. */
 const mergeVary = (res: ServerResponse, token: string): void => {
     const v = res.getHeader("Vary");
     const parts = (Array.isArray(v) ? v.join(", ") : String(v ?? ""))
@@ -18,6 +25,7 @@ const mergeVary = (res: ServerResponse, token: string): void => {
     }
 };
 
+/** Best-effort PNA header injection for Engine.IO responses and preflights. */
 const injectPrivateNetworkAccessHeaders = (res: ServerResponse): void => {
     if (res.headersSent) return;
     try {

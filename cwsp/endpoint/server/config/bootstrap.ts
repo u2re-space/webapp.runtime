@@ -1,3 +1,10 @@
+/**
+ * Bootstrap resolver for the CWSP endpoint runtime.
+ *
+ * This module decides where `portable.config.json`, the runtime data directory,
+ * and launcher-provided env defaults come from before the rest of the server
+ * reads configuration.
+ */
 import fs from "node:fs";
 import path from "node:path";
 
@@ -118,6 +125,14 @@ const readLauncherEnv = (portableConfigPath: string): Record<string, unknown> =>
 
 let bootstrapCache: ServerV2BootstrapResult | null = null;
 
+/**
+ * Resolve config/data paths and apply launcher-provided env defaults once for
+ * the current process.
+ *
+ * WHY: many downstream modules read from `process.env` directly, so bootstrap
+ * has to normalize CLI args, bundle-relative defaults, and portable launcher
+ * overrides before config storage is initialized.
+ */
 export const applyServerV2Bootstrap = (options: ServerV2BootstrapOptions = {}): ServerV2BootstrapResult => {
     if (!options.argv && !options.configPath && !options.configDir && !options.dataDir && bootstrapCache) {
         return bootstrapCache;

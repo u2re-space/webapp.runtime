@@ -1,3 +1,10 @@
+/**
+ * Thin runtime engine derived from the resolved portable config snapshot.
+ *
+ * The engine packages the raw snapshot together with normalized endpoint
+ * policies, alias maps, and a compact profile that other server modules can
+ * consume without reinterpreting config on every call.
+ */
 import config from "./config.ts";
 import { createServerV2ConfigStorage } from "./storage.ts";
 import {
@@ -70,6 +77,7 @@ const resolveRoles = (snapshot: Record<string, any>): string[] => {
 
 export type ServerV2Engine = ReturnType<typeof createServerV2Engine>;
 
+/** Build the normalized runtime view used by Fastify, socket transport, and admin handlers. */
 export const createServerV2Engine = () => {
     const storage = createServerV2ConfigStorage();
     const snapshot = storage.readSnapshot();

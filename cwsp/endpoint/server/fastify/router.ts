@@ -1,3 +1,10 @@
+/**
+ * Public web/router assembly for the CWSP Fastify server.
+ *
+ * It resolves the correct frontend build directory, initializes shared static
+ * serving helpers, and registers middleware plus route branches in the order
+ * required for the browser shell, share-target flow, and fallback pages.
+ */
 import fs from "fs/promises"
 import path from "node:path"
 
@@ -154,6 +161,12 @@ initializeDirectories(__frontendDir, __appDir, APPS_DIR);
 // MAIN APP REGISTRATION
 // ============================================================================
 
+/**
+ * Register the full web-facing Fastify surface for the public app server.
+ *
+ * INVARIANT: middleware and root-document routes must be registered before the
+ * catch-all SPA/error handlers so the app shell keeps predictable routing.
+ */
 export default async function (fastify, options = {}) {
     if (!fastify) throw Error("No Fastify instance provided");
 

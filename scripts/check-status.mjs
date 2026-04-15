@@ -14,6 +14,8 @@ const urlArg = args.find((a) => !a.startsWith("--"));
 const defaultUrl = "https://127.0.0.1:8443/";
 const baseUrl = useLocal ? new URL(defaultUrl) : urlArg ? new URL(urlArg) : new URL(defaultUrl);
 
+// NOTE: keep this probe path aligned with the lightweight endpoint health URL
+// expected on the remote host; this script is meant for quick operator checks.
 const probePath = "/health";
 const url = new URL(probePath, baseUrl);
 

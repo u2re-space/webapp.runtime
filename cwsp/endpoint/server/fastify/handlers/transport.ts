@@ -1,3 +1,11 @@
+/**
+ * HTTP transport compatibility handlers for clipboard, reverse-send, WS relay,
+ * and generic dispatch/fetch endpoints.
+ *
+ * WHY: several clients still speak older HTTP contracts instead of connecting
+ * directly to the canonical socket runtime. This module normalizes those
+ * requests and forwards them into the shared transport layer.
+ */
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -30,6 +38,7 @@ const resolveDispatchOp = (value: unknown): string => {
     return "act";
 };
 
+/** Load endpoint policy/identity config once so HTTP transport routes can verify non-DB peers. */
 const loadEndpointPolicies = () => {
     try {
         const raw = JSON.parse(readFileSync(RAW_CLIENTS_CONFIG_PATH, "utf8")) as Record<string, unknown>;
@@ -66,6 +75,10 @@ const resolvePolicyTokens = (tokens: unknown[]): string[] => {
     return Array.from(out).filter(Boolean);
 };
 
+/**
+ * Fallback auth path for endpoint peers that authenticate via policy tokens
+ * rather than the primary user database.
+ */
 const verifyEndpointPolicyUser = (policies: ReturnType<typeof normalizeEndpointPolicies>, userId: string, userKey: string) => {
     const normalizedUserId = normalizeString(userId);
     const normalizedUserKey = normalizeToken(userKey);
@@ -173,6 +186,7 @@ const resolveDispatchPayload = (body: Record<string, unknown>, type: string): un
     return body.body ?? body;
 };
 
+/** Verify one incoming HTTP transport request against DB users first, then endpoint-policy tokens. */
 const verifyRequestUser = async (policies: ReturnType<typeof normalizeEndpointPolicies>, body: Record<string, unknown>) => {
     const userId = normalizeString(body.userId);
     const userKey = normalizeString(body.userKey);
@@ -186,6 +200,12 @@ const verifyRequestUser = async (policies: ReturnType<typeof normalizeEndpointPo
     return { ok: true as const, userId, userKey, record };
 };
 
+/**
+ * Minimal HTTP fan-out helper used by compatibility request/broadcast routes.
+ *
+ * NOTE: this path is intentionally simple and text-oriented because many older
+ * clients/scripts only expect a small proxy around `fetch`.
+ */
 const forwardHttpRequest = async (entry: Record<string, unknown>) => {
     const url = normalizeString(entry.url);
     if (!url) return { ok: false, error: "No URL" };
@@ -214,6 +234,12 @@ const forwardHttpRequest = async (entry: Record<string, unknown>) => {
     }
 };
 
+/**
+ * Register legacy/compat transport endpoints onto a Fastify instance.
+ *
+ * AI-READ: many route aliases intentionally point at the same handler because
+ * deployed clients and scripts still use different historical URLs.
+ */
 export const registerTransportHttpHandlers = async (
     app: FastifyInstance,
     options: {

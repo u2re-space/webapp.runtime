@@ -1,3 +1,10 @@
+/**
+ * Unified CWSP runtime bootstrap.
+ *
+ * This module assembles the config/bootstrap layer, creates the paired Fastify
+ * servers (admin + public), wires Socket.IO/input plugins, and exposes the
+ * `start()` lifecycle used by the deployed endpoint process.
+ */
 import { Server as HttpsServer } from "node:https";
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
@@ -50,6 +57,12 @@ export type CWSPStartOptions = {
     logger?: boolean;
 } & ServerV2BootstrapOptions;
 
+/**
+ * Create the CWSP runtime object without binding sockets yet.
+ *
+ * WHY: callers sometimes need access to the resolved bootstrap/config state and
+ * Fastify instances before ports are claimed.
+ */
 export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
     const bootstrap = applyServerV2Bootstrap(options);
     reloadPortableConfigState();
@@ -106,7 +119,8 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
     await publicApp.register(cors, fastifyCorsOptions as any);
     await publicApp.register(formbody);
 
-    // Register Plugins (IO first: Socket.IO + wsHub for transport HTTP handlers)
+    // WHY: IO must be registered before API/web routes so every later handler
+    // can rely on `app.wsHub` and the shared socket runtime already existing.
     await registerControlPlugin(adminApp, { engine, bootstrap });
     await registerIoPlugin(adminApp, publicApp, { engine, bootstrap });
     await registerApiPlugin(adminApp, publicApp, { engine, bootstrap });
@@ -117,6 +131,10 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
         engine,
         adminApp,
         publicApp,
+        /**
+         * Bind admin/public listeners, applying fallback ports when a preferred
+         * port is already occupied by another local process.
+         */
         start: async () => {
             console.log(
                 `[cwsp] boot pid=${process.pid} — unified CWSP (admin + public Fastify). ` +

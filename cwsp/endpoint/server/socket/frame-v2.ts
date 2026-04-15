@@ -1,5 +1,11 @@
 import type { NetworkFrame, Packet, PacketVerb } from "./types.ts";
 
+/**
+ * Canonical frame <-> packet mapping for the endpoint socket stack.
+ *
+ * AI-READ: this file is the narrow contract boundary between transport-shaped
+ * websocket frames and coordinator-shaped packets used elsewhere in the runtime.
+ */
 const FRAME_TO_PACKET_OP: Record<string, PacketVerb> = {
     request: "ask",
     response: "result",
@@ -41,6 +47,8 @@ const normalizeList = (...candidates: unknown[]): string[] => {
 };
 
 const resolvePayload = (frame: Record<string, unknown>) => {
+    // Preserve payload precedence so newer frame senders win, but legacy
+    // `data` / `body` carriers still decode into the same coordinator packet.
     if (frame.payload !== undefined) return frame.payload;
     if (frame.data !== undefined) return frame.data;
     if (frame.body !== undefined) return frame.body;
@@ -94,8 +102,12 @@ export const normalizeFrameV2 = (input: Record<string, unknown>): NetworkFrame =
         what,
         purpose: normalizeString(input.purpose || inferPurpose(what)),
         protocol: protocol || "ws",
+        // NOTE: both `sender` and `byId` appear in the wild; normalize to one
+        // sender field here and let packet conversion mirror it back later.
         sender: sender || undefined,
         destinations,
+        // Keep `ids` as an object-shaped compatibility slot because some older
+        // bridges expect metadata there even when nodes/destinations already exist.
         ids: normalizeIdsRecord(input.ids, sender, destinations),
         payload,
         data: payload,
@@ -116,6 +128,8 @@ export const frameToPacket = (frameInput: Record<string, unknown>): Packet => {
         op,
         what: normalizeString(frame.what || frame.type || "dispatch"),
         payload: frame.payload ?? frame.data ?? frame.body,
+        // WHY: coordinator routing still keys off `nodes`, even when newer
+        // websocket/native frame senders prefer `destinations`.
         nodes: destinations,
         destinations,
         byId: sender || undefined,
@@ -153,6 +167,8 @@ export const packetToFrame = (packetInput: Record<string, unknown>, defaultSende
         status: (packet as any).status
     });
     if (!frame.sender && sender) frame.sender = sender;
+    // NOTE: packet callers are allowed to omit uuid/timestamp; the frame layer
+    // fills them in so diagnostics and resolver tracking always have anchors.
     if (!frame.uuid) frame.uuid = normalizeString(packet.uuid) || undefined;
     if (!frame.timestamp || frame.timestamp <= 0) frame.timestamp = Date.now();
     return frame;

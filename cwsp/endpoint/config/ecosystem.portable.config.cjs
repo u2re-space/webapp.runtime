@@ -1,3 +1,10 @@
+/**
+ * PM2 config for the compiled portable CWSP bundle.
+ *
+ * AI-READ: use this when the host runs `dist/portable/cwsp.mjs`; use
+ * `ecosystem.server.config.cjs` instead when debugging the TypeScript source
+ * runtime directly via `tsx server/index.ts`.
+ */
 const fs = require("node:fs");
 const path = require("node:path");
 const ROOT_DIR = path.resolve(__dirname, "..");

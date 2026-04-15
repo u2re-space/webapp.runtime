@@ -1,3 +1,10 @@
+/**
+ * Packet/frame normalization for the endpoint's mixed transport stack.
+ *
+ * WHY: the server still accepts several legacy mouse/keyboard/socket payload
+ * shapes. This module converts them into one canonical `Packet` contract before
+ * local handlers or transport bridges inspect the message.
+ */
 import {
     buttonFromFlags,
     isKeyboardMessage,
@@ -15,6 +22,7 @@ import {
 import type { NetworkFrame, Packet, PacketVerb } from "./types.ts";
 import { frameToPacket, mapPacketOpToFrame, normalizeIncomingFrameOp, packetToFrame } from "./frame-v2.ts";
 
+/** Map old single-word message types onto canonical `domain:action` routing names. */
 export const inferWhatFromLegacyType = (value: unknown): string | undefined => {
     const normalized = String(value || "").trim().toLowerCase();
     if (!normalized) return undefined;
@@ -59,6 +67,8 @@ const normalizeNodeList = (...values: unknown[]): string[] => {
 };
 
 const resolvePayloadFromFrame = (frame: NetworkFrame): unknown => {
+    // Preserve the richest payload carrier first, then fall back through the
+    // legacy fields that older Socket.IO / HTTP bridge senders still emit.
     if (frame.payload !== undefined) return frame.payload;
     if (frame.data !== undefined) return frame.data;
     if (Array.isArray(frame.params) && frame.params.length > 0) return frame.params;
@@ -102,6 +112,10 @@ const normalizeLegacyKeyboardKey = (codePoint: number, flags: number): { what: s
     }
 };
 
+/**
+ * Convert historical binary, JSON-string, and object payloads into a packet-like
+ * structure before the stricter frame normalization step runs.
+ */
 export const normalizeLegacyIncomingPacket = (raw: unknown): Packet | unknown => {
     if (isBinaryEnvelope(raw)) {
         const message = parseBinaryMessage(raw);
@@ -121,6 +135,8 @@ export const normalizeLegacyIncomingPacket = (raw: unknown): Packet | unknown =>
             return undefined;
         }
 
+        // NOTE: binary AirPad packets bypass the generic frame schema entirely,
+        // so this branch translates them straight into coordinator actions.
         switch (message.type) {
             case MSG_TYPE_MOVE:
                 return { op: "act", what: "mouse:move", payload: { x: message.dx || 0, y: message.dy || 0 } } as Packet;
@@ -164,6 +180,8 @@ export const normalizeLegacyIncomingPacket = (raw: unknown): Packet | unknown =>
     const type = String(legacy.type || "").trim().toLowerCase();
     if (!type) return legacy;
 
+    // WHY: legacy plain-object messages often carry tiny event names like
+    // `move` or `keyboard`; map them here before strict packet validation.
     switch (type) {
         case "move":
             return { op: "act", what: "mouse:move", payload: { x: legacy.dx || 0, y: legacy.dy || 0 } } as Packet;
@@ -200,6 +218,7 @@ export const normalizeLegacyIncomingPacket = (raw: unknown): Packet | unknown =>
     }
 };
 
+/** Canonical entrypoint for inbound payload normalization across WS, Socket.IO, and HTTP bridges. */
 export const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
     try {
         const parsed = normalizeLegacyIncomingPacket(raw);
@@ -211,6 +230,8 @@ export const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
         if (packet.payload === undefined && (packet as any)?.data !== undefined) {
             packet.payload = (packet as any).data;
         }
+        // NOTE: result/error packets can arrive with weak or missing `op`, so
+        // the normalizer infers the resolver verb from payload shape as needed.
         packet.op = normalizePacketVerb(packet.op) || (packet.result !== undefined ? "result" : packet.error !== undefined ? "error" : "act");
         return packet;
     } catch {
@@ -218,10 +239,12 @@ export const normalizeInboundPacket = (raw: unknown): Packet | undefined => {
     }
 };
 
+/** Return a normalized packet or `null` when the payload cannot be interpreted safely. */
 export const ensurePacket = (raw: unknown): Packet | null => {
     return normalizeInboundPacket(raw) || null;
 };
 
+/** Convert a canonical packet back into the normalized wire frame used by the WS gateway. */
 export const normalizeOutboundFrame = (packet: Record<string, unknown>, defaultSender = "server-v2"): NetworkFrame => {
     const normalized = packetToFrame(packet, defaultSender);
     if (!normalized.op) normalized.op = mapPacketOpToFrame((packet as Packet).op || "act") as NetworkFrame["op"];

@@ -1,3 +1,10 @@
+/**
+ * Portable-config storage and normalization layer for the CWSP endpoint.
+ *
+ * This module reads `portable.config.json` plus its optional module fragments,
+ * folds env overrides into the final snapshot, and exposes a stable config view
+ * for the rest of the server.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import { hostname as getHostname, networkInterfaces } from "node:os";
@@ -455,18 +462,23 @@ const buildSnapshot = (): ServerV2ConfigSnapshot => {
 
 let snapshotCache: ServerV2ConfigSnapshot | null = null;
 
-/** Call after `applyServerV2Bootstrap()` so portable modules, bridge, TLS env, and Airpad flags apply. */
+/**
+ * Reload portable config from disk after bootstrap has had a chance to set env
+ * defaults and explicit config/data paths.
+ */
 export const reloadPortableConfigState = (): void => {
     snapshotCache = null;
     loadPortableStateFromDisk();
 };
 
+/** Return the current normalized config snapshot used by runtime/transport layers. */
 export const readServerV2ConfigSnapshot = (): ServerV2ConfigSnapshot => {
     if (snapshotCache) return { ...snapshotCache };
     snapshotCache = buildSnapshot();
     return { ...snapshotCache };
 };
 
+/** Expose which config files/modules were actually selected, mainly for diagnostics. */
 export const getConfigLoadReportSnapshot = (): ConfigLoadReport => ({
     ...loadReport,
     portableModules: [...loadReport.portableModules]
@@ -476,6 +488,12 @@ const settingsStore = createSettingsStore(SETTINGS_FILE, DEFAULT_SETTINGS);
 export const readCoreSettings = settingsStore.readCoreSettings;
 export const writeCoreSettings = settingsStore.writeCoreSettings;
 
+/**
+ * Build the storage facade consumed by the engine and admin/config handlers.
+ *
+ * AI-READ: this facade intentionally returns read helpers and settings store
+ * access without exposing the many internal merge/derivation steps above.
+ */
 export const createServerV2ConfigStorage = () => {
     const readSnapshot = (): ServerV2ConfigSnapshot => readServerV2ConfigSnapshot();
     return {
