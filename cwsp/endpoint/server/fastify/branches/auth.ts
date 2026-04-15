@@ -8,6 +8,7 @@ export const authHttpBranch: ServerV2HttpBranch = {
     routes: [
         { method: "POST", path: "/core/auth/register" },
         { method: "POST", path: "/core/auth/rotate" },
+        { method: "POST", path: "/core/auth/users" },
         { method: "GET", path: "/core/auth/users" },
         { method: "POST", path: "/core/auth/delete" }
     ],

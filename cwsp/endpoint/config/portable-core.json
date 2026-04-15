@@ -3,6 +3,15 @@
     "core": {
         "endpointIDs": "fs:./clients.json",
         "gateways": "fs:./gateways.json",
-        "network": "fs:./network.json"
+        "network": "fs:./network.json",
+        "identity": {
+            "byId": true,
+            "aliases": true
+        },
+        "tunnel": {
+            "enabled": true,
+            "keepalive": true,
+            "keepaliveIntervalMs": 15000
+        }
     }
 }

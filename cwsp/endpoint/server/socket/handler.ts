@@ -221,6 +221,11 @@ export const handleAct = async (what: string, payload: any, packet: Packet, self
                 what
             };
         }
+        if (unwrapped.op === "result") {
+            // Dispatch wrappers can carry response/resolve payloads from legacy peers.
+            // Treat them as already-resolved ack payload instead of re-routing as act.
+            return unwrapped.payload;
+        }
         if (unwrapped.op === "ask" || unwrapped.what.endsWith(":isready")) {
             return handleAsk(unwrapped.what, unwrapped.payload, packet, selfId);
         }
@@ -255,6 +260,9 @@ export const handleAsk = async (what: string, payload: any, packet: Packet, self
                 reason: "dispatch-unwrapped-self",
                 what
             };
+        }
+        if (unwrapped.op === "result") {
+            return unwrapped.payload;
         }
         return handleAsk(unwrapped.what, unwrapped.payload, packet, selfId);
     }

@@ -189,11 +189,15 @@ const verifyRequestUser = async (policies: ReturnType<typeof normalizeEndpointPo
 const forwardHttpRequest = async (entry: Record<string, unknown>) => {
     const url = normalizeString(entry.url);
     if (!url) return { ok: false, error: "No URL" };
+    const rawMethod = (normalizeString(entry.method || "POST") || "POST").toUpperCase();
+    const serializedBody = typeof entry.body === "string" ? entry.body : entry.body == null ? null : JSON.stringify(entry.body);
+    const hasBody = serializedBody != null && serializedBody !== "";
+    const method = rawMethod === "GET" && hasBody ? "POST" : rawMethod;
     try {
         const response = await fetch(url, {
-            method: normalizeString(entry.method || "POST") || "POST",
+            method,
             headers: asRecord(entry.headers) as HeadersInit,
-            body: typeof entry.body === "string" ? entry.body : entry.body == null ? null : JSON.stringify(entry.body)
+            body: method === "GET" || method === "HEAD" ? null : serializedBody
         });
         return {
             ok: response.ok,

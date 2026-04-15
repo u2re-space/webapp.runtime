@@ -41,14 +41,14 @@ export const defaultPublicHttpsPortForPlatform = (): number => 443;
 export const defaultPublicHttpPortForPlatform = (): number => 80;
 
 /**
- * Walk upward from `fromDir` to find a directory containing `portable.config.json`.
- * TS sources live under `server/`, `web/fastify/`, etc.; the config sits at the cwsp package root.
- * Bundled `cwsp.mjs` resolves in one step (dirname of the bundle).
+ * Walk upward from `fromDir` to find a directory containing portable config.
+ * Preferred layout is `config/portable.config.json`; root `portable.config.json` is legacy fallback.
  */
 export const findPortableConfigRoot = (fromDir: string, maxHops = 16): string | null => {
     let dir = path.resolve(fromDir);
     for (let i = 0; i < maxHops; i++) {
         try {
+            if (fs.existsSync(path.join(dir, "config", "portable.config.json"))) return dir;
             if (fs.existsSync(path.join(dir, "portable.config.json"))) return dir;
         } catch {
             /* ignore */
@@ -64,7 +64,15 @@ export const moduleDirname = (meta: ImportMeta): string => {
     // Deno provides import.meta.dirname; Node does not.
     const anyMeta = meta as any;
     if (typeof anyMeta?.dirname === "string") return anyMeta.dirname;
-    return path.dirname(fileURLToPath(meta.url));
+    const rawUrl = typeof anyMeta?.url === "string" ? anyMeta.url : "";
+    if (rawUrl) {
+        try {
+            return path.dirname(fileURLToPath(rawUrl));
+        } catch {
+            /* fallthrough */
+        }
+    }
+    return process.cwd();
 };
 
 export const isMainModule = (meta: ImportMeta): boolean => {

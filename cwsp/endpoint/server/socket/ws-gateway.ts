@@ -82,6 +82,16 @@ class WsSocketShim extends EventEmitter {
             headers["x-cws-user-id"],
             headers["x-user-id"]
         );
+        const headerNodeId = firstNonEmpty(
+            headers["x-cws-node-id"],
+            headers["x-node-id"],
+            headers["x-by-id"]
+        );
+        const headerAliases = firstNonEmpty(
+            headers["x-cws-node-aliases"],
+            headers["x-cws-origin-aliases"],
+            headers["x-node-aliases"]
+        );
         const headerConnectionType = firstNonEmpty(
             headers["x-cws-connection-type"],
             headers["x-connection-type"]
@@ -93,6 +103,8 @@ class WsSocketShim extends EventEmitter {
         const auth = {
             clientId: firstNonEmpty(headerClientId, query.clientId, query.__airpad_client, query.__airpad_src),
             userId: firstNonEmpty(headerUserId, query.userId),
+            byId: firstNonEmpty(headerNodeId, query.byId, query.nodeId),
+            aliases: firstNonEmpty(headerAliases, query.aliases),
             token: firstNonEmpty(headerToken, query.token, query.airpadToken, query.userKey),
             connectionType: firstNonEmpty(headerConnectionType, query.connectionType),
             archetype: firstNonEmpty(headerArchetype, query.archetype)
@@ -108,6 +120,12 @@ class WsSocketShim extends EventEmitter {
         }
         if (!query.userId && auth.userId) {
             query.userId = auth.userId;
+        }
+        if (!query.byId && auth.byId) {
+            query.byId = auth.byId;
+        }
+        if (!query.aliases && auth.aliases) {
+            query.aliases = auth.aliases;
         }
         if (!query.token && auth.token) {
             query.token = auth.token;

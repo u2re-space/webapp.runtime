@@ -10,7 +10,7 @@ import {
 } from "../socket/client-contract.ts";
 
 type RouteMode = "direct" | "via-l200";
-type CaseName = "clipboard:isReady" | "mouse:isReady" | "clipboard:update" | "airpad:mouse";
+type CaseName = "clipboard:isReady" | "mouse:isReady" | "clipboard:update" | "clipboard:write" | "airpad:mouse";
 
 type ActorPair = { source: string; target: string; token: string };
 type TestRow = {
@@ -33,8 +33,9 @@ type WaitResult = {
 
 const VIA_ID = "L-192.168.0.200";
 const DEFAULT_ENDPOINTS = [
-    "https://45.147.121.152:8443/",
-    "https://192.168.0.200:8443/"
+    "https://192.168.0.200:8443/",
+    "https://192.168.0.110:8443/",
+    "https://45.147.121.152:8443/"
 ];
 const DEFAULT_ACTORS: ActorPair[] = [
     { source: "L-192.168.0.196", target: "L-192.168.0.110", token: "n3v3rm1nd" },
@@ -43,6 +44,15 @@ const DEFAULT_ACTORS: ActorPair[] = [
 
 const DEFAULT_RETRIES = Number(process.env.CWS_ITER_RETRIES || 3) || 3;
 const DEFAULT_TIMEOUT_MS = Number(process.env.CWS_ITER_TIMEOUT_MS || 12000) || 12000;
+
+const endpointSupportsViaL200 = (endpoint: string): boolean => {
+    try {
+        const host = new URL(endpoint).hostname.trim().toLowerCase();
+        return host === "192.168.0.200" || host === "192.168.0.201" || host === "45.147.121.152";
+    } catch {
+        return endpoint.includes("192.168.0.200") || endpoint.includes("192.168.0.201") || endpoint.includes("45.147.121.152");
+    }
+};
 
 const parseEndpoints = (): string[] => {
     const raw = String(process.env.CWS_ITER_ENDPOINTS || "").trim();
@@ -215,6 +225,10 @@ const sendAndAwaitOnce = async (
         uuid: packet.uuid || globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
     }, identity);
     const uuid = String(normalized.uuid || "");
+    const expectedTarget = String(
+        (Array.isArray((normalized as any).nodes) ? (normalized as any).nodes[0] : "") || ""
+    ).trim();
+    const expectedWhat = String((normalized as any).what || "").trim().toLowerCase();
     ws.send(JSON.stringify(normalized));
     const resolveUuid = (packet: Packet): string => {
         const direct = String((packet as any).uuid || (packet as any).id || "").trim();
@@ -228,9 +242,23 @@ const sendAndAwaitOnce = async (
     };
     return waitForPacket(ws, (incoming) => {
         const incomingUuid = resolveUuid(incoming);
-        if (!incomingUuid || incomingUuid !== uuid) return false;
         const runtimeOp = toRuntimeOp((incoming as any).op);
-        if (["result", "resolve", "error", "response"].includes(runtimeOp)) return true;
+        if (incomingUuid && incomingUuid === uuid) {
+            if (["result", "resolve", "error", "response"].includes(runtimeOp)) return true;
+            return runtimeOp !== "ask";
+        }
+        // Compatibility path for legacy peers that return dispatch-style response
+        // without propagating request uuid.
+        if (!incomingUuid && ["result", "resolve", "error", "response"].includes(runtimeOp)) {
+            const source = String((incoming as any).byId || (incoming as any).from || "").trim();
+            if (!source || !expectedTarget || source !== expectedTarget) return false;
+            const incomingWhat = String((incoming as any).what || "").trim().toLowerCase();
+            const compatibleWhat =
+                incomingWhat === expectedWhat ||
+                (expectedWhat.startsWith("clipboard:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("clipboard:"))) ||
+                (expectedWhat.startsWith("airpad:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("mouse:") || incomingWhat.startsWith("airpad:")));
+            return compatibleWhat;
+        }
         return runtimeOp !== "ask";
     }, timeoutMs);
 };
@@ -324,6 +352,10 @@ const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair)
                 packet: { op: "act", what: "clipboard:update", payload: { text: `iter-v2-${route}-${Date.now()}` }, nodes: [actor.target] } as Packet
             },
             {
+                name: "clipboard:write",
+                packet: { op: "act", what: "clipboard:write", payload: { text: `iter-v2-write-${route}-${Date.now()}` }, nodes: [actor.target] } as Packet
+            },
+            {
                 name: "airpad:mouse",
                 packet: { op: "act", what: "airpad:mouse", payload: { op: "mouse:move", data: { x: 3, y: 1, z: 0 } }, nodes: [actor.target] } as Packet
             }
@@ -409,7 +441,8 @@ const main = async () => {
     const rows: TestRow[] = [];
     for (const actor of actors) {
         for (const endpoint of endpoints) {
-            for (const route of ["direct", "via-l200"] as const) {
+            const routes: RouteMode[] = endpointSupportsViaL200(endpoint) ? ["direct", "via-l200"] : ["direct"];
+            for (const route of routes) {
                 rows.push(...(await runOneRoute(endpoint, route, actor)));
             }
         }

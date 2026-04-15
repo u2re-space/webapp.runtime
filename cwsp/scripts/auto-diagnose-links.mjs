@@ -23,6 +23,10 @@ const adbTarget = process.env.CWS_AUTOMATION_ADB_DEVICE || "192.168.0.196:5555";
 const pm2Lines = Math.max(30, Number(process.env.CWS_AUTOMATION_PM2_LINES || 140) || 140);
 const iterRetries = String(process.env.CWS_ITER_RETRIES || "1");
 const iterTimeout = String(process.env.CWS_ITER_TIMEOUT_MS || "3500");
+const iterEndpoints = String(
+    process.env.CWS_ITER_ENDPOINTS || "https://192.168.0.200:8443/,https://192.168.0.110:8443/,https://45.147.121.152:8443/"
+).trim();
+const activePeersEnv = String(process.env.CWS_AUTOMATION_ACTIVE_PEERS || "").trim();
 const skipAndroidRebuild = /^(1|true|yes)$/i.test(String(process.env.CWS_AUTOMATION_SKIP_ANDROID_REBUILD || "").trim());
 
 const keyPath = process.env.CWSP_SSH_IDENTITY || process.env.SSH_IDENTITY_FILE || `${process.env.HOME || "~"}/.ssh/id_ecdsa`;
@@ -106,6 +110,30 @@ const sshRun = (host, remoteCommand) => {
     return run(`ssh ${baseArgs} "${host.sshTarget}" "${host.shell(remoteCommand)}"`, cwspRoot);
 };
 
+const withRemoteEnv = (host, command) => {
+    if (!activePeersEnv) return command;
+    const hostId = String(host?.id || "").toLowerCase();
+    // Windows hosts (110/111) do not support POSIX inline env assignment.
+    if (hostId === "l-192.168.0.110" || hostId === "l-192.168.0.111") return command;
+    const escaped = activePeersEnv.replace(/'/g, "'\\''");
+    return `CWS_ACTIVE_PEERS='${escaped}' ${command}`;
+};
+
+const resolvePm2RestartCommand = (host) => {
+    const hostId = String(host?.id || "").toLowerCase();
+    if (hostId === "l-192.168.0.196") {
+        // VDS currently uses cws/cws-vds-* names instead of cwsp.
+        return [
+            "pm2 restart cwsp --update-env",
+            "pm2 restart cws --update-env",
+            "pm2 restart cws-vds-fake-client --update-env",
+            "pm2 restart cws-vds-android-208 --update-env",
+            "pm2 restart all --update-env"
+        ].join(" || ");
+    }
+    return "pm2 restart cwsp --update-env";
+};
+
 const parseAdbDeviceState = (output, target) => {
     const targetLc = String(target || "").trim().toLowerCase();
     const lines = String(output || "").split(/\r?\n/);
@@ -148,9 +176,55 @@ const runVdsProtocolFallback = async (summary) => {
     summary.push(`vds-fallback-ws=${vdsWsProbe.status ?? 1}`);
 };
 
+const inferFailureClass = (entries) => {
+    if (entries.some((line) => /adb-state=missing|adb-state=offline|adb-runtime=unavailable/i.test(line))) {
+        return "adb-unavailable";
+    }
+    if (entries.some((line) => /pm2-restart=1|pm2-list=1|pm2-logs=1/i.test(line))) {
+        return "pm2-remote-failure";
+    }
+    if (entries.some((line) => /iterator=1|iterator=[2-9]/i.test(line))) {
+        return "iterator-functional-failure";
+    }
+    if (entries.some((line) => /adb-fatal=1|adb-filtered=1/i.test(line))) {
+        return "android-runtime-failure";
+    }
+    return "none";
+};
+
+const collectTlsProbeHosts = () => {
+    const values = iterEndpoints
+        .split(/[;,]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+    const hosts = new Set(["192.168.0.200", "192.168.0.110", "45.147.121.152"]);
+    for (const endpoint of values) {
+        try {
+            const host = new URL(endpoint).hostname?.trim();
+            if (host) hosts.add(host);
+        } catch {
+            // ignore malformed endpoint
+        }
+    }
+    return Array.from(hosts);
+};
+
+const runTlsProbe = async (host, summary) => {
+    const certProbe = run(
+        `bash -lc "echo | openssl s_client -connect ${host}:8443 -servername ${host} 2>/dev/null | openssl x509 -noout -subject -issuer -dates"`,
+        cwspRoot
+    );
+    await save(`tls.${host}.cert.log`, formatExec(`tls cert probe ${host}:8443`, certProbe));
+    summary.push(`tls-cert-${host}=${certProbe.status ?? 1}`);
+    const httpsProbe = run(`curl -k -sS -i -m 10 https://${host}:8443/`, cwspRoot);
+    await save(`tls.${host}.https-root.log`, formatExec(`https root probe ${host}:8443`, httpsProbe));
+    summary.push(`https-root-${host}=${httpsProbe.status ?? 1}`);
+};
+
 const main = async () => {
     await mkdir(outRoot, { recursive: true });
     const summary = [];
+    let diagnosticsPath = "full";
 
     if (runPm2) {
         for (const host of hosts) {
@@ -159,7 +233,7 @@ const main = async () => {
             summary.push(`${host.id} pm2-list=${list.status ?? 1}`);
 
             if (wantsRestart) {
-                const restart = sshRun(host, "pm2 restart cwsp --update-env");
+                const restart = sshRun(host, withRemoteEnv(host, resolvePm2RestartCommand(host)));
                 await save(`${host.id}.pm2-restart.log`, formatExec(`${host.id} pm2 restart`, restart));
                 summary.push(`${host.id} pm2-restart=${restart.status ?? 1}`);
             }
@@ -196,8 +270,10 @@ const main = async () => {
 
         if (!adbAvailable) {
             summary.push("adb-runtime=unavailable; using vds-protocol-fallback");
+            diagnosticsPath = "adb-unavailable->vds-fallback";
             await runVdsProtocolFallback(summary);
         } else {
+            diagnosticsPath = "adb-connected";
 
             if (!skipAdbSync) {
                 const mkdirAppConfig = run(
@@ -256,10 +332,15 @@ const main = async () => {
         const iterator = run("npm run test:auto-iterator", endpointRoot, {
             ...process.env,
             CWS_ITER_RETRIES: iterRetries,
-            CWS_ITER_TIMEOUT_MS: iterTimeout
+            CWS_ITER_TIMEOUT_MS: iterTimeout,
+            CWS_ITER_ENDPOINTS: iterEndpoints
         });
         await save("iterator.log", formatExec("route-compat-iterator", iterator));
         summary.push(`iterator=${iterator.status ?? 1}`);
+    }
+
+    for (const host of collectTlsProbeHosts()) {
+        await runTlsProbe(host, summary);
     }
 
     if (runPm2) {
@@ -278,6 +359,8 @@ const main = async () => {
         "# CWSP/CWSAndroid automation summary",
         `time: ${new Date().toISOString()}`,
         `output_dir: ${outRoot}`,
+        `diagnostics_path: ${diagnosticsPath}`,
+        `failure_reason_class: ${inferFailureClass(summary)}`,
         "",
         ...summary.map((line) => `- ${line}`),
         ""

@@ -155,27 +155,43 @@ function deployTarPipeLinuxFromStage(stageDir, sshTarget) {
     return deployTarPipeCommon(stageDir, remoteSh, sshTarget);
 }
 
-function runRemotePm2Start(sshTarget) {
-    const pm2Commands = [
-        "pm2 start ecosystem.server.config.cjs --only cwsp --update-env",
-        "pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env",
-        "pm2 start ecosystem.server.config.cjs --update-env",
-        "npx pm2 start ecosystem.server.config.cjs --only cwsp --update-env",
-        "npx pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env",
-        "npx pm2 start ecosystem.server.config.cjs --update-env"
-    ];
+function runRemoteNpmInstall(sshTarget) {
     if (isWindowsRemotePath()) {
         const rd = psEscapeSingle(remoteDir);
-        const commandsLiteral = pm2Commands.map((cmd) => `'${psEscapeSingle(cmd)}'`).join(", ");
+        const remotePs =
+            `powershell -NoProfile -Command "$ErrorActionPreference='Stop'; ` +
+            `Set-Location '${rd}'; ` +
+            `Write-Host '[deploy-cwsp-server] npm install --include=dev --no-audit --no-fund'; ` +
+            `cmd /c 'npm install --include=dev --no-audit --no-fund'; exit $LASTEXITCODE"`;
+        const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, remotePs], { stdio: "inherit" });
+        if (r.status !== 0) {
+            throw new Error(`remote npm install failed with status ${r.status ?? 1}`);
+        }
+        return;
+    }
+    const rd = remoteDir.replace(/'/g, "'\\''");
+    const remoteSh =
+        `set -e; cd '${rd}'; ` +
+        `echo "[deploy-cwsp-server] npm install --include=dev --no-audit --no-fund"; ` +
+        `npm install --include=dev --no-audit --no-fund`;
+    const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, `bash -lc '${remoteSh.replace(/'/g, "'\\''")}'`], { stdio: "inherit" });
+    if (r.status !== 0) {
+        throw new Error(`remote npm install failed with status ${r.status ?? 1}`);
+    }
+}
+
+function runRemotePm2Start(sshTarget) {
+    const pm2Command = "pm2 start ecosystem.server.config.cjs --only cwsp --update-env";
+    if (isWindowsRemotePath()) {
+        const rd = psEscapeSingle(remoteDir);
         const remotePs =
             `powershell -NoProfile -Command "$ErrorActionPreference='Continue'; ` +
             `Set-Location '${rd}'; ` +
-            `$cmds = @(${commandsLiteral}); ` +
-            `foreach ($cmd in $cmds) { ` +
-            `  Write-Host ('[deploy-cwsp-server] PM2 attempt: ' + $cmd); ` +
-            `  cmd /c $cmd; ` +
-            `  if ($LASTEXITCODE -eq 0) { exit 0 } ` +
-            `}; exit 1"`;
+            `if (!(Test-Path 'ecosystem.server.config.cjs') -and (Test-Path 'config/ecosystem.server.config.cjs')) { ` +
+            `  Copy-Item 'config/ecosystem.server.config.cjs' 'ecosystem.server.config.cjs' -Force; ` +
+            `}; ` +
+            `Write-Host '[deploy-cwsp-server] PM2 command: ${psEscapeSingle(pm2Command)}'; ` +
+            `cmd /c '${psEscapeSingle(pm2Command)}'; exit $LASTEXITCODE"`;
         const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, remotePs], { stdio: "inherit" });
         if (r.status !== 0) {
             throw new Error(`remote PM2 start failed with status ${r.status ?? 1}`);
@@ -183,12 +199,12 @@ function runRemotePm2Start(sshTarget) {
         return;
     }
     const rd = remoteDir.replace(/'/g, "'\\''");
-    const attemptChain = pm2Commands
-        .map((cmd) => cmd.replace(/'/g, "'\\''"))
-        .map((cmd) => `{ echo "[deploy-cwsp-server] PM2 attempt: ${cmd}"; ${cmd}; }`)
-        .join(" || ");
-    const remoteSh = `set -e; cd '${rd}'; (${attemptChain})`;
-    const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, remoteSh], { stdio: "inherit" });
+    const commandEscaped = pm2Command.replace(/'/g, "'\\''");
+    const remoteSh =
+        `set -e; cd '${rd}'; ` +
+        `if [ ! -f ecosystem.server.config.cjs ] && [ -f config/ecosystem.server.config.cjs ]; then cp config/ecosystem.server.config.cjs ecosystem.server.config.cjs; fi; ` +
+        `echo "[deploy-cwsp-server] PM2 command: ${commandEscaped}"; ${commandEscaped}`;
+    const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, `bash -lc '${remoteSh.replace(/'/g, "'\\''")}'`], { stdio: "inherit" });
     if (r.status !== 0) {
         throw new Error(`remote PM2 start failed with status ${r.status ?? 1}`);
     }
@@ -233,6 +249,8 @@ async function main() {
     }
 
     if (autoPm2) {
+        console.log(`[deploy-cwsp-server] Installing remote dependencies on ${deployedTarget}...`);
+        runRemoteNpmInstall(deployedTarget);
         console.log(`[deploy-cwsp-server] Running remote PM2 start for cwsp on ${deployedTarget}...`);
         runRemotePm2Start(deployedTarget);
     } else {

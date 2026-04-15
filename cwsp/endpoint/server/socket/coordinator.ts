@@ -68,6 +68,10 @@ const routeLog = (msg: string, details: Record<string, unknown> = {}) => {
 
 const TRACE_SUPPRESSION_WINDOW_MS = 1000;
 const suppressedSocketTraces = new Map<string, { lastAt: number; count: number }>();
+const activePeerFilterRaw = String(process.env.CWS_ACTIVE_PEERS || "")
+    .split(/[;,]/)
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
 
 const traceSocket = (event: string, details: Record<string, unknown>) => {
     if (!isSocketTraceEnabled()) return;
@@ -247,11 +251,12 @@ export const populateToOthers = (
     const requestedNodes = Array.isArray(nodes)
         ? uniqueNodeIds(nodes.filter((nodeId) => String(nodeId || "").trim().length > 0))
         : ["*"];
-    const candidateNodes = requestedNodes.includes("*")
+    const scopedRequestedNodes = filterByActivePeers(requestedNodes);
+    const candidateNodes = scopedRequestedNodes.includes("*")
         ? [...Array.from(knownClients.keys()), ...Array.from(nodeMap.keys())]
-        : requestedNodes;
+        : scopedRequestedNodes;
     const rejectOnFailure = options?.rejectOnFailure === true;
-    for (const nodeId of uniqueNodeIds(excludeSelf(candidateNodes, selfId)).filter((nodeId) => nodeId && nodeId !== "*")) { 
+    for (const nodeId of uniqueNodeIds(filterByActivePeers(excludeSelf(candidateNodes, selfId))).filter((nodeId) => nodeId && nodeId !== "*")) { 
         const localWrappers = resolveLocalSocketWrappersForTarget(nodeId);
         const dispatchList =
             localWrappers.length > 0
@@ -260,14 +265,16 @@ export const populateToOthers = (
         for (const entry of dispatchList) {
             const promise = Promise.resolve(entry);
             promisedArray.push(promise.then((socket) => {
-                const outboundNodes = uniqueNodeIds([
-                    ...(Array.isArray(packet?.nodes) ? packet.nodes : []),
-                    nodeId,
-                    selfId || ""
-                ]);
+                const explicitNodes = Array.isArray(packet?.nodes)
+                    ? uniqueNodeIds(packet.nodes)
+                    : [];
+                const outboundNodes = explicitNodes.length > 0 && !explicitNodes.includes("*")
+                    ? uniqueNodeIds([...explicitNodes, nodeId])
+                    : uniqueNodeIds([nodeId]);
+                const scopedOutboundNodes = filterByActivePeers(outboundNodes);
                 const outbound = {
                     ...packet,
-                    nodes: outboundNodes,
+                    nodes: scopedOutboundNodes,
                     op: (op ||= packet?.op),
                     byId: packet?.byId || selfId
                 } as Packet;
@@ -503,6 +510,18 @@ export const areNodeIdsEquivalent = (left: unknown, right: unknown): boolean => 
     return false;
 };
 
+const filterByActivePeers = (nodes: string[]): string[] => {
+    if (!activePeerFilterRaw.length) return nodes;
+    const activePeers = activePeerFilterRaw
+        .map((entry) => normalizeNodeId(entry))
+        .filter(Boolean);
+    if (!activePeers.length) return nodes;
+    if (nodes.some((nodeId) => String(nodeId || "").trim() === "*")) {
+        return activePeers;
+    }
+    return nodes.filter((nodeId) => activePeers.some((allowed) => areNodeIdsEquivalent(nodeId, allowed)));
+};
+
 export const uniqueNodeIds = (nodes: unknown): string[] => {
     if (!Array.isArray(nodes)) return [];
     const unique: string[] = [];
@@ -601,9 +620,17 @@ const splitLegacyTargets = (value: unknown): string[] => {
  * (portable config) and exclude the sender — mirrors the HTTP `/clipboard` fallback in `utils/routes.ts`.
  */
 const mergeConfiguredClipboardPeerTargets = (socket: SocketConnect | SocketClient, current: string[]): string[] => {
+    if (Array.isArray(current) && current.length > 0) {
+        // Respect explicit route targets. Do not fan-out to extra peers when caller already resolved
+        // concrete nodes; otherwise clipboard traffic can echo through unrelated nodes.
+        return current;
+    }
     const snap = readServerV2ConfigSnapshot() as Record<string, unknown>;
     let extra: unknown[] | undefined = Array.isArray(snap.clipboardPeerTargets) ? [...snap.clipboardPeerTargets] : undefined;
-    if (!extra?.length) {
+    const enableLabFallback = ["1", "true", "yes", "on"].includes(
+        String(process.env.CWS_CLIPBOARD_PEER_FALLBACK || "").trim().toLowerCase()
+    );
+    if (!extra?.length && enableLabFallback) {
         // Same deterministic lab fallback as `resolveSourceEndpointPolicy` (HTTP clipboard relay).
         const ips = collectNormalizedRemoteIps(socket);
         const hintedLc = normalizeNodeId(
@@ -921,6 +948,7 @@ export class SocketWrapper {
     public acceptedUUIDs: Set<string> = new Set();
     public recentReplyFingerprints = new Map<string, number>();
     public recentClipboardFingerprints = new Map<string, number>();
+    private lastOutboundResolverUuid: string | null = null;
 
     shouldSuppressDuplicateReply(packet: Packet) {
         const uuid = normalizeNodeId(packet?.uuid);
@@ -1069,9 +1097,14 @@ export class SocketWrapper {
             packet = channel as Packet;channel = "data";
         }
         const uuid = packet.uuid ?? UUIDv4();
-        this.socket?.emit?.(channel, sanitizePacketForWire(packet as Packet));
+        const outbound = {
+            ...(packet as Packet),
+            uuid
+        } as Packet;
+        this.lastOutboundResolverUuid = uuid;
+        this.socket?.emit?.(channel, sanitizePacketForWire(outbound));
         // @ts-ignore
-        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(packet.op, packet.what, packet.payload) })?.promise;
+        return this.resolvers?.getOrInsertComputed?.(uuid, () => { return makePostHandler(outbound.op, outbound.what, outbound.payload) })?.promise;
     }
 
     handleAsk(what: string, payload: any, packet: Packet, selfId: string) { 
@@ -1083,11 +1116,36 @@ export class SocketWrapper {
     }
 
     reply(packet: Packet) {
-        //this.socket?.emit?.("data", packet as Packet);
-        //this.socket?.emit?.("message", packet as Packet);
         this.populate("data", packet as Packet);
-        this.populate("message", packet as Packet);
+        if (process.env.CWS_REPLY_DUAL_CHANNEL === "1") {
+            this.populate("message", packet as Packet);
+        }
         return packet;
+    }
+
+    private async awaitForwardAck(forwarded: Array<Promise<any>>): Promise<any> {
+        const timeoutMs = Math.max(
+            1000,
+            Number(process.env.CWS_FORWARD_ACK_TIMEOUT_MS || 9000) || 9000
+        );
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error(`forward-ack-timeout:${timeoutMs}`)), timeoutMs);
+        });
+        const settled = await Promise.race([
+            Promise.allSettled(forwarded),
+            timeoutPromise
+        ]);
+        if (!Array.isArray(settled)) {
+            throw new Error("forward-ack-timeout");
+        }
+        const fulfilled = settled.find(
+            (entry): entry is PromiseFulfilledResult<any> => entry.status === "fulfilled"
+        );
+        if (fulfilled) return fulfilled.value;
+        const failures = settled
+            .filter((entry): entry is PromiseRejectedResult => entry.status === "rejected")
+            .map((entry) => entry.reason);
+        throw new AggregateError(failures, "forward-all-rejected");
     }
     
     doAsk(what: string, payload: any, nodes: string[]) { 
@@ -1160,10 +1218,28 @@ export class SocketWrapper {
         socketWrapper.set(socket, this);
 
         const handlePacket = async (packet: Packet) => {
+            const normalizeRuntimeOp = (value: unknown): "ask" | "act" | "result" | "error" => {
+                const op = String(value || "").trim().toLowerCase();
+                if (op === "request") return "ask";
+                if (op === "response" || op === "resolve" || op === "result") return "result";
+                if (op === "notify" || op === "signal" || op === "redirect") return "act";
+                if (op === "error") return "error";
+                if (op === "ask" || op === "act") return op;
+                return "act";
+            };
+            const resolvePacketResultPayload = (entry: Packet): unknown => {
+                if (entry?.result !== undefined) return entry.result;
+                if ((entry as any)?.results !== undefined) return (entry as any).results;
+                if (entry?.payload !== undefined) return entry.payload;
+                if ((entry as any)?.data !== undefined) return (entry as any).data;
+                if ((entry as any)?.body !== undefined) return (entry as any).body;
+                return undefined;
+            };
             this.rememberPeerId(packet?.byId || packet?.from || this.socketId || this.peerId);
             const payload = this.unpackPayload(packet?.payload);
             const uuid = packet?.uuid;
-            const isTokenHandshake = (packet?.op || "") === "ask" && (packet?.what || "") === "token";
+            const runtimeOp = normalizeRuntimeOp(packet?.op);
+            const isTokenHandshake = runtimeOp === "ask" && (packet?.what || "") === "token";
             const targetsSelf = isTokenHandshake || packetTargetsSelf(packet?.nodes, this.selfId);
             traceSocket("packet-in", {
                 local: this.selfId,
@@ -1175,20 +1251,43 @@ export class SocketWrapper {
                 nodes: uniqueNodeIds([packet?.byId || this.socketId || this.peerId, ...packet?.nodes, this.socketId, this.peerId]),
                 uuid
             });
-            if (uuid && this.resolvers.has(uuid) && ["resolve", "result", "error"].includes(packet?.op || "")) {
-                const isErrorReply = (packet?.op || "") === "error" || packet?.error !== undefined;
+            if (uuid && this.resolvers.has(uuid) && (runtimeOp === "result" || runtimeOp === "error")) {
+                const isErrorReply = runtimeOp === "error" || packet?.error !== undefined;
                 if (isErrorReply) {
                     this.resolvers.get(uuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
                 } else {
-                    this.resolvers.get(uuid)?.resolve?.(this.unpackPayload(packet?.result));
+                    this.resolvers.get(uuid)?.resolve?.(this.unpackPayload(resolvePacketResultPayload(packet)));
                 }
                 this.resolvers.delete(uuid);
+                if (this.lastOutboundResolverUuid === uuid) {
+                    this.lastOutboundResolverUuid = null;
+                }
                 return;
             }
-            const shouldRejectForwarded = !targetsSelf && uuid && ["ask", "act"].includes(packet?.op || "");
+            if (!uuid && (runtimeOp === "result" || runtimeOp === "error") && this.resolvers.size > 0) {
+                const fallbackUuid = (
+                    (this.lastOutboundResolverUuid && this.resolvers.has(this.lastOutboundResolverUuid))
+                        ? this.lastOutboundResolverUuid
+                        : this.resolvers.keys().next().value
+                ) as string | undefined;
+                if (fallbackUuid && this.resolvers.has(fallbackUuid)) {
+                    const isErrorReply = runtimeOp === "error" || packet?.error !== undefined;
+                    if (isErrorReply) {
+                        this.resolvers.get(fallbackUuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
+                    } else {
+                        this.resolvers.get(fallbackUuid)?.resolve?.(this.unpackPayload(resolvePacketResultPayload(packet)));
+                    }
+                    this.resolvers.delete(fallbackUuid);
+                    if (this.lastOutboundResolverUuid === fallbackUuid) {
+                        this.lastOutboundResolverUuid = null;
+                    }
+                    return;
+                }
+            }
+            const shouldRejectForwarded = !targetsSelf && uuid && ["ask", "act"].includes(runtimeOp);
             const forwarded = isTokenHandshake
                 ? []
-                : populateToOthers("data", packet, excludeSelf(packet?.nodes, this.selfId), this.selfId, packet?.op, {
+                : populateToOthers("data", packet, excludeSelf(packet?.nodes, this.selfId), this.selfId, runtimeOp, {
                     rejectOnFailure: shouldRejectForwarded
                 });
             traceSocket("route-decision", {
@@ -1201,19 +1300,10 @@ export class SocketWrapper {
                 targetSelf: targetsSelf,
                 forwards: forwarded.length
             });
-            if (!targetsSelf && uuid && ["ask", "act"].includes(packet?.op || "") && forwarded.length > 0) {
+            if (!targetsSelf && uuid && ["ask", "act"].includes(runtimeOp) && forwarded.length > 0) {
                 try {
-                    const forwardAckTimeoutMs = Math.max(
-                        1000,
-                        Number(process.env.CWS_FORWARD_ACK_TIMEOUT_MS || 9000) || 9000
-                    );
-                    const result = await Promise.race([
-                        Promise.any(forwarded),
-                        new Promise((_, reject) => {
-                            setTimeout(() => reject(new Error(`forward-ack-timeout:${forwardAckTimeoutMs}`)), forwardAckTimeoutMs);
-                        })
-                    ]);
-                    this.reply(packet?.op === "ask" ? this.encodeAnswer(result, packet) : this.encodeReport(result, packet));
+                    const result = await this.awaitForwardAck(forwarded);
+                    this.reply(runtimeOp === "ask" ? this.encodeAnswer(result, packet) : this.encodeReport(result, packet));
                 } catch (error) {
                     const details = error instanceof AggregateError
                         ? error.errors?.map?.((entry) => entry instanceof Error ? { message: entry.message, stack: entry.stack } : entry)
@@ -1230,7 +1320,7 @@ export class SocketWrapper {
                 }
                 return;
             }
-            if (!targetsSelf && uuid && ["ask", "act"].includes(packet?.op || "") && forwarded.length === 0) {
+            if (!targetsSelf && uuid && ["ask", "act"].includes(runtimeOp) && forwarded.length === 0) {
                 this.reply({
                     op: "error",
                     what: packet.what,
@@ -1259,20 +1349,20 @@ export class SocketWrapper {
                     setTimeout(() => { this.acceptedUUIDs.delete(uuid); }, 10000);
                 }
                 
-                if (packet?.op == "ask") {
+                if (runtimeOp === "ask") {
                     const result = await this.handleAsk(packet?.what, payload, packet, this.selfId);
                     this.reply(this.encodeAnswer(result, packet));
                 } else
-                if (packet?.op == "act") { 
+                if (runtimeOp === "act") { 
                     const result = await this.handleAct(packet?.what, payload, packet, this.selfId);
                     this.reply(this.encodeReport(result, packet));
                 } else
-                if (uuid && ["resolve", "result", "error"].includes(packet?.op)) {
-                    const isErrorReply = (packet?.op || "") === "error" || packet?.error !== undefined;
+                if (uuid && (runtimeOp === "result" || runtimeOp === "error")) {
+                    const isErrorReply = runtimeOp === "error" || packet?.error !== undefined;
                     if (isErrorReply) {
                         this.resolvers?.get(uuid)?.reject?.(this.unpackPayload(packet?.error ?? {}));
                     } else {
-                        this.resolvers?.get(uuid)?.resolve?.(this.unpackPayload(packet?.result));
+                        this.resolvers?.get(uuid)?.resolve?.(this.unpackPayload(resolvePacketResultPayload(packet)));
                     }
                     this.resolvers?.delete?.(uuid);
                 }

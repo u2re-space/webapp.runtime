@@ -1,4 +1,5 @@
 import { access, constants, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -6,6 +7,7 @@ import { parsePortableBoolean, resolveMaybeTextBoolean, resolvePortableTextValue
 
 const KEY_FILE_NAME = "multi.key";
 const CRT_FILE_NAME = "multi.crt";
+const CA_FILE_NAME = "rootCA.crt";
 
 const unique = (items: string[]) => [...new Set(items.map((item) => path.resolve(item)))];
 
@@ -28,10 +30,12 @@ const certificateMjsRoots = (moduleDir: string, cwd: string): string[] =>
 /** Same layout as legacy `endpoint` Fastify router: `https/certificate.mjs` exporting `{ key, cert [, ca] }`. */
 const tryLoadCertificateMjs = async (
     moduleDir: string,
-    cwd: string
+    cwd: string,
+    explicitPaths: string[] = []
 ): Promise<{ key: unknown; cert: unknown; ca?: unknown } | undefined> => {
-    for (const root of certificateMjsRoots(moduleDir, cwd)) {
-        const file = path.resolve(root, "https", "certificate.mjs");
+    const rootCandidates = certificateMjsRoots(moduleDir, cwd).map((root) => path.resolve(root, "https", "certificate.mjs"));
+    const fileCandidates = unique([...explicitPaths, ...rootCandidates]);
+    for (const file of fileCandidates) {
         try {
             await access(file, constants.R_OK);
         } catch {
@@ -118,9 +122,37 @@ const readCertificateMaterial = async (candidate: string | undefined, kind: Kind
 
 export const buildHttpsCandidateFiles = (moduleDir: string, cwd = process.cwd()) => {
     const configDir = path.resolve(cwd, "config");
+    const localDir = "https/local";
+    const privateDir = "https/private";
+    const keyNames = [KEY_FILE_NAME, "tls.key", "server.key"];
+    const certNames = [CRT_FILE_NAME, "tls.crt", "server.crt"];
+    const caNames = [CA_FILE_NAME, "ca.crt", "chain.crt"];
+    const buildCandidates = (dirCandidates: string[], fileNames: string[]) =>
+        unique(
+            dirCandidates.flatMap((baseDir) => fileNames.map((fileName) => path.resolve(baseDir, fileName)))
+        );
+    const baseDirs = [
+        path.resolve(cwd, localDir),
+        path.resolve(cwd, privateDir),
+        path.resolve(cwd),
+        path.resolve(configDir, localDir),
+        path.resolve(configDir, privateDir),
+        path.resolve(configDir),
+        path.resolve(moduleDir, localDir),
+        path.resolve(moduleDir, privateDir),
+        path.resolve(moduleDir, "..", localDir),
+        path.resolve(moduleDir, "..", privateDir),
+        path.resolve(moduleDir, ".."),
+        path.resolve(moduleDir, "..", "..", localDir),
+        path.resolve(moduleDir, "..", "..", privateDir),
+        path.resolve(moduleDir, "..", ".."),
+        path.resolve(moduleDir, "..", "..", "..", localDir),
+        path.resolve(moduleDir, "..", "..", "..", privateDir)
+    ];
     return {
-        keys: unique([path.resolve(cwd, "./https/local/" + KEY_FILE_NAME), path.resolve(cwd, "./" + KEY_FILE_NAME), path.resolve(configDir, "./https/local/" + KEY_FILE_NAME), path.resolve(configDir, "./" + KEY_FILE_NAME), path.resolve(moduleDir, "./https/local/" + KEY_FILE_NAME), path.resolve(moduleDir, "../https/local/" + KEY_FILE_NAME), path.resolve(moduleDir, "../" + KEY_FILE_NAME), path.resolve(moduleDir, "../../https/local/" + KEY_FILE_NAME), path.resolve(moduleDir, "../../" + KEY_FILE_NAME), path.resolve(moduleDir, "../../../" + KEY_FILE_NAME)]),
-        certs: unique([path.resolve(cwd, "./https/local/" + CRT_FILE_NAME), path.resolve(cwd, "./" + CRT_FILE_NAME), path.resolve(configDir, "./https/local/" + CRT_FILE_NAME), path.resolve(configDir, "./" + CRT_FILE_NAME), path.resolve(moduleDir, "./https/local/" + CRT_FILE_NAME), path.resolve(moduleDir, "../https/local/" + CRT_FILE_NAME), path.resolve(moduleDir, "../" + CRT_FILE_NAME), path.resolve(moduleDir, "../../https/local/" + CRT_FILE_NAME), path.resolve(moduleDir, "../../" + CRT_FILE_NAME), path.resolve(moduleDir, "../../../" + CRT_FILE_NAME)])
+        keys: buildCandidates(baseDirs, keyNames),
+        certs: buildCandidates(baseDirs, certNames),
+        cas: buildCandidates(baseDirs, caNames)
     };
 };
 
@@ -129,6 +161,7 @@ export const resolveHttpsPaths = (moduleDir: string, cwd = process.cwd()) => {
     return {
         key: candidates.keys[0] || path.resolve(moduleDir, "./https/local/" + KEY_FILE_NAME),
         cert: candidates.certs[0] || path.resolve(moduleDir, "./https/local/" + CRT_FILE_NAME),
+        ca: candidates.cas[0] || path.resolve(moduleDir, "./https/local/" + CA_FILE_NAME),
         candidates
     };
 };
@@ -146,14 +179,36 @@ const dedupePathsPreserveOrder = (items: string[]): string[] => {
     return out;
 };
 
-const resolveHttpsConfigValue = (source: Record<string, any>, sourceKeys: string[], envCandidates: string[], fallback?: string, baseDir = process.cwd()) => {
+const resolveFromPortableBases = (value: string, baseDirs: string[]): string => {
+    const candidates = baseDirs.map((baseDir) => resolvePortableTextValue(value, baseDir));
+    if (typeof value === "string" && value.trim().startsWith("fs:")) {
+        for (const candidate of candidates) {
+            try {
+                if (candidate && path.isAbsolute(candidate) && existsSync(candidate)) {
+                    return candidate;
+                }
+            } catch {
+                // ignore
+            }
+        }
+    }
+    return candidates[0] || resolvePortableTextValue(value, baseDirs[0] || process.cwd());
+};
+
+const resolveHttpsConfigValue = (
+    source: Record<string, any>,
+    sourceKeys: string[],
+    envCandidates: string[],
+    fallback: string | undefined,
+    baseDirs: string[]
+) => {
     for (const name of envCandidates) {
         const value = process.env[name];
-        if (typeof value === "string" && value.trim()) return resolvePortableTextValue(value, baseDir);
+        if (typeof value === "string" && value.trim()) return resolveFromPortableBases(value, baseDirs);
     }
     for (const key of sourceKeys) {
         const value = source[key];
-        if (typeof value === "string" && value.trim()) return resolvePortableTextValue(String(value), baseDir);
+        if (typeof value === "string" && value.trim()) return resolveFromPortableBases(String(value), baseDirs);
     }
     return fallback;
 };
@@ -165,50 +220,79 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
     if (httpsConfig.enabled === false) return undefined;
 
     const defaultHttpsPaths = resolveHttpsPaths(moduleDir, cwd);
-    const { key: keyPath, cert: certPath, candidates } = defaultHttpsPaths;
-    const baseDir = cwd;
+    const { key: keyPath, cert: certPath, ca: caPath, candidates } = defaultHttpsPaths;
+    const configPath = process.env.CWS_PORTABLE_CONFIG_PATH || process.env.ENDPOINT_CONFIG_JSON_PATH || process.env.PORTABLE_CONFIG_PATH;
+    const configDir = typeof configPath === "string" && configPath.trim()
+        ? path.dirname(path.resolve(configPath))
+        : path.resolve(cwd, "config");
+    const baseDirs = unique([configDir, cwd]);
     const keySource = resolveHttpsConfigValue(
         httpsConfig,
         ["key", "keyFile", "keyPath"],
         ["CWS_HTTPS_KEY", "CWS_HTTPS_KEY_FILE", "HTTPS_KEY", "HTTPS_KEY_FILE"],
         keyPath,
-        baseDir
+        baseDirs
     );
     const certSource = resolveHttpsConfigValue(
         httpsConfig,
         ["cert", "certFile", "certPath"],
         ["CWS_HTTPS_CERT", "CWS_HTTPS_CERT_FILE", "HTTPS_CERT", "HTTPS_CERT_FILE"],
         certPath,
-        baseDir
+        baseDirs
     );
     const caSource = resolveHttpsConfigValue(
         httpsConfig,
         ["ca", "caFile", "caPath"],
         ["CWS_HTTPS_CA", "CWS_HTTPS_CA_FILE", "HTTPS_CA", "HTTPS_CA_FILE"],
-        undefined,
-        baseDir
+        caPath,
+        baseDirs
     );
+    const certModuleSource = resolveHttpsConfigValue(
+        httpsConfig,
+        ["certificateModule", "certificateMjs", "certificatePath"],
+        ["CWS_HTTPS_CERT_MODULE", "CWS_HTTPS_CERTIFICATE_MODULE", "HTTPS_CERT_MODULE"],
+        undefined,
+        baseDirs
+    );
+    const certModuleCandidates = certModuleSource
+        ? dedupePathsPreserveOrder([certModuleSource])
+        : [];
 
-    const keyCandidates = dedupePathsPreserveOrder([keySource, ...candidates.keys]);
-    const certCandidates = dedupePathsPreserveOrder([certSource, ...candidates.certs]);
+    const keyCandidates = dedupePathsPreserveOrder([keySource || "", ...candidates.keys]);
+    const certCandidates = dedupePathsPreserveOrder([certSource || "", ...candidates.certs]);
+    const caCandidates = dedupePathsPreserveOrder([caSource || "", ...candidates.cas]);
 
     try {
-        const caFile = caSource && typeof caSource === "string" && caSource.trim().length > 0 ? caSource : undefined;
+        const findFirstMaterial = async (items: string[], kind: Kind): Promise<string | Buffer | undefined> => {
+            for (const candidate of items) {
+                const material = await readCertificateMaterial(candidate, kind);
+                if (material) return material;
+            }
+            return undefined;
+        };
 
-        const pairCount = Math.min(keyCandidates.length, certCandidates.length);
         let key: string | Buffer | undefined;
         let cert: string | Buffer | undefined;
+
+        // Prefer matching key/cert from the same candidate index first.
+        const pairCount = Math.min(keyCandidates.length, certCandidates.length);
         for (let i = 0; i < pairCount; i++) {
-            const [k, c] = await Promise.all([readCertificateMaterial(keyCandidates[i], "key"), readCertificateMaterial(certCandidates[i], "cert")]);
+            const [k, c] = await Promise.all([
+                readCertificateMaterial(keyCandidates[i], "key"),
+                readCertificateMaterial(certCandidates[i], "cert")
+            ]);
             if (k && c) {
                 key = k;
                 cert = c;
                 break;
             }
         }
+        // Fallback: accept first key and first cert independently.
+        if (!key) key = await findFirstMaterial(keyCandidates, "key");
+        if (!cert) cert = await findFirstMaterial(certCandidates, "cert");
 
-        const needCertificateMjs = !key || !cert || !caFile;
-        const mjsBundle = needCertificateMjs ? await tryLoadCertificateMjs(moduleDir, cwd) : undefined;
+        const needCertificateMjs = !key || !cert;
+        const mjsBundle = needCertificateMjs ? await tryLoadCertificateMjs(moduleDir, cwd, certModuleCandidates) : undefined;
         if ((!key || !cert) && mjsBundle) {
             const keyStr = materialToString(mjsBundle.key);
             const certStr = materialToString(mjsBundle.cert);
@@ -221,7 +305,7 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
             }
         }
 
-        let ca = caFile ? await readCertificateMaterial(caFile, "ca") : undefined;
+        let ca = await findFirstMaterial(caCandidates, "ca");
         if (!ca && mjsBundle?.ca) {
             const caStr = materialToString(mjsBundle.ca);
             if (caStr) {
@@ -256,7 +340,7 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
         const details = String((error as any)?.message || error || "unknown");
         console.warn(
             `[core-backend] HTTPS disabled: failed to load certificate files ` +
-                `key=${keyCandidates[0] || keyPath}, cert=${certCandidates[0] || certPath}. ${details}`
+                `key=${keyCandidates[0] || keyPath}, cert=${certCandidates[0] || certPath}, ca=${caCandidates[0] || caPath}. ${details}`
         );
         return undefined;
     }

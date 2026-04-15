@@ -126,7 +126,7 @@ const toRuntimeOp = (value: unknown): string => {
 const main = async () => {
     const options = parseCliOptions();
     const absoluteConfigPath = normalizePortableConfigPath(
-        options.configPath || process.env.CWS_PORTABLE_CONFIG_PATH || "./portable.config.json"
+        options.configPath || process.env.CWS_PORTABLE_CONFIG_PATH || "./config/portable.config.json"
     );
     const portableConfig = JSON.parse(fs.readFileSync(absoluteConfigPath, "utf8")) as RuntimeSnapshot;
     const launcherEnv = portableConfig.launcherEnv && typeof portableConfig.launcherEnv === "object"

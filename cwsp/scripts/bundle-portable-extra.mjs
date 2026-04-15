@@ -1,4 +1,4 @@
-import { cp, mkdir, rm, writeFile, readFile, access, copyFile } from "node:fs/promises";
+import { cp, mkdir, rm, writeFile, readFile, access, copyFile, readdir } from "node:fs/promises";
 import { chmodSync } from "node:fs";
 import { constants as fsConstants } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -43,12 +43,15 @@ async function exists(p) {
  */
 /** Copy preset portable JSON into `outDir`; later calls overwrite. Symlinks are dereferenced so the bundle has real files. */
 async function copyPortableConfigFiles(srcRoot, label, outDir) {
+    await mkdir(resolve(outDir, "config"), { recursive: true });
     for (const name of PORTABLE_CONFIG_NAMES) {
-        const src = resolve(srcRoot, name);
+        const configScoped = resolve(srcRoot, "config", name);
+        const legacyScoped = resolve(srcRoot, name);
+        const src = (await exists(configScoped)) ? configScoped : legacyScoped;
         if (!(await exists(src))) continue;
-        const dest = resolve(outDir, name);
+        const dest = resolve(outDir, "config", name);
         await cp(src, dest, { force: true, dereference: true });
-        console.log(`[bundle-portable-extra] copied ${name} (${label})`);
+        console.log(`[bundle-portable-extra] copied config/${name} (${label})`);
     }
 }
 
@@ -86,7 +89,15 @@ export async function bundlePortableExtra(pkgRoot, outDir) {
     const configSrc = resolve(endpointRoot, "config");
     if (await exists(configSrc)) {
         await mkdir(resolve(outDir, "config"), { recursive: true });
-        await cp(configSrc, resolve(outDir, "config"), { recursive: true, force: true });
+        // Copy only config contents to avoid producing config/config.
+        const configEntries = await readdir(configSrc);
+        for (const entry of configEntries) {
+            await cp(resolve(configSrc, entry), resolve(outDir, "config", entry), {
+                recursive: true,
+                force: true,
+                dereference: true
+            });
+        }
         console.log("[bundle-portable-extra] copied config/ from endpoint");
     }
 
@@ -107,17 +118,25 @@ export async function bundlePortableExtra(pkgRoot, outDir) {
         const altConfig = resolve(epPortable, "config");
         if (await exists(altConfig)) {
             await mkdir(resolve(outDir, "config"), { recursive: true });
-            await cp(altConfig, resolve(outDir, "config"), { recursive: true, force: true });
+            // Merge config entries directly, do not create config/config.
+            const altEntries = await readdir(altConfig);
+            for (const entry of altEntries) {
+                await cp(resolve(altConfig, entry), resolve(outDir, "config", entry), {
+                    recursive: true,
+                    force: true,
+                    dereference: true
+                });
+            }
             console.log("[bundle-portable-extra] merged portable/endpoint-portable/config");
         }
         await copyHttpsTree(epPortable, "endpoint-portable", outDir);
         await copyPortableConfigFiles(epPortable, "endpoint-portable", outDir);
     }
 
-    const requiredDefault = resolve(outDir, "portable.config.json");
+    const requiredDefault = resolve(outDir, "config", "portable.config.json");
     if (!(await exists(requiredDefault))) {
         console.warn(
-            "[bundle-portable-extra] missing portable.config.json in bundle — add it under runtime/cwsp/ or runtime/endpoint/endpoint/ (or portable/endpoint-portable/)"
+            "[bundle-portable-extra] missing config/portable.config.json in bundle — add it under runtime/cwsp/endpoint/config"
         );
     }
 
@@ -136,7 +155,7 @@ module.exports = {
             windowsHide: true,
             env: {
                 NODE_ENV: 'production',
-                CWS_PORTABLE_CONFIG_PATH: './portable.config.json',
+                CWS_PORTABLE_CONFIG_PATH: './config/portable.config.json',
                 CWS_PORTABLE_DATA_PATH: './.data',
                 CWS_HTTPS_ENABLED: 'true'
             }
@@ -146,6 +165,15 @@ module.exports = {
 `;
     await writeFile(resolve(outDir, "ecosystem.portable.config.cjs"), ecosystemDist, "utf8");
     await writeFile(resolve(outDir, "ecosystem.config.cjs"), ecosystemDist, "utf8");
+    const configDir = resolve(outDir, "config");
+    if (await exists(configDir)) {
+        await writeFile(resolve(configDir, "ecosystem.portable.config.cjs"), ecosystemDist, "utf8");
+        // Keep server ecosystem co-located when config/ exists (no config/config nesting).
+        if (await exists(resolve(endpointRoot, "config", "ecosystem.server.config.cjs"))) {
+            const serverEco = await readFile(resolve(endpointRoot, "config", "ecosystem.server.config.cjs"), "utf8");
+            await writeFile(resolve(configDir, "ecosystem.server.config.cjs"), serverEco, "utf8");
+        }
+    }
 
     const webappSh =
         "#!/usr/bin/env bash\n" +
@@ -178,7 +206,7 @@ endlocal
         "@echo off\r\n" +
         "setlocal\r\n" +
         'cd /d "%~dp0"\r\n' +
-        'set "CWS_PORTABLE_CONFIG_PATH=%~dp0portable.config.json"\r\n' +
+        'set "CWS_PORTABLE_CONFIG_PATH=%~dp0config\\portable.config.json"\r\n' +
         'set "CWS_PORTABLE_DATA_PATH=%~dp0.data"\r\n' +
         "node cwsp.mjs %*\r\n" +
         "endlocal\r\n";
@@ -192,7 +220,7 @@ endlocal
         "Check: node check-portable-deps.mjs\n\n" +
         "Typical cwsp.mjs size: ~200–400 KiB (deps are in node_modules, not inside cwsp.mjs).\n\n" +
         "Start: webapp.cmd | node cwsp.mjs | pm2 start ecosystem.config.cjs\n" +
-        "TLS: https/local/multi.key + multi.crt or https/certificate.mjs next to cwsp.mjs.\n";
+        "TLS: https/local/multi.key + multi.crt or config/certificate.mjs (proxy to https/certificate.mjs).\n";
     await writeFile(resolve(outDir, "READ_PORTABLE.txt"), readPortableTxt, "utf8");
 
     const checkDeps = resolve(pkgRoot, "scripts", "check-portable-deps.mjs");

@@ -47,7 +47,7 @@ const main = () => {
     const clients = readJson(path.resolve(configDir, "clients.json"));
     const network = readJson(path.resolve(configDir, "network.json"));
     const gateways = readJson(path.resolve(configDir, "gateways.json"));
-    const portableVds = readJson(path.resolve(rootDir, "portable.config.vds.json"));
+    const portableVds = readJson(path.resolve(configDir, "portable.config.vds.json"));
 
     // 1) Endpoint normalization and wire handshake compatibility.
     const normalizedEndpoint = normalizeServerV2EndpointUrl("https://45.147.121.152:8443/socket.io/?EIO=4&transport=websocket");

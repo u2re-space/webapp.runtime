@@ -15,9 +15,13 @@ import { join } from "node:path";
  * @returns {string}
  */
 export function resolveCwspServerLayoutRoot(pkgRoot) {
-    if (existsSync(join(pkgRoot, "server"))) return pkgRoot;
-    const nested = join(pkgRoot, "endpoint", "server");
-    if (existsSync(nested)) return join(pkgRoot, "endpoint");
+    const nestedRoot = join(pkgRoot, "endpoint");
+    const nestedServer = join(nestedRoot, "server");
+    const nestedPackage = join(nestedRoot, "package.json");
+    if (existsSync(nestedServer) && existsSync(nestedPackage)) return nestedRoot;
+    const rootServer = join(pkgRoot, "server");
+    const rootPackage = join(pkgRoot, "package.json");
+    if (existsSync(rootServer) && existsSync(rootPackage)) return pkgRoot;
     return pkgRoot;
 }
 
@@ -29,12 +33,15 @@ export async function collectCwspServerRuntimeNames(pkgRoot) {
     const layoutRoot = resolveCwspServerLayoutRoot(pkgRoot);
     const names = new Set([
         "server",
+        "config",
+        "portable",
         "frontend",
         "web",
         "control",
         "package.json",
         "tsconfig.json",
-        "ecosystem.server.config.cjs"
+        "ecosystem.server.config.cjs",
+        "ecosystem.portable.config.cjs"
     ]);
     try {
         const entries = await readdir(layoutRoot);
@@ -88,6 +95,21 @@ export async function stageCwspServerRuntime(pkgRoot, destDir, options = {}) {
         if (!src) continue;
         const dest = join(destDir, name);
         await cp(src, dest, { recursive: true, dereference: true, force: true });
+    }
+
+    // If config/ exists, ensure ecosystem PM2 files are also available there.
+    // This keeps deploy/distribute layout consistent while avoiding config/config nesting.
+    const stagedConfigDir = join(destDir, "config");
+    if (existsSync(stagedConfigDir)) {
+        const ecosystemFiles = ["ecosystem.server.config.cjs", "ecosystem.portable.config.cjs"];
+        for (const fileName of ecosystemFiles) {
+            const preferredSource = resolveStageSourcePath(pkgRoot, layoutRoot, join("config", fileName));
+            const fallbackSource = resolveStageSourcePath(pkgRoot, layoutRoot, fileName);
+            const sourcePath = preferredSource || fallbackSource;
+            if (!sourcePath) continue;
+            const targetPath = join(stagedConfigDir, fileName);
+            await cp(sourcePath, targetPath, { force: true, recursive: false, dereference: true });
+        }
     }
     return [...allNames];
 }

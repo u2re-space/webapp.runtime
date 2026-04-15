@@ -1,3 +1,15 @@
 {
-    "version": 2
+    "version": 2,
+    "endpoint": {
+        "routing": {
+            "byId": true,
+            "aliases": true,
+            "reverseTunnel": true
+        },
+        "websocket": {
+            "keepalive": true,
+            "keepaliveIntervalMs": 15000,
+            "staleAfterMs": 45000
+        }
+    }
 }

@@ -52,16 +52,29 @@ const resolvePortableConfigPath = (args: string[], override?: string): string =>
         resolveArgValue(process.env.CWS_PORTABLE_CONFIG_PATH) ||
         resolveArgValue(process.env.ENDPOINT_CONFIG_JSON_PATH) ||
         resolveArgValue(process.env.PORTABLE_CONFIG_PATH);
+    const cwdConfigCandidate = path.resolve(process.cwd(), "config", "portable.config.json");
     const cwdCandidate = path.resolve(process.cwd(), "portable.config.json");
     /** Nearest ancestor with `portable.config.json` (cwsp root for TS; bundle dir for `cwsp.mjs`). */
     const portableRootFromModule = findPortableConfigRoot(MODULE_DIR);
+    const bundleConfigCandidate = path.join(
+        portableRootFromModule || MODULE_DIR,
+        "config",
+        "portable.config.json"
+    );
     const bundleCandidate = path.join(
         portableRootFromModule || MODULE_DIR,
         "portable.config.json"
     );
+    const legacyConfigCandidate = path.resolve(MODULE_DIR, "../../config/portable.config.json");
     const legacyCandidate = path.resolve(MODULE_DIR, "../../portable.config.json");
-    const defaultCandidate = fs.existsSync(bundleCandidate)
-        ? bundleCandidate
+    const defaultCandidate = fs.existsSync(bundleConfigCandidate)
+        ? bundleConfigCandidate
+        : fs.existsSync(bundleCandidate)
+          ? bundleCandidate
+          : fs.existsSync(cwdConfigCandidate)
+            ? cwdConfigCandidate
+            : fs.existsSync(legacyConfigCandidate)
+              ? legacyConfigCandidate
         : fs.existsSync(cwdCandidate)
           ? cwdCandidate
           : fs.existsSync(legacyCandidate)

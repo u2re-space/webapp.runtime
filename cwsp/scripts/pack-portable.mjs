@@ -103,7 +103,7 @@ const DEFAULT_PORTABLE_CONFIG = {
 const loadPortableConfig = async () => {
     const configPath = process.env.PORTABLE_CONFIG_PATH
         ? path.resolve(process.env.PORTABLE_CONFIG_PATH)
-        : path.resolve(ROOT_DIR, "portable.config.json");
+        : path.resolve(ROOT_DIR, "config", "portable.config.json");
     try {
         const raw = await readFile(configPath, "utf-8");
         const parsed = JSON.parse(raw);

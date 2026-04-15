@@ -292,13 +292,7 @@ const main = () => {
 
     $("#btnLoadSettings").onclick = async () => {
         try {
-            const qs = new URLSearchParams({
-                userId: $("#userId").value.trim(),
-                userKey: $("#userKey").value.trim()
-            });
-            const url = new URL(`/core/user/settings?${qs.toString()}`, resolveEndpointUrl()).toString();
-            const res = await fetch(url);
-            const json = await res.json();
+            const json = await fetchJSON("/core/user/settings");
             if (json?.ok) {
                 applySettingsToForm(json.settings);
                 setStatus($("#settingsMsg"), "Settings loaded");
@@ -328,13 +322,7 @@ const main = () => {
 
     $("#btnLoadUsers").onclick = async () => {
         try {
-            const qs = new URLSearchParams({
-                userId: $("#userId").value.trim(),
-                userKey: $("#userKey").value.trim()
-            });
-            const url = new URL(`/core/auth/users?${qs.toString()}`, resolveEndpointUrl()).toString();
-            const res = await fetch(url);
-            const json = await res.json();
+            const json = await fetchJSON("/core/auth/users");
             if (json?.ok) {
                 renderUsers(json.users || []);
                 setStatus($("#accessMsg"), "Loaded users");

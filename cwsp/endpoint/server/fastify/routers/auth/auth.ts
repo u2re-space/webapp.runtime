@@ -10,6 +10,12 @@ import {
 } from "./users.ts";
 
 export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> => {
+    const listUsersHandler = async (userId?: string, userKey?: string) => {
+        const valid = userId && userKey ? await verifyUser(userId, userKey) : null;
+        if (!valid) return { ok: false, error: "Invalid credentials" };
+        return { ok: true, users: await listUsers() };
+    };
+
     app.post("/core/auth/register", async (request: FastifyRequest<{ Body: { userId?: string; userKey?: string; encrypt?: boolean } }>) => {
         const { userId, userKey, encrypt } = request.body || {};
         const encrypted = parsePortableBoolean(encrypt) ?? false;
@@ -26,11 +32,15 @@ export const registerAuthRoutes = async (app: FastifyInstance): Promise<void> =>
         return { ok: true, ...result };
     });
 
+    app.post("/core/auth/users", async (request: FastifyRequest<{ Body: { userId?: string; userKey?: string } }>) => {
+        const { userId, userKey } = request.body || {};
+        return listUsersHandler(userId, userKey);
+    });
+
+    // Legacy compatibility: old clients may still call GET with query params.
     app.get("/core/auth/users", async (request: FastifyRequest<{ Querystring: { userId?: string; userKey?: string } }>) => {
         const { userId, userKey } = request.query || {};
-        const valid = userId && userKey ? await verifyUser(userId, userKey) : null;
-        if (!valid) return { ok: false, error: "Invalid credentials" };
-        return { ok: true, users: await listUsers() };
+        return listUsersHandler(userId, userKey);
     });
 
     app.post("/core/auth/delete", async (request: FastifyRequest<{ Body: { userId: string; userKey: string; targetId?: string } }>) => {
