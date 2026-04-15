@@ -48,6 +48,14 @@ export async function collectCwspServerRuntimeNames(pkgRoot) {
     return [...names].filter((n) => existsSync(join(layoutRoot, n)));
 }
 
+const resolveStageSourcePath = (pkgRoot, layoutRoot, name) => {
+    const layoutPath = join(layoutRoot, name);
+    if (existsSync(layoutPath)) return layoutPath;
+    const pkgPath = join(pkgRoot, name);
+    if (existsSync(pkgPath)) return pkgPath;
+    return null;
+};
+
 /**
  * @param {string} pkgRoot
  * @param {string} destDir
@@ -58,6 +66,14 @@ export async function stageCwspServerRuntime(pkgRoot, destDir, options = {}) {
     const { clean = true } = options;
     const layoutRoot = resolveCwspServerLayoutRoot(pkgRoot);
     const names = await collectCwspServerRuntimeNames(pkgRoot);
+    const allNames = new Set(names);
+    // Nested layout (`runtime/cwsp/endpoint`) keeps TS server files under endpoint/,
+    // but static/runtime assets (`frontend`, `web`, `control`, `https`) may live in `runtime/cwsp/`.
+    for (const candidate of ["frontend", "web", "control", "https"]) {
+        if (resolveStageSourcePath(pkgRoot, layoutRoot, candidate)) {
+            allNames.add(candidate);
+        }
+    }
     if (!names.includes("server")) {
         throw new Error(
             `[stage-cwsp-server-runtime] Missing server/ under ${join(pkgRoot, "server")} or ${join(pkgRoot, "endpoint", "server")}`
@@ -67,10 +83,11 @@ export async function stageCwspServerRuntime(pkgRoot, destDir, options = {}) {
         await rm(destDir, { recursive: true, force: true });
     }
     await mkdir(destDir, { recursive: true });
-    for (const name of names) {
-        const src = join(layoutRoot, name);
+    for (const name of allNames) {
+        const src = resolveStageSourcePath(pkgRoot, layoutRoot, name);
+        if (!src) continue;
         const dest = join(destDir, name);
         await cp(src, dest, { recursive: true, dereference: true, force: true });
     }
-    return names;
+    return [...allNames];
 }

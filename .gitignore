@@ -176,3 +176,11 @@ frontend/modules/*
 
 # Local Chrome extension mirror (npm run cwsp:pack-extension)
 /pack/
+
+diagnostics
+diagnostics/
+diagnostics/*
+.automation/
+.automation/*
+.automation
+
