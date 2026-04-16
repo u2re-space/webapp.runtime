@@ -112,6 +112,10 @@ export const buildServerV2SocketHandshake = (identity: ServerV2WireIdentity): Se
     if (resolved.token) {
         auth.token = resolved.token;
         auth.airpadToken = resolved.token;
+        auth.userKey = resolved.token;
+        query.token = resolved.token;
+        query.airpadToken = resolved.token;
+        query.userKey = resolved.token;
     }
 
     if (resolved.clientId) {

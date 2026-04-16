@@ -2,12 +2,13 @@
 /**
  * Kotlin **CWSAndroid** APK build (not Electron). The npm name `build:electron:android` is legacy only.
  *
- * Gradle must run inside the Android project (`apps/CWSAndroid`); APKs are emitted under
+ * Gradle must run inside the Android project (`runtime/CWSAndroid` in this workspace, with
+ * `apps/CWSAndroid` still supported for older clones); APKs are emitted under
  * `app/build/outputs/apk/...` there. After a successful build, `.apk` files are **copied** into
  * `cwsp/dist/electron/android/` (same `dist/electron` family as desktop packaging) for one place
  * to collect artifacts. Override with `CWS_ANDROID_DIST_OUT`.
  *
- * @see https://github.com/u2re-space/CWSAndroid — submodule `apps/CWSAndroid`
+ * @see https://github.com/u2re-space/CWSAndroid
  *
  * 1. Refreshes portable bundle (Fastify + frontend + config) unless --skip-portable
  * 2. Runs `./gradlew` assemble (default **hybrid**: `cwsp` + `dist/capacitor` → `:app:assembleCwspDebug`; `--standalone-cws` → `cws`)
@@ -45,7 +46,7 @@ Options:
   --help, -h            This text
 
 Env:
-  CWS_ANDROID_ROOT         Path to CWSAndroid repo (default: ../../apps/CWSAndroid from cwsp)
+  CWS_ANDROID_ROOT         Path to CWSAndroid repo (default: runtime/CWSAndroid, fallback ../../apps/CWSAndroid)
   CWS_GRADLEW_TASK         Gradle task (default: :app:assembleCwspDebug; cws → :app:assembleCwsDebug)
   CWS_ANDROID_PRODUCT_FLAVOR  cws | cwsp — when set, overrides flavor; unset defaults to cwsp (use --standalone-cws for cws without env)
   CWS_ANDROID_FRONTEND_DIR Optional: sync dist/portable/frontend into this folder
@@ -55,8 +56,13 @@ Env:
     process.exit(0);
 }
 
-const defaultAndroidRoot = resolve(pkgRoot, "../../apps/CWSAndroid");
-const androidRoot = resolve(process.env.CWS_ANDROID_ROOT || defaultAndroidRoot);
+const androidRootCandidates = [
+    String(process.env.CWS_ANDROID_ROOT || "").trim(),
+    resolve(pkgRoot, "../CWSAndroid"),
+    resolve(pkgRoot, "../../runtime/CWSAndroid"),
+    resolve(pkgRoot, "../../apps/CWSAndroid")
+].filter(Boolean);
+const androidRoot = androidRootCandidates.find((candidate) => existsSync(join(candidate, "package.json"))) || androidRootCandidates[0];
 const productFlavor = (process.env.CWS_ANDROID_PRODUCT_FLAVOR || (standaloneCws ? "cws" : "cwsp"))
     .trim()
     .toLowerCase();
@@ -149,9 +155,9 @@ const main = () => {
     if (!existsSync(androidRoot)) {
         console.error(
             `[build:cws-android] CWSAndroid not found at:\n  ${androidRoot}\n\n` +
-                `Init the submodule from the monorepo root:\n` +
-                `  git submodule update --init apps/CWSAndroid\n\n` +
-                `Or set CWS_ANDROID_ROOT to a clone of https://github.com/u2re-space/CWSAndroid`
+                `Expected one of:\n` +
+                `${androidRootCandidates.map((candidate) => `  ${candidate}`).join("\n")}\n\n` +
+                `Set CWS_ANDROID_ROOT to a clone of https://github.com/u2re-space/CWSAndroid if your layout differs.`
         );
         process.exit(1);
     }
@@ -194,7 +200,7 @@ const main = () => {
         "[build:cws-android] Gradle output (source of truth):\n" +
             `  ${resolve(androidRoot, "app/build/outputs/apk/")}\n` +
             `Mirror under cwsp: ${resolve(pkgRoot, (process.env.CWS_ANDROID_DIST_OUT || "dist/electron/android").trim().replace(/^\/+/, ""))}\n` +
-            "Set JAVA_HOME and ANDROID_HOME if Gradle failed (see apps/CWSAndroid/AGENTS.md)."
+            "Set JAVA_HOME and ANDROID_HOME if Gradle failed (see runtime/CWSAndroid/AGENTS.md in this workspace)."
     );
 };
 

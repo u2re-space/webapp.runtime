@@ -10,6 +10,8 @@ export const systemHttpBranch: ServerV2HttpBranch = {
         { method: "GET", path: "/healthz" },
         { method: "GET", path: "/readyz" },
         { method: "GET", path: "/api/system/status" },
+        { method: "GET", path: "/api/system/tls" },
+        { method: "GET", path: "/api/system/tls/rootCA.crt" },
         { method: "OPTIONS", path: "/lna-probe" },
         { method: "GET", path: "/lna-probe" }
     ],

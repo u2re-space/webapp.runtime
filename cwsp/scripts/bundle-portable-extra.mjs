@@ -67,8 +67,7 @@ async function copyHttpsTree(srcRoot, label, outDir) {
  * After esbuild + frontend sync: npm deps, endpoint configs, PM2 ecosystem, launch scripts.
  */
 export async function bundlePortableExtra(pkgRoot, outDir) {
-    const runtimeRoot = resolve(pkgRoot, "..");
-    const endpointRoot = resolve(runtimeRoot, "endpoint", "endpoint");
+    const endpointRoot = resolve(pkgRoot, "endpoint");
 
     const pkgRaw = await readFile(resolve(pkgRoot, "package.json"), "utf8");
     const pkg = JSON.parse(pkgRaw);

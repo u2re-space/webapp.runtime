@@ -65,6 +65,26 @@ const isLikelyBase64 = (value: string): boolean => {
 
 type Kind = "key" | "cert" | "ca" | "auto";
 
+export type HttpsCandidateDiagnostics = {
+    enabledByConfig: boolean;
+    configDir: string;
+    keyCandidates: string[];
+    certCandidates: string[];
+    caCandidates: string[];
+    certModuleCandidates: string[];
+    activePaths: {
+        key?: string;
+        cert?: string;
+        ca?: string;
+        certModule?: string;
+    };
+    inlineMaterial: {
+        key: boolean;
+        cert: boolean;
+        ca: boolean;
+    };
+};
+
 const inferPemKindTag = (kind: Kind): "CERTIFICATE" | "PRIVATE KEY" => {
     if (kind === "key") return "PRIVATE KEY";
     return "CERTIFICATE";
@@ -95,11 +115,17 @@ const normalizePemMaterial = (value: string, kind: Kind): string => {
 };
 
 const looksLikeFilesystemPath = (value: string): boolean => {
-    if (path.isAbsolute(value)) return true;
-    if (value.startsWith("./") || value.startsWith("../")) return true;
-    if (/\.(pem|crt|key|csr)$/i.test(value)) return true;
-    if (value.includes(path.sep)) return true;
-    if (value.includes("\\")) return true;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    if (trimmed.includes("\n") || trimmed.startsWith("-----BEGIN ")) return false;
+    if (/^(data|inline):/i.test(trimmed)) return false;
+    if (isLikelyBase64(trimmed)) return false;
+    if (path.isAbsolute(trimmed)) return true;
+    if (/^[a-zA-Z]:[\\/]/.test(trimmed)) return true;
+    if (/^\\\\/.test(trimmed)) return true;
+    if (trimmed.startsWith("./") || trimmed.startsWith("../")) return true;
+    if (/\.(pem|crt|key|csr|cer|pfx|p12)$/i.test(trimmed)) return true;
+    if (trimmed.includes("/") || trimmed.includes("\\")) return true;
     return false;
 };
 
@@ -171,12 +197,33 @@ const dedupePathsPreserveOrder = (items: string[]): string[] => {
     const out: string[] = [];
     for (const item of items) {
         if (typeof item !== "string" || !item.trim()) continue;
-        const resolved = path.resolve(item.trim());
-        if (seen.has(resolved)) continue;
-        seen.add(resolved);
-        out.push(item.trim());
+        const trimmed = item.trim();
+        const identity = looksLikeFilesystemPath(trimmed) ? path.resolve(trimmed) : trimmed;
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        out.push(trimmed);
     }
     return out;
+};
+
+const findFirstExistingFileCandidate = (items: string[]): string | undefined => {
+    for (const item of items) {
+        if (!looksLikeFilesystemPath(item)) continue;
+        try {
+            const resolved = path.resolve(item);
+            if (existsSync(resolved)) return resolved;
+        } catch {
+            // ignore bad path candidates during diagnostics
+        }
+    }
+    return undefined;
+};
+
+const hasInlineMaterialCandidate = (items: string[]): boolean => {
+    return items.some((item) => {
+        const trimmed = String(item || "").trim();
+        return Boolean(trimmed) && !looksLikeFilesystemPath(trimmed);
+    });
 };
 
 const resolveFromPortableBases = (value: string, baseDirs: string[]): string => {
@@ -213,12 +260,8 @@ const resolveHttpsConfigValue = (
     return fallback;
 };
 
-export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any>; moduleDir: string; cwd?: string }) => {
+const buildHttpsResolutionContext = (params: { httpsConfig: Record<string, any>; moduleDir: string; cwd?: string }) => {
     const { httpsConfig, moduleDir, cwd = process.cwd() } = params;
-    const envEnabled = process.env.CWS_HTTPS_ENABLED ?? process.env.HTTPS_ENABLED;
-    if (typeof envEnabled === "string" && resolveMaybeTextBoolean(envEnabled) === false) return undefined;
-    if (httpsConfig.enabled === false) return undefined;
-
     const defaultHttpsPaths = resolveHttpsPaths(moduleDir, cwd);
     const { key: keyPath, cert: certPath, ca: caPath, candidates } = defaultHttpsPaths;
     const configPath = process.env.CWS_PORTABLE_CONFIG_PATH || process.env.ENDPOINT_CONFIG_JSON_PATH || process.env.PORTABLE_CONFIG_PATH;
@@ -258,9 +301,64 @@ export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any
         ? dedupePathsPreserveOrder([certModuleSource])
         : [];
 
-    const keyCandidates = dedupePathsPreserveOrder([keySource || "", ...candidates.keys]);
-    const certCandidates = dedupePathsPreserveOrder([certSource || "", ...candidates.certs]);
-    const caCandidates = dedupePathsPreserveOrder([caSource || "", ...candidates.cas]);
+    return {
+        cwd,
+        moduleDir,
+        configDir,
+        keyPath,
+        certPath,
+        caPath,
+        keyCandidates: dedupePathsPreserveOrder([keySource || "", ...candidates.keys]),
+        certCandidates: dedupePathsPreserveOrder([certSource || "", ...candidates.certs]),
+        caCandidates: dedupePathsPreserveOrder([caSource || "", ...candidates.cas]),
+        certModuleCandidates
+    };
+};
+
+export const describeHttpsCandidates = (params: { httpsConfig: Record<string, any>; moduleDir: string; cwd?: string }): HttpsCandidateDiagnostics => {
+    const { httpsConfig } = params;
+    const envEnabled = process.env.CWS_HTTPS_ENABLED ?? process.env.HTTPS_ENABLED;
+    const enabledByConfig = !(
+        (typeof envEnabled === "string" && resolveMaybeTextBoolean(envEnabled) === false) ||
+        httpsConfig.enabled === false
+    );
+    const resolved = buildHttpsResolutionContext(params);
+    return {
+        enabledByConfig,
+        configDir: resolved.configDir,
+        keyCandidates: resolved.keyCandidates,
+        certCandidates: resolved.certCandidates,
+        caCandidates: resolved.caCandidates,
+        certModuleCandidates: resolved.certModuleCandidates,
+        activePaths: {
+            key: findFirstExistingFileCandidate(resolved.keyCandidates),
+            cert: findFirstExistingFileCandidate(resolved.certCandidates),
+            ca: findFirstExistingFileCandidate(resolved.caCandidates),
+            certModule: findFirstExistingFileCandidate(resolved.certModuleCandidates)
+        },
+        inlineMaterial: {
+            key: hasInlineMaterialCandidate(resolved.keyCandidates),
+            cert: hasInlineMaterialCandidate(resolved.certCandidates),
+            ca: hasInlineMaterialCandidate(resolved.caCandidates)
+        }
+    };
+};
+
+export const loadHttpsOptions = async (params: { httpsConfig: Record<string, any>; moduleDir: string; cwd?: string }) => {
+    const { httpsConfig, moduleDir, cwd = process.cwd() } = params;
+    const envEnabled = process.env.CWS_HTTPS_ENABLED ?? process.env.HTTPS_ENABLED;
+    if (typeof envEnabled === "string" && resolveMaybeTextBoolean(envEnabled) === false) return undefined;
+    if (httpsConfig.enabled === false) return undefined;
+    const resolved = buildHttpsResolutionContext({ httpsConfig, moduleDir, cwd });
+    const {
+        keyPath,
+        certPath,
+        caPath,
+        keyCandidates,
+        certCandidates,
+        caCandidates,
+        certModuleCandidates
+    } = resolved;
 
     try {
         const findFirstMaterial = async (items: string[], kind: Kind): Promise<string | Buffer | undefined> => {

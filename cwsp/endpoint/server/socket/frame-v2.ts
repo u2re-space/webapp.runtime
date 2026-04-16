@@ -29,6 +29,8 @@ const PACKET_TO_FRAME_OP: Record<string, string> = {
 };
 
 const normalizeString = (value: unknown): string => String(value || "").trim();
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value);
 
 const normalizeList = (...candidates: unknown[]): string[] => {
     const out = new Set<string>();
@@ -146,10 +148,34 @@ export const frameToPacket = (frameInput: Record<string, unknown>): Packet => {
 
 export const packetToFrame = (packetInput: Record<string, unknown>, defaultSender: string): NetworkFrame => {
     const packet = packetInput as Packet;
-    const payload = packet.payload ?? (packet as any).data ?? packet.body;
     const sender = normalizeString(packet.sender || packet.byId || packet.from || defaultSender);
     const destinations = normalizeList(packet.destinations, packet.nodes, (packet as any).target, (packet as any).targetId);
     const what = normalizeString(packet.what || packet.type || packet.op || "dispatch");
+    const rawPayload = packet.payload ?? (packet as any).data ?? packet.body;
+    const compatNodes = isRecord(rawPayload) && Array.isArray(rawPayload.nodes) ? rawPayload.nodes : undefined;
+    const compatDestinations = isRecord(rawPayload) && Array.isArray(rawPayload.destinations) ? rawPayload.destinations : undefined;
+    const payload = isRecord(rawPayload)
+        ? {
+              ...rawPayload,
+              op: normalizeString((rawPayload as Record<string, unknown>).op || packet.op || "act"),
+              what: normalizeString((rawPayload as Record<string, unknown>).what || what),
+              type: normalizeString((rawPayload as Record<string, unknown>).type || packet.type || what),
+              byId: normalizeString((rawPayload as Record<string, unknown>).byId || sender) || undefined,
+              from: normalizeString((rawPayload as Record<string, unknown>).from || sender) || undefined,
+              nodes: compatNodes && compatNodes.length > 0 ? compatNodes : destinations,
+              destinations: compatDestinations && compatDestinations.length > 0 ? compatDestinations : destinations
+          }
+        : rawPayload === undefined
+          ? {
+                op: normalizeString(packet.op || "act"),
+                what,
+                type: normalizeString(packet.type || what),
+                byId: sender || undefined,
+                from: sender || undefined,
+                nodes: destinations,
+                destinations
+            }
+          : rawPayload;
     const frame = normalizeFrameV2({
         ...packet,
         op: mapPacketOpToFrame(packet.op),

@@ -41,16 +41,29 @@ export const normalizeClipboardText = (body: any): string => {
     if (Buffer.isBuffer(body)) return body.toString("utf8").trim();
     if (body instanceof Uint8Array) return Buffer.from(body).toString("utf8").trim();
     if (!body || typeof body !== "object") return "";
+
+    const asObject = (value: unknown): Record<string, unknown> => {
+        return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+    };
+
+    const payloadObj = asObject(body.payload);
+    const dataObj = asObject(body.data);
+
     const candidates = [
         body.text,
-        body.body,
-        body.payload,
-        body.data,
         body.content,
+        body.body,
+        payloadObj.text,
+        payloadObj.content,
+        payloadObj.body,
+        dataObj.text,
+        dataObj.content,
+        dataObj.body,
         body.clipboard,
         body.value,
         body.message
     ];
+
     for (const candidate of candidates) {
         if (typeof candidate === "string" && candidate.trim()) {
             return candidate.trim();

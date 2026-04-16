@@ -26,7 +26,7 @@ for (const [key, value] of Object.entries(defaults)) {
 const skipSync = ["1", "true", "yes", "on"].includes(String(process.env.CWS_SKIP_DEV_FRONTEND_SYNC || "").trim().toLowerCase());
 
 const startServer = () => {
-    const child = spawn("npx", ["tsx", "watch", "--clear-screen=false", "server/index.ts"], {
+    const child = spawn("npx", ["tsx", "watch", "--clear-screen=false", "endpoint/server/index.ts"], {
         cwd: pkgRoot,
         stdio: "inherit",
         env: process.env,

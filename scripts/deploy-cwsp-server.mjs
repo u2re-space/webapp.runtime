@@ -160,7 +160,7 @@ async function main() {
         `[deploy-cwsp-server] Synced TS server tree to ${sshTarget}:${remoteDir}\n` +
             `  On the host: cd "${remoteDir}" && npm install --include=dev --no-audit --no-fund\n` +
             `  Run: npx tsx server/index.ts\n` +
-            `  PM2: pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env\n` +
+            `  PM2: pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env\n` +
             `  Or from repo root: node launcher.mjs (set CWS_LAUNCH_MODE=tsx if portable bundle is absent)`
     );
 }

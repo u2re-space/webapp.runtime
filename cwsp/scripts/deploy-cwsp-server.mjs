@@ -181,15 +181,12 @@ function runRemoteNpmInstall(sshTarget) {
 }
 
 function runRemotePm2Start(sshTarget) {
-    const pm2Command = "pm2 start ecosystem.server.config.cjs --only cwsp --update-env";
+    const pm2Command = "pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env";
     if (isWindowsRemotePath()) {
         const rd = psEscapeSingle(remoteDir);
         const remotePs =
             `powershell -NoProfile -Command "$ErrorActionPreference='Continue'; ` +
             `Set-Location '${rd}'; ` +
-            `if (!(Test-Path 'ecosystem.server.config.cjs') -and (Test-Path 'config/ecosystem.server.config.cjs')) { ` +
-            `  Copy-Item 'config/ecosystem.server.config.cjs' 'ecosystem.server.config.cjs' -Force; ` +
-            `}; ` +
             `Write-Host '[deploy-cwsp-server] PM2 command: ${psEscapeSingle(pm2Command)}'; ` +
             `cmd /c '${psEscapeSingle(pm2Command)}'; exit $LASTEXITCODE"`;
         const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, remotePs], { stdio: "inherit" });
@@ -202,7 +199,6 @@ function runRemotePm2Start(sshTarget) {
     const commandEscaped = pm2Command.replace(/'/g, "'\\''");
     const remoteSh =
         `set -e; cd '${rd}'; ` +
-        `if [ ! -f ecosystem.server.config.cjs ] && [ -f config/ecosystem.server.config.cjs ]; then cp config/ecosystem.server.config.cjs ecosystem.server.config.cjs; fi; ` +
         `echo "[deploy-cwsp-server] PM2 command: ${commandEscaped}"; ${commandEscaped}`;
     const r = spawnSync("ssh", [...sshPrefixArgs(), sshTarget, `bash -lc '${remoteSh.replace(/'/g, "'\\''")}'`], { stdio: "inherit" });
     if (r.status !== 0) {
@@ -261,7 +257,7 @@ async function main() {
         `[deploy-cwsp-server] Synced TS server tree to ${deployedTarget}:${remoteDir}\n` +
             `  On the host: cd "${remoteDir}" && npm install --include=dev --no-audit --no-fund\n` +
             `  Run: npx tsx server/index.ts\n` +
-            `  PM2: pm2 start ecosystem.server.config.cjs --only cwsp --update-env\n` +
+            `  PM2: pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env\n` +
             `  Or from repo root: node launcher.mjs (set CWS_LAUNCH_MODE=tsx if portable bundle is absent)`
     );
 }

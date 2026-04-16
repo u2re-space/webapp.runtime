@@ -1,25 +1,10 @@
 import { Promised } from "@utils/Promised.ts";
 import type { Packet } from "../types.ts";
+import { normalizeClipboardText } from "../../utils/routes.ts";
+import { logger } from "../../utils/logger.ts";
 
 const loadClipboardAccess = async () => {
     return Promised(Promised(await import("@inputs/access/clipboard.ts"))?.default);
-};
-
-const asObject = (value: unknown): Record<string, unknown> => {
-    return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
-};
-
-const extractClipboardText = (payload: any): string => {
-    if (typeof payload === "string") return payload;
-    const top = asObject(payload);
-    const data = asObject(top.data);
-    if (typeof top.text === "string") return top.text;
-    if (typeof top.content === "string") return top.content;
-    if (typeof top.body === "string") return top.body;
-    if (typeof data.text === "string") return data.text;
-    if (typeof data.content === "string") return data.content;
-    if (typeof data.body === "string") return data.body;
-    return "";
 };
 
 //
@@ -32,17 +17,22 @@ export const handleClipboardAction = async (what: string, payload: any, packet: 
             case "clipboard:write":
             case "airpad:clipboard:write":
             case "airpad:clipboard:delivery":
-                return clipboardAccess?.write?.(extractClipboardText(payload));
+                const text = normalizeClipboardText(packet);
+                logger.info("[clipboard:sync]", { what, textLength: text.length }, "Handling clipboard write");
+                return clipboardAccess?.write?.(text);
             case "clipboard:read":
             case "clipboard:get":
             case "airpad:clipboard:read":
+                logger.info("[clipboard:sync]", { what }, "Handling clipboard read");
                 return clipboardAccess?.read?.();
             case "clipboard:clear":
+                logger.info("[clipboard:sync]", { what }, "Handling clipboard clear");
                 return clipboardAccess?.clear?.();
             default:
                 return null;
         }
     } catch (error: any) {
+        logger.error("[clipboard:sync]", { what, error: error?.message }, "Clipboard action failed");
         return {
             ok: false,
             reason: "clipboard-action-failed",

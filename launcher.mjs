@@ -9,14 +9,16 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
+import { resolveCwspServerLayoutRoot } from "./cwsp/scripts/stage-cwsp-server-runtime.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = __dirname;
 const cwspRoot = path.join(runtimeRoot, "cwsp");
+const serverLayoutRoot = resolveCwspServerLayoutRoot(cwspRoot);
 const defaultPortable = path.join(cwspRoot, "dist", "portable");
 const portableDir = process.env.CWS_PORTABLE_DIR ? path.resolve(process.env.CWS_PORTABLE_DIR) : defaultPortable;
 const portableEntry = path.join(portableDir, "cwsp.mjs");
-const tsEntry = path.join(cwspRoot, "server", "index.ts");
+const tsEntry = path.join(serverLayoutRoot, "server", "index.ts");
 
 const tsxFlag = String(process.env.CWS_LAUNCH_TSX || "")
     .trim()
@@ -41,7 +43,7 @@ if (usePortable) {
         `[launcher] No runnable CWSP entry.\n` +
             `  Portable: ${portableEntry} (missing)\n` +
             `  TS:       ${tsEntry} (missing)\n` +
-            `  Build portable: (cd cwsp && npm run build:portable)\n` +
+            `  Build portable: (cd cwsp/endpoint && npm run build:portable)\n` +
             `  Or deploy/sync TS tree: npm run deploy:server:ssh (from cwsp)`
     );
     process.exit(1);
@@ -67,10 +69,10 @@ function launchPortable() {
 
 function launchTsx() {
     const isWin = process.platform === "win32";
-    const configPath = process.env.CWS_PORTABLE_CONFIG_PATH || path.join(cwspRoot, "portable.config.json");
-    const dataPath = process.env.CWS_PORTABLE_DATA_PATH || path.join(cwspRoot, ".data");
+    const configPath = process.env.CWS_PORTABLE_CONFIG_PATH || path.join(serverLayoutRoot, "config", "portable.config.json");
+    const dataPath = process.env.CWS_PORTABLE_DATA_PATH || path.join(serverLayoutRoot, ".data");
     const child = spawn("npx", ["tsx", "server/index.ts"], {
-        cwd: cwspRoot,
+        cwd: serverLayoutRoot,
         stdio: "inherit",
         env: {
             ...process.env,

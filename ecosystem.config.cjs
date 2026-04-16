@@ -139,7 +139,8 @@ module.exports = {
             env_production: {
                 NODE_ENV: "production",
                 ...envFromFile
-            }
+            },
+            time: true
         }
     ]
 };

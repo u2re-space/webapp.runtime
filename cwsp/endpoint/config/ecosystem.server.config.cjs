@@ -10,7 +10,7 @@ const fs = require("fs");
 const path = require("path");
 const ROOT_DIR = path.resolve(__dirname, "..");
 
-const NODE_BIN = process.execPath;
+const NODE_BIN = (process.env.CWS_NODE_BIN || process.execPath || "node").trim();
 
 const resolveValue = (value) => {
     if (Array.isArray(value)) return value.join(",");
@@ -43,13 +43,17 @@ const defaultConfigPath = path.join(__dirname, "portable.config.json");
 const resolvePortableConfigPath = () => {
     const explicitArg = resolveValue(extractConfigArg());
     const explicitEnv = resolveValue(process.env.CWS_PORTABLE_CONFIG_PATH);
-    const source = isPortableConfigArg(explicitArg)
+    const preferred = isPortableConfigArg(explicitArg)
         ? explicitArg
         : isPortableConfigArg(explicitEnv)
           ? explicitEnv
           : defaultConfigPath;
-    if (!isPortableConfigArg(source)) return "";
-    return path.isAbsolute(source) ? source : path.resolve(process.cwd(), source);
+    if (!isPortableConfigArg(preferred)) return "";
+    const resolvedPreferred = path.isAbsolute(preferred) ? preferred : path.resolve(process.cwd(), preferred);
+    if (fs.existsSync(resolvedPreferred)) {
+        return resolvedPreferred;
+    }
+    return fs.existsSync(defaultConfigPath) ? defaultConfigPath : resolvedPreferred;
 };
 
 const readLauncherEnv = (portableConfigPath) => {

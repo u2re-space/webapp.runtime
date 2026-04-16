@@ -21,6 +21,21 @@ import { createServerV2Engine } from "./config/engine.ts";
 import { loadHttpsOptions } from "./utils/certificate.ts";
 import { loadFastifyFactory } from "./utils/fastify-loader.ts";
 
+// Add timestamps to global console methods if not running under PM2
+const originalConsoleLog = console.log;
+const originalConsoleWarn = console.warn;
+const originalConsoleError = console.error;
+const originalConsoleInfo = console.info;
+
+const getTimestamp = () => new Date().toISOString();
+
+if (!process.env.pm_id) {
+    console.log = (...args) => originalConsoleLog(`[${getTimestamp()}]`, ...args);
+    console.warn = (...args) => originalConsoleWarn(`[${getTimestamp()}]`, ...args);
+    console.error = (...args) => originalConsoleError(`[${getTimestamp()}]`, ...args);
+    console.info = (...args) => originalConsoleInfo(`[${getTimestamp()}]`, ...args);
+}
+
 // Plugins
 import { registerWebPlugin } from "../frontend/index.ts";
 import { registerApiPlugin } from "./fastify/api/index.ts";

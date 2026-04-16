@@ -105,7 +105,8 @@ module.exports = {
             },
             env_production: {
                 NODE_ENV: "production"
-            }
+            },
+            time: true
         },
         {
             name: "cws-vds-fake-client",

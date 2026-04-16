@@ -4,6 +4,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { resolveCwspPackageRoot } from "./resolve-cwsp-root.mjs";
+import { resolveCwspServerLayoutRoot } from "./stage-cwsp-server-runtime.mjs";
 import { syncFrontendResources } from "./sync-frontend.mjs";
 import { bundlePortableExtra } from "./bundle-portable-extra.mjs";
 
@@ -17,20 +18,21 @@ const pkgRoot = resolveCwspPackageRoot(__dirname);
  */
 const requireFromCwsp = createRequire(resolve(pkgRoot, "package.json"));
 const { build } = requireFromCwsp("esbuild");
+const serverLayoutRoot = resolveCwspServerLayoutRoot(pkgRoot);
 
 const outDir = resolve(pkgRoot, "dist/portable");
 
-/** Match `runtime/cwsp/tsconfig.json` `compilerOptions.paths` — esbuild does not read tsconfig paths. */
+/** Match the resolved CWSP server layout (`cwsp/` or `cwsp/endpoint/`) for esbuild aliases. */
 const cwspTsPathAliases = {
     // `@server-v2` must precede `@server` (prefix overlap).
-    "@server-v2": resolve(pkgRoot, "server"),
-    "@server": resolve(pkgRoot, "server"),
-    "@protocol": resolve(pkgRoot, "server/protocol"),
-    "@admin": resolve(pkgRoot, "server/admin"),
-    "@config": resolve(pkgRoot, "server/config"),
-    "@legacy": resolve(pkgRoot, "server/legacy"),
-    "@inputs": resolve(pkgRoot, "server/inputs"),
-    "@utils": resolve(pkgRoot, "server/utils")
+    "@server-v2": resolve(serverLayoutRoot, "server"),
+    "@server": resolve(serverLayoutRoot, "server"),
+    "@protocol": resolve(serverLayoutRoot, "server/protocol"),
+    "@admin": resolve(serverLayoutRoot, "server/admin"),
+    "@config": resolve(serverLayoutRoot, "server/config"),
+    "@legacy": resolve(serverLayoutRoot, "server/legacy"),
+    "@inputs": resolve(serverLayoutRoot, "server/inputs"),
+    "@utils": resolve(serverLayoutRoot, "server/utils")
 };
 
 const readableBundle =
@@ -40,7 +42,7 @@ const readableBundle =
 
 async function runBuild() {
     await mkdir(outDir, { recursive: true });
-    const entry = resolve(pkgRoot, "server/index.ts");
+    const entry = resolve(serverLayoutRoot, "server/index.ts");
     console.log(
         `[build:portable] Bundling CWSP server entry${readableBundle ? " (readable: sourcemap + keepNames, no minify)" : ""}...`
     );
