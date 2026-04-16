@@ -3,6 +3,15 @@
   "version": "1.0.0",
   "description": "CWSP Unified Runtime",
   "type": "module",
+  "main": "server/index.ts",
+  "exports": {
+    ".": "./server/index.ts",
+    "./server/*": "./server/*",
+    "./client/*": "./server/client/*"
+  },
+  "bin": {
+    "cwsp-runtime": "./server/index.ts"
+  },
   "scripts": {
     "build:js": "npm install --include=dev",
     "start:js": "node ./fastify-js/index.mjs --port 443 --address 0.0.0.0 --debug --options --esm",
@@ -47,17 +56,16 @@
     "cap:sync:lan": "CWS_CAP_CLEAR_DOMAINS=${CWS_CAP_CLEAR_DOMAINS:-localhost,127.0.0.1,10.0.2.2,192.168.0.200,192.168.0.201,192.168.0.110,192.168.0.111,192.168.0.196,192.168.0.208,100.110.152.73,100.99.178.6,100.90.155.65} CWS_CAP_ALLOW_NAVIGATION=${CWS_CAP_ALLOW_NAVIGATION:-https://localhost,http://localhost,https://192.168.0.200,http://192.168.0.200,https://192.168.0.201,http://192.168.0.201,https://192.168.0.110,http://192.168.0.110,https://192.168.0.111,http://192.168.0.111,https://192.168.0.196,http://192.168.0.196,https://192.168.0.208,http://192.168.0.208,https://100.110.152.73,https://100.99.178.6,https://100.90.155.65} npm run cap:sync",
     "cap:patch:android-net": "node ../scripts/patch-capacitor-android-network.mjs",
     "hint:capacitor-apk": "node ../scripts/hint-capacitor-apk.mjs",
-    "start": "node dist/portable/cwsp.mjs",
-    "start:pm2": "pm2 start config/ecosystem.portable.config.cjs --only cwsp --update-env -- --config ./config/portable.config.json",
+    "start": "node ../dist/portable/cwsp.mjs",
+    "start:pm2": "pm2 start config/ecosystem.portable.config.cjs --only cwsp --update-env",
     "start:pm2:server": "pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env",
     "deploy:portable:ssh": "node ../scripts/deploy-cwsp-portable.mjs",
     "pack:portable": "node ../pack-portable.mjs",
     "pack:extension": "node ../pack-extension.mjs",
     "debug": "node --inspect-brk -r tsx server/index.ts",
-    "check:types": "npx tsc --ignoreConfig --noEmit --pretty false --module nodenext --moduleResolution nodenext --target es2022 --lib es2022,dom --types node --allowImportingTsExtensions true server/client/vds-fake-client.ts server/client/vds-fake-client-ws.ts server/client/route-compat-iterator.ts server/client/protocol-compat-matrix.ts server/client/client-contract.ts server/socket/client-contract.ts server/inputs/drivers/clipboardy.ts",
+    "check:types": "npx tsc --ignoreConfig --noEmit --pretty false --module nodenext --moduleResolution nodenext --target es2022 --lib es2022,dom --types node --allowImportingTsExtensions true server/client/vds-fake-client-ws.ts server/client/route-compat-iterator.ts server/client/protocol-compat-matrix.ts server/client/client-contract.ts server/socket/client-contract.ts server/inputs/drivers/clipboardy.ts",
     "test:protocol-matrix": "tsx server/client/protocol-compat-matrix.ts",
     "test:compat": "npm run check:types && npm run test:protocol-matrix",
-    "test:vds-client": "tsx server/client/vds-fake-client.ts",
     "test:vds-client:ws": "tsx server/client/vds-fake-client-ws.ts",
     "test:auto-iterator": "tsx server/client/route-compat-iterator.ts",
     "test:auto-iterator:quick": "CWS_ITER_RETRIES=1 CWS_ITER_TIMEOUT_MS=3500 CWS_ITER_ENDPOINTS=https://192.168.0.200:8443/,https://192.168.0.110:8443/,https://45.147.121.152:8443/ tsx server/client/route-compat-iterator.ts",
@@ -92,8 +100,6 @@
     "electron-builder": "^26.8.1",
     "esbuild": ">=0.24.0",
     "fastify": "^5.8.4",
-    "socket.io": ">=4.8.3",
-    "socket.io-client": ">=4.8.3",
     "tsx": ">=4.7.1",
     "typescript": ">=6.0.0-beta",
     "vite": "^8.0.7"

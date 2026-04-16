@@ -112,6 +112,9 @@ if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_NETWORK_SCHEMA_VERSI
 if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COORDINATOR_MODE")) {
     envFromFile.CWS_COORDINATOR_MODE = "unified";
 }
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COMPAT_SOCKETIO")) {
+    envFromFile.CWS_COMPAT_SOCKETIO = "false";
+}
 if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CORS_ALLOW_PRIVATE_NETWORK")) {
     envFromFile.CORS_ALLOW_PRIVATE_NETWORK = "true";
 }

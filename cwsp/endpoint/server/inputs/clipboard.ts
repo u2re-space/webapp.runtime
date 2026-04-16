@@ -4,15 +4,26 @@
  */
 import { createClipboardAccess } from "./access/clipboard.ts";
 
-let broadcasting = false;
+let broadcastSuppressedUntil = 0;
+let suppressedClipboardText = "";
 const access = createClipboardAccess();
 
-export function setBroadcasting(value: boolean): void {
-    broadcasting = value;
+export function setBroadcasting(value: boolean, suppressMs = 2000, text?: string): void {
+    if (value) {
+        if (typeof text === "string") suppressedClipboardText = String(text);
+        broadcastSuppressedUntil = Math.max(broadcastSuppressedUntil, Date.now() + Math.max(0, suppressMs));
+    } else {
+        broadcastSuppressedUntil = 0;
+        suppressedClipboardText = "";
+    }
 }
 
 export function isClipboardBroadcasting(): boolean {
-    return broadcasting;
+    return broadcastSuppressedUntil > Date.now();
+}
+
+export function getSuppressedClipboardText(): string {
+    return suppressedClipboardText;
 }
 
 export async function writeClipboard(text: string): Promise<boolean> {

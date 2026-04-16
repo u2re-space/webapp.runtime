@@ -13,22 +13,22 @@
         "ignoreDeprecations": "6.0",
         "paths": {
             "@protocol/*": [
-                "./endpoint/sserver/protocol/*"
+                "./endpoint/server/protocol/*"
             ],
             "@admin/*": [
-                "./endpoint/sserver/admin/*"
+                "./endpoint/server/admin/*"
             ],
             "@config/*": [
-                "./endpoint/sserver/config/*"
+                "./endpoint/server/config/*"
             ],
             "@server-v2/*": [
-                "./endpoint/sserver/"
+                "./endpoint/server/*"
             ],
             "@server/*": [
-                "./endpoint/sserver/"
+                "./endpoint/server/*"
             ],
             "@inputs/*": [
-                "./endpoint/sserver/inputs/*"
+                "./endpoint/server/inputs/*"
             ],
             "@utils/*": [
                 "./endpoint/server/utils/*"

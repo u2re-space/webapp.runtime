@@ -29,7 +29,9 @@ export type EndpointIdPolicy = {
 
 export type EndpointIdPolicyMap = Record<string, EndpointIdPolicy>;
 
-const DEFAULT_TRANSPORTS: EndpointTransportMode[] = ["ws", "socketio", "http", "tcp"];
+// WHY: native `/ws` is the canonical transport, so HTTP/TCP should be tried
+// before the legacy Socket.IO compatibility layer unless a relation overrides it.
+const DEFAULT_TRANSPORTS: EndpointTransportMode[] = ["ws", "http", "tcp", "socketio"];
 
 const normalizeToken = (value: unknown): string => {
     const normalized = String(value || "").trim().toLowerCase();

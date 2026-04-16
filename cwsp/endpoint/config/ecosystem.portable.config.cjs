@@ -8,7 +8,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const ROOT_DIR = path.resolve(__dirname, "..");
-const distDir = path.join(ROOT_DIR, "dist/portable");
+const distDirCandidates = [path.join(ROOT_DIR, "../dist/portable"), path.join(ROOT_DIR, "dist/portable")];
+const distDir = distDirCandidates.find((candidate) => fs.existsSync(candidate)) || distDirCandidates[0];
 
 /**
  * PM2 — **compiled portable** (`npm run build:portable` → `dist/portable/cwsp.mjs`).
@@ -55,7 +56,7 @@ const resolvePortableConfigPath = () => {
     if (isPortableArg(env)) {
         return path.isAbsolute(env) ? env : path.resolve(process.cwd(), env);
     }
-    return path.join(ROOT_DIR, "config", "portable.config.json");
+    return path.join(distDir, "config", "portable.config.json");
 };
 
 const resolvePortableDataPath = () => {
@@ -87,7 +88,7 @@ const portableConfigPath = resolvePortableConfigPath();
 const portableDataPath = resolvePortableDataPath();
 const launcherEnv = readLauncherEnv(portableConfigPath);
 const envFromFile = Object.assign({}, launcherEnv, {
-    CWS_PORTABLE_CONFIG_PATH: portableConfigPath || path.join(ROOT_DIR, "config", "portable.config.json"),
+    CWS_PORTABLE_CONFIG_PATH: portableConfigPath || path.join(distDir, "config", "portable.config.json"),
     CWS_PORTABLE_DATA_PATH: portableDataPath || path.join(ROOT_DIR, ".data")
 });
 
@@ -109,6 +110,9 @@ if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_NETWORK_SCHEMA_VERSI
 }
 if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COORDINATOR_MODE")) {
     envFromFile.CWS_COORDINATOR_MODE = "unified";
+}
+if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CWS_COMPAT_SOCKETIO")) {
+    envFromFile.CWS_COMPAT_SOCKETIO = "false";
 }
 if (!Object.prototype.hasOwnProperty.call(launcherEnv, "CORS_ALLOW_PRIVATE_NETWORK")) {
     envFromFile.CORS_ALLOW_PRIVATE_NETWORK = "true";

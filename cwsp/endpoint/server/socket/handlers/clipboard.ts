@@ -1,6 +1,7 @@
 import { Promised } from "@utils/Promised.ts";
 import type { Packet } from "../types.ts";
 import { normalizeClipboardText } from "../../utils/routes.ts";
+import { setBroadcasting } from "../../inputs/clipboard.ts";
 import { logger } from "../../utils/logger.ts";
 
 const loadClipboardAccess = async () => {
@@ -19,6 +20,7 @@ export const handleClipboardAction = async (what: string, payload: any, packet: 
             case "airpad:clipboard:delivery":
                 const text = normalizeClipboardText(packet);
                 logger.info("[clipboard:sync]", { what, textLength: text.length }, "Handling clipboard write");
+                setBroadcasting(true, 2000, text);
                 return clipboardAccess?.write?.(text);
             case "clipboard:read":
             case "clipboard:get":

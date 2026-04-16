@@ -104,7 +104,7 @@
         "CWS_BRIDGE_STALE_MS": 45000,
         "CWS_BRIDGE_TUNNEL_ENABLED": true,
         "CWS_BRIDGE_IDENTITY_BY_ID": true,
-        "CWS_COMPAT_SOCKETIO": "true",
+        "CWS_COMPAT_SOCKETIO": "false",
         "CWS_WS_CANONICAL": "true",
         "CWS_BRIDGE_PRECONNECT_TARGETS": [
             "L-192.168.0.200"
@@ -119,9 +119,9 @@
         ],
         "CWS_BRIDGE_REJECT_UNAUTHORIZED": "false",
         "CWS_HTTPS_ENABLED": true,
-        "CWS_HTTPS_KEY": "fs:../https/local/multi.key",
-        "CWS_HTTPS_CERT": "fs:../https/local/multi.crt",
-        "CWS_HTTPS_CA": "fs:../https/local/rootCA.crt",
+        "CWS_HTTPS_KEY": "fs:../https/private/multi.key",
+        "CWS_HTTPS_CERT": "fs:../https/private/multi.crt",
+        "CWS_HTTPS_CA": "fs:../https/private/rootCA.crt",
         "CWS_AIRPAD_NATIVE_ACTIONS": "false",
         "CWS_AIRPAD_ROBOTJS_ENABLED": "false",
         "CWS_FAKE_CLIENT_TARGETS": [

@@ -42,7 +42,6 @@ import { registerApiPlugin } from "./fastify/api/index.ts";
 import { registerIoPlugin } from "./inputs/plugin/index.ts";
 import { registerControlPlugin } from "./fastify/control/index.ts";
 import { registerSystemHttpHandlers } from "./fastify/handlers/system.ts";
-import { prependSocketIoPrivateNetworkAccessHandler } from "./utils/socketio-private-network.ts";
 
 /** CORS for Fastify routes; PNA request header must be allowed on preflight from public PWAs to LAN relay. */
 const fastifyCorsOptions = {
@@ -94,7 +93,7 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
 
     if (httpsOptions) {
         console.log(
-            "[cwsp] TLS: active — Fastify admin + public apps use Node HTTPS; Socket.IO shares those servers (e.g. /socket.io/)."
+            "[cwsp] TLS: active — Fastify admin + public apps use Node HTTPS; the canonical WS gateway shares those servers at /ws."
         );
     } else {
         const httpsCfg = ((engine.config as Record<string, unknown>)?.https as Record<string, unknown>) || {};
@@ -156,12 +155,7 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
                     `Logs tagged [server-v2] + endpoint portable.config are a different process, not this binary.`
             );
             const isHttps = adminApp.server instanceof HttpsServer;
-            
-            // Admin Port
-            const adminHttpsPort = engine.profile.httpsPort || 8443;
-            const adminHttpPort = engine.profile.httpPort || 8080;
-            const adminPort = isHttps ? adminHttpsPort : adminHttpPort;
-            
+
             // Public Port (frontend / primary browser entry; config: publicListenPort / publicHttpPort)
             const publicHttpsRaw = Number(engine.config.publicListenPort);
             const publicHttpRaw = Number(engine.config.publicHttpPort);
@@ -174,6 +168,26 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
                     ? publicHttpRaw
                     : defaultPublicHttpPortForPlatform();
             const publicPort = isHttps ? publicHttpsPort : publicHttpPort;
+
+            // Admin/system port: when the public app owns the canonical port (8443/8080),
+            // move the admin app to a side-band port unless explicitly pinned.
+            const adminHttpsRaw = Number(process.env.CWS_ADMIN_HTTPS_PORT || (engine.config as any).adminListenPort);
+            const adminHttpRaw = Number(process.env.CWS_ADMIN_HTTP_PORT || (engine.config as any).adminHttpPort);
+            const adminHttpsDefault = engine.profile.httpsPort || 8443;
+            const adminHttpDefault = engine.profile.httpPort || 8080;
+            const adminHttpsPort =
+                Number.isFinite(adminHttpsRaw) && adminHttpsRaw > 0
+                    ? adminHttpsRaw
+                    : publicHttpsPort === adminHttpsDefault
+                      ? 18443
+                      : adminHttpsDefault;
+            const adminHttpPort =
+                Number.isFinite(adminHttpRaw) && adminHttpRaw > 0
+                    ? adminHttpRaw
+                    : publicHttpPort === adminHttpDefault
+                      ? 18080
+                      : adminHttpDefault;
+            const adminPort = isHttps ? adminHttpsPort : adminHttpPort;
 
             const listenHost =
                 String(process.env.CWS_LISTEN_HOST || process.env.CWS_BIND_HOST || "0.0.0.0").trim() || "0.0.0.0";
@@ -236,7 +250,6 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
                     await adminApp.listen({ host: listenHost, port });
                     effectiveAdminPort = port;
                     adminBound = true;
-                    prependSocketIoPrivateNetworkAccessHandler(adminApp.server);
                     console.log(
                         `[cwsp] Admin server listening on ${isHttps ? "https" : "http"}://${listenHost}:${port}`
                     );
@@ -280,7 +293,6 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
                     await publicApp.listen({ host: listenHost, port });
                     effectivePublicPort = port;
                     publicBound = true;
-                    prependSocketIoPrivateNetworkAccessHandler(publicApp.server);
                     console.log(
                         `[cwsp] Public server listening on ${isHttps ? "https" : "http"}://${listenHost}:${port}`
                     );
@@ -317,9 +329,9 @@ export const createCWSPRuntime = async (options: CWSPStartOptions = {}) => {
                         out.push(p);
                     }
                 };
+                push(publicPort);
                 if (isHttps) push(443);
                 else push(80);
-                push(publicPort);
                 for (const p of publicFallbacks) push(p);
                 return out;
             };

@@ -7,10 +7,12 @@
  */
 import type { Server as HttpServer } from "node:http";
 import type { Server as HttpsServer } from "node:https";
+import WebSocket from "ws";
 
 import type { Packet } from "./types.ts";
 import { inferWhatFromLegacyType, normalizeInboundPacket } from "./packet.ts";
 import {
+    Connection,
     SELF_DATA,
     areNodeIdsEquivalent,
     findOrInitiateConnection,
@@ -23,6 +25,7 @@ import {
     resolveKnownClientId,
     socketMatchesRoutingTarget
 } from "./coordinator.ts";
+import { buildServerV2SocketHandshake, resolveServerV2WireIdentity } from "./client-contract.ts";
 import { WsGatewayCanonical, wsGatewayPath } from "./ws-gateway.ts";
 
 type SocketServerInput = HttpServer | HttpsServer;
@@ -34,7 +37,7 @@ type ConnectionProfile = {
     deviceId: string;
     label: string;
     socketId: string;
-    transport: "socketio";
+    transport: "ws" | "socketio";
     connectedAt: number;
     lastSeenAt: number;
 };
@@ -159,6 +162,9 @@ export class ServerV2SocketRuntime {
     private socketServer?: ReturnType<typeof makeSocketServer>;
     private wsGateway?: WsGatewayCanonical;
     private preconnectTimer?: ReturnType<typeof setInterval>;
+    private canonicalBridgeSocket?: WebSocket;
+    private canonicalBridgeConnId?: string;
+    private bridgeEndpointCursor = 0;
     private readonly compatSocketIo: boolean = ["1", "true", "yes", "on"].includes(String(process.env.CWS_COMPAT_SOCKETIO || "false").trim().toLowerCase());
 
     constructor(selfId: string, token: string, clientSeed: Record<string, any> = {}, bridgeConfig: Record<string, unknown> = {}) {
@@ -204,6 +210,9 @@ export class ServerV2SocketRuntime {
         this.wsGateway?.close();
         this.wsGateway = undefined;
         this.socketServer = undefined;
+        this.canonicalBridgeSocket?.terminate();
+        this.canonicalBridgeSocket = undefined;
+        this.canonicalBridgeConnId = undefined;
     }
 
     /** Return peer instance ids currently visible through the shared coordinator map. */
@@ -246,7 +255,7 @@ export class ServerV2SocketRuntime {
         const outbound = normalizeOutgoingPacket(payload, this.selfId);
         let delivered = false;
         for (const socket of internalNodeMap.values()) {
-            socket.emit("data", outbound);
+            socket.send(outbound);
             delivered = true;
         }
         return delivered;
@@ -286,7 +295,7 @@ export class ServerV2SocketRuntime {
         for (const [peerInstanceId, socket] of internalNodeMap.entries()) {
             const matches = pendingTargets.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId));
             if (!matches) continue;
-            socket.emit("data", outbound);
+            socket.send(outbound);
             delivered = true;
             for (let index = pendingTargets.length - 1; index >= 0; index -= 1) {
                 if (socketMatchesRoutingTarget(peerInstanceId, pendingTargets[index])) {
@@ -294,14 +303,14 @@ export class ServerV2SocketRuntime {
                 }
             }
         }
-        if (pendingTargets.length && this.socketServer) {
+        if (pendingTargets.length) {
             const relaySocket = this.findGatewayRelayConnection(pendingTargets);
             if (relaySocket) {
                 // WHY: when the local runtime cannot satisfy every target, reuse
                 // an already-live gateway socket before dialing new relay paths.
-                relaySocket.emit("data", { ...outbound, nodes: pendingTargets });
+                relaySocket.send({ ...outbound, nodes: pendingTargets });
                 delivered = true;
-            } else {
+            } else if (this.socketServer) {
                 // `populate()` can dial or reuse remote-compatible relay sockets.
                 this.socketServer.populate({ ...outbound, nodes: pendingTargets }, pendingTargets);
                 delivered = true;
@@ -355,7 +364,7 @@ export class ServerV2SocketRuntime {
         return false;
     }
 
-    private findGatewayRelayConnection(targetIds: string[]): { emit: (event: string, payload: unknown) => void } | null {
+    private findGatewayRelayConnection(targetIds: string[]): { send: (payload: unknown) => void } | null {
         const seenSockets = new Set<object>();
         for (const [peerInstanceId, socket] of internalNodeMap.entries()) {
             if (!socket || typeof socket !== "object") continue;
@@ -365,10 +374,8 @@ export class ServerV2SocketRuntime {
             if (!relayId || areNodeIdsEquivalent(relayId, this.selfId)) continue;
             if (targetIds.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId))) continue;
             const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(peerInstanceId));
-            if (asRecord(relayConfig.flags).gateway === true && typeof (socket as any).emit === "function") {
-                // NOTE: this intentionally picks a gateway socket that is *not*
-                // already one of the direct targets; otherwise we just loop.
-                return socket as { emit: (event: string, payload: unknown) => void };
+            if (asRecord(relayConfig.flags).gateway === true && typeof (socket as any).send === "function") {
+                return socket as { send: (payload: unknown) => void };
             }
         }
         return null;
@@ -397,7 +404,6 @@ export class ServerV2SocketRuntime {
     }
 
     private startBridgePreconnect(): void {
-        if (!this.compatSocketIo) return;
         const bridge = asRecord(this.bridgeConfig);
         if (bridge.enabled === false) return;
 
@@ -411,17 +417,116 @@ export class ServerV2SocketRuntime {
         // Default to ~1s so connections can recover quickly after a link drop.
         const reconnectMs = Math.max(1000, toPositiveInteger(preconnect.reconnectMs ?? bridge.reconnectMs, 1000));
         const connectTargets = () => {
-            for (const targetId of targets) {
-                // Skip already-routable peers so the preconnect loop stays a
-                // background safety net rather than a noisy reconnect storm.
-                if (this.hasEquivalentLiveConnection(targetId)) continue;
-                void Promise.resolve(findOrInitiateConnection(targetId, this.selfId)).catch(() => undefined);
+            if (this.compatSocketIo) {
+                for (const targetId of targets) {
+                    // Skip already-routable peers so the preconnect loop stays a
+                    // background safety net rather than a noisy reconnect storm.
+                    if (this.hasEquivalentLiveConnection(targetId)) continue;
+                    void Promise.resolve(findOrInitiateConnection(targetId, this.selfId)).catch(() => undefined);
+                }
             }
+            this.ensureCanonicalBridgeConnection(targets);
         };
 
         connectTargets();
         this.preconnectTimer = setInterval(connectTargets, reconnectMs);
         console.log(`[server-v2] bridge preconnect active: ${targets.join(", ")} (${reconnectMs}ms)`);
+    }
+
+    private resolveCanonicalBridgeEndpoints(): string[] {
+        const bridge = asRecord(this.bridgeConfig);
+        const preconnect = asRecord(bridge.preconnect);
+        const raw = [
+            normalizeString(bridge.endpointUrl),
+            ...splitList(bridge.endpoints),
+            ...splitList(bridge.endpointUrls),
+            ...splitList(preconnect.endpoints)
+        ];
+        return Array.from(
+            new Set(
+                raw
+                    .map((entry) => {
+                        try {
+                            const parsed = new URL(entry.includes("://") ? entry : `https://${entry}`);
+                            parsed.protocol = parsed.protocol === "https:" ? "wss:" : parsed.protocol === "http:" ? "ws:" : parsed.protocol;
+                            parsed.pathname = "/ws";
+                            parsed.search = "";
+                            return parsed.toString();
+                        } catch {
+                            return "";
+                        }
+                    })
+                    .filter(Boolean)
+            )
+        );
+    }
+
+    private ensureCanonicalBridgeConnection(targets: string[]): void {
+        const relayId = targets.find((targetId) => {
+            const relayConfig = asRecord(knownClients.get(targetId));
+            return asRecord(relayConfig.flags).gateway === true;
+        }) || targets[0];
+        if (!relayId || this.hasEquivalentLiveConnection(relayId)) return;
+        if (this.canonicalBridgeSocket && (this.canonicalBridgeSocket.readyState === WebSocket.OPEN || this.canonicalBridgeSocket.readyState === WebSocket.CONNECTING)) {
+            return;
+        }
+
+        const endpoints = this.resolveCanonicalBridgeEndpoints();
+        if (!endpoints.length) return;
+        const endpoint = endpoints[this.bridgeEndpointCursor % endpoints.length];
+        this.bridgeEndpointCursor = (this.bridgeEndpointCursor + 1) % endpoints.length;
+
+        const bridge = asRecord(this.bridgeConfig);
+        const identity = resolveServerV2WireIdentity({
+            endpointUrl: endpoint,
+            userId: this.selfId,
+            deviceId: this.selfId,
+            token: this.token,
+            connectionType: normalizeString(bridge.connectionType) || "exchanger-initiator",
+            archetype: "server-v2-bridge",
+            rejectUnauthorized: false
+        });
+        const handshake = buildServerV2SocketHandshake(identity);
+        const parsed = new URL(identity.endpointUrl);
+        for (const [key, value] of Object.entries(handshake.query)) {
+            if (!key || !value) continue;
+            parsed.searchParams.set(key, value);
+        }
+
+        const ws = new WebSocket(parsed.toString(), {
+            rejectUnauthorized: identity.rejectUnauthorized,
+            headers: {
+                ...(handshake.auth.token ? { Authorization: `Bearer ${handshake.auth.token}` } : {}),
+                ...(handshake.auth.token ? { "X-CWS-Token": handshake.auth.token } : {}),
+                ...(handshake.auth.clientId ? { "X-CWS-Client-Id": handshake.auth.clientId } : {}),
+                ...(handshake.auth.userId ? { "X-CWS-User-Id": handshake.auth.userId } : {}),
+                ...(handshake.query.connectionType ? { "X-CWS-Connection-Type": handshake.query.connectionType } : {}),
+                ...(handshake.query.archetype ? { "X-CWS-Archetype": handshake.query.archetype } : {})
+            }
+        });
+        this.canonicalBridgeSocket = ws;
+        const connId = `bridge:${relayId}`;
+        this.canonicalBridgeConnId = connId;
+
+        const clearSocket = () => {
+            if (this.canonicalBridgeSocket === ws) {
+                this.canonicalBridgeSocket = undefined;
+            }
+            if (this.canonicalBridgeConnId === connId) {
+                this.canonicalBridgeConnId = undefined;
+            }
+        };
+
+        ws.once("open", () => {
+            internalNodeMap.get(connId)?.close();
+            new Connection(connId, relayId, this.token, ws, this.selfId);
+            console.log(`[server-v2] canonical bridge connected: ${relayId} <- ${parsed.toString()}`);
+        });
+        ws.once("close", clearSocket);
+        ws.once("error", (error) => {
+            console.warn(`[server-v2] canonical bridge connect failed: ${relayId} <- ${parsed.toString()} :: ${String((error as Error)?.message || error)}`);
+            clearSocket();
+        });
     }
 
     private profileFor(id: string): ConnectionProfile {
@@ -438,7 +543,9 @@ export class ServerV2SocketRuntime {
             deviceId: String(known.deviceId || id).trim(),
             label: String(known.label || known.name || id).trim(),
             socketId: id,
-            transport: "socketio",
+            // NOTE: `internalNodeMap` contains canonical live socket wrappers, so
+            // peer-profile diagnostics should report the current transport as WS.
+            transport: "ws",
             connectedAt: Date.now(),
             lastSeenAt: Date.now()
         };

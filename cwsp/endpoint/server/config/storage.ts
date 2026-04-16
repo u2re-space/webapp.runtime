@@ -384,15 +384,25 @@ const resolveRuntimeDefaults = () => {
                 "CWS_PUBLIC_HTTPS_PORT",
                 parsePortableInteger(runtime.publicListenPort) ??
                     networkPublicListen ??
+                    parsePortableInteger(runtime.listenPort) ??
+                    networkListen ??
                     defaultPublicHttpsPortForPlatform()
-            ) ?? defaultPublicHttpsPortForPlatform(),
+            ) ??
+            parsePortableInteger(runtime.listenPort) ??
+            networkListen ??
+            defaultPublicHttpsPortForPlatform(),
         publicHttpPort:
             pickEnvNumberLegacy(
                 "CWS_PUBLIC_HTTP_PORT",
                 parsePortableInteger(runtime.publicHttpPort) ??
                     networkPublicHttp ??
+                    parsePortableInteger(runtime.httpPort) ??
+                    networkHttp ??
                     defaultPublicHttpPortForPlatform()
-            ) ?? defaultPublicHttpPortForPlatform(),
+            ) ??
+            parsePortableInteger(runtime.httpPort) ??
+            networkHttp ??
+            defaultPublicHttpPortForPlatform(),
         broadcastForceHttps: parsePortableBoolean(runtime.broadcastForceHttps) ?? true,
         peers: splitList(runtime.peers),
         broadcastTargets: splitList(runtime.broadcastTargets),

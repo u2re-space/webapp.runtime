@@ -22,9 +22,7 @@ const PORTABLE_BUNDLE_DEPENDENCIES = {
     "@fastify/formbody": ">=8.0.2",
     "@fastify/multipart": ">=10.0.0",
     "@fastify/static": ">=9.1.0",
-    clipboardy: ">=5.3.1",
-    "socket.io": ">=4.8.3",
-    "socket.io-client": ">=4.8.3"
+    clipboardy: ">=5.3.1"
 };
 
 async function exists(p) {
@@ -156,7 +154,8 @@ module.exports = {
                 NODE_ENV: 'production',
                 CWS_PORTABLE_CONFIG_PATH: './config/portable.config.json',
                 CWS_PORTABLE_DATA_PATH: './.data',
-                CWS_HTTPS_ENABLED: 'true'
+                CWS_HTTPS_ENABLED: 'true',
+                CWS_COMPAT_SOCKETIO: 'false'
             }
         }
     ]
@@ -214,7 +213,7 @@ endlocal
     const readPortableTxt =
         "CWSP portable bundle\n" +
         "======================\n\n" +
-        "cwsp.mjs is an esbuild slice of the TS server; socket.io + fastify load from node_modules.\n" +
+        "cwsp.mjs is an esbuild slice of the TS server; Fastify + native WebSocket support load from node_modules.\n" +
         "Always run install.cmd (or npm install --omit=dev) in this folder after copy — partial copies break AirPad.\n\n" +
         "Check: node check-portable-deps.mjs\n\n" +
         "Typical cwsp.mjs size: ~200–400 KiB (deps are in node_modules, not inside cwsp.mjs).\n\n" +

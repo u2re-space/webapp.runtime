@@ -25,10 +25,10 @@
                 "./server/config/*"
             ],
             "@server-v2/*": [
-                "./server/"
+                "./server/*"
             ],
             "@server/*": [
-                "./server/"
+                "./server/*"
             ],
             "@inputs/*": [
                 "./server/inputs/*"

@@ -1,10 +1,11 @@
 import type { FastifyInstance } from "fastify";
-import clipboardy from "clipboardy";
+import { createClipboardAccess } from "../../inputs/access/clipboard.ts";
 
 export const setupClipboard = (app: FastifyInstance) => {
+    const clipboard = createClipboardAccess();
     app.get("/clipboard/read", async (request, reply) => {
         try {
-            const text = await clipboardy.read();
+            const text = await clipboard.read();
             return { text };
         } catch (err) {
             reply.status(500).send({ error: "Failed to read clipboard" });
@@ -14,7 +15,7 @@ export const setupClipboard = (app: FastifyInstance) => {
     app.post("/clipboard/write", async (request: any, reply) => {
         try {
             const { text } = request.body;
-            await clipboardy.write(text);
+            await clipboard.write(text);
             return { success: true };
         } catch (err) {
             reply.status(500).send({ error: "Failed to write clipboard" });

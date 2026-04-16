@@ -309,12 +309,12 @@ export const registerTransportHttpHandlers = async (
             ? socketRequests.map((entry) => ({
                   target: entry.target,
                   ok: sockets.sendLegacyMessage([entry.target], entry.type, entry.payload, auth.userId),
-                  delivered: "socketio"
+                  delivered: "ws"
               }))
             : targets.map((target) => ({
                   target,
                   ok: sockets.sendLegacyMessage([target], type, payload, auth.userId),
-                  delivered: "socketio"
+                  delivered: "ws"
               }));
         const httpResults = await Promise.all(externalRequests.map((entry) => forwardHttpRequest(entry)));
 

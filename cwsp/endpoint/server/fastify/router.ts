@@ -30,6 +30,16 @@ const DIRNAME = "webapp.runtime";
 // Probe for frontend directory and app directories
 const APP_NAME = "cw";
 
+const resolveEntryPortableRoot = () => {
+    const entry = String(process.argv?.[1] || "").trim();
+    if (!entry) return null;
+    try {
+        return findPortableConfigRoot(path.dirname(path.resolve(entry)));
+    } catch {
+        return null;
+    }
+};
+
 /**
  * `portable.config.json` lives at the cwsp **package root**. TS modules live under `web/fastify/`, `server/`, …
  * so we must walk up — not only check `import.meta.dirname` (that broke deployed `tsx server` + Fastify static on :80/:443).
@@ -37,8 +47,11 @@ const APP_NAME = "cw";
 const bundleOrModuleDir = import.meta.dirname;
 /** Directory that contains `web/` and `server/` (always `web/fastify/../..`), regardless of `portable.config.json`. */
 const moduleCwspRoot = path.resolve(bundleOrModuleDir, "../..");
-const portableRoot = findPortableConfigRoot(bundleOrModuleDir);
+const entryPortableRoot = resolveEntryPortableRoot();
+const cwdPortableRoot = findPortableConfigRoot(process.cwd());
+const portableRoot = entryPortableRoot ?? findPortableConfigRoot(bundleOrModuleDir) ?? cwdPortableRoot;
 const cwspPackageRoot = portableRoot ?? moduleCwspRoot;
+const candidateRoots = Array.from(new Set([entryPortableRoot, cwspPackageRoot, cwdPortableRoot, moduleCwspRoot].filter(Boolean)));
 const pathLooksAbsolute = (p) => p.startsWith("/") || /^[A-Za-z]:[\\/]/.test(p);
 
 /** Explicit dirs (highest priority): CWS_FRONTEND_DIR, then each path in CWS_FRONTEND_SRC (same as sync-frontend). */
@@ -74,10 +87,12 @@ const devMonorepoFrontendCandidates = [
  * and fell back to a non-existent path → 404 for all static assets.
  */
 const cwspRootFrontendCandidates = [
-    path.join(moduleCwspRoot, "web"),
-    path.join(moduleCwspRoot, "frontend"),
-    path.join(moduleCwspRoot, "dist", "portable", "frontend"),
-    path.join(moduleCwspRoot, DIRNAME, "frontend")
+    ...candidateRoots.flatMap((root) => [
+        path.join(root, "frontend"),
+        path.join(root, "web"),
+        path.join(root, "dist", "portable", "frontend"),
+        path.join(root, DIRNAME, "frontend")
+    ])
 ];
 
 // First, find the main frontend directory (for shared assets)
@@ -130,10 +145,12 @@ const devMonorepoAppCandidates = [
 ];
 
 const cwspRootAppCandidates = [
-    path.join(moduleCwspRoot, "web", "apps", APP_NAME),
-    path.join(moduleCwspRoot, "frontend", "apps", APP_NAME),
-    path.join(moduleCwspRoot, "dist", "portable", "frontend", "apps", APP_NAME),
-    path.join(moduleCwspRoot, DIRNAME, "frontend", "apps", APP_NAME)
+    ...candidateRoots.flatMap((root) => [
+        path.join(root, "frontend", "apps", APP_NAME),
+        path.join(root, "web", "apps", APP_NAME),
+        path.join(root, "dist", "portable", "frontend", "apps", APP_NAME),
+        path.join(root, DIRNAME, "frontend", "apps", APP_NAME)
+    ])
 ];
 
 // Then, try to find app-specific directory (relative to found frontend directory)

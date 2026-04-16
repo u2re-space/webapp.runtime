@@ -506,7 +506,7 @@ export function registerRoutes(app: any) {
                 );
             }
 
-            setBroadcasting(true);
+            setBroadcasting(true, 2000, text);
             const written = await writeClipboard(text);
             if (written) {
                 if (isClipboardLoggingEnabled()) {
@@ -535,7 +535,8 @@ export function registerRoutes(app: any) {
             setUtf8Plain(reply);
             return reply.code(500).send("Clipboard error");
         } finally {
-            setBroadcasting(false);
+            // Keep a short suppression window after local writes so host-side
+            // clipboard polling does not immediately echo the just-applied text.
         }
     });
 }

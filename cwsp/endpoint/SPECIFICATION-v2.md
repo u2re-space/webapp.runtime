@@ -1,6 +1,6 @@
 # CWSP Network Stack v2 Specification
 
-Available for changing by AI.
+Available for changing by AI. Recomments to change it, if something is wrong.
 
 ## Purpose
 
@@ -13,10 +13,10 @@ This document describes the current v2 network contract used across:
 - AirPad views and rails
 - native bridges that reuse the same envelope semantics
 
-This specification is intentionally compatibility-first:
+This specification describes the unified websocket-first transport:
 
 - native WebSocket at `/ws` is the canonical realtime transport
-- Socket.IO remains a compatibility transport and relay path
+- Socket.IO remains an optional compatibility transport and relay path, but it is disabled by default
 - HTTP remains a compatibility and fallback transport
 - clipboard, AirPad, mouse, keyboard, voice, and dispatch flows share one normalized packet contract
 
@@ -29,17 +29,9 @@ This specification is intentionally compatibility-first:
 - Runtime entrypoint: `server/socket/ws-gateway.ts`
 - Canonical server runtime: `server/socket/runtime.ts`
 
-Native WebSocket is the preferred transport for newer peers and for transport debugging.
+Native WebSocket is the canonical realtime transport for all peers. Socket.IO should only be enabled explicitly for older compatibility paths.
 
-### 2. Compatibility realtime transport
-
-- Path: `/socket.io`
-- Purpose: compatibility with older browser/AirPad/native clients and relay connections
-- Coordinator core: `server/socket/coordinator.ts`
-
-Socket.IO should be treated as a compatibility path and bridge, not the long-term canonical transport.
-
-### 3. HTTP compatibility / fallback transport
+### 2. HTTP compatibility / fallback transport
 
 - `/api/network/dispatch`
 - `/api/broadcast`
@@ -543,12 +535,14 @@ The following action names should be treated as stable contract names unless the
 - Canonical packets are the internal contract; transport wrappers are compatibility layers.
 - `payload` and `data` are both still supported.
 - `nodes` and `destinations` are both still supported.
-- `/ws` is the native-first route, but Socket.IO and HTTP remain important compatibility paths.
+- `/ws` is the native-first route; HTTP remains an important fallback path, and Socket.IO is compatibility-only when it is explicitly enabled.
 - The specification should prefer describing canonical meaning first, then compatibility aliases second.
 
 ---
 
-## What I really needs for
+## Network stack:
+
+How &ould works our network.
 
 ```
 [ Laptop/Ultrabook ] Bi-dir  {[ Server (Endpoint), Have External Entry IP ]}
@@ -560,7 +554,7 @@ The following action names should be treated as stable contract names unless the
                                 [Android Phone 1]         [Android Phone 2]
 ```
 
-### What exchanging between:
+### Topology
 
 **L-192.168.0.110 <---> L-192.168.0.196**
 - clipboard (via android application, and cwsp endpoint server)
@@ -589,4 +583,25 @@ The following action names should be treated as stable contract names unless the
 - `L-192.168.0.110` is one of `clipboard` (and/or other data) synchronize/exchanger member
   - Devices through bridge/proxy can/may ask or pass `clipboard` (and/or other data) data
 
-**{[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}** - is in general a central coordinator (bridge, and/or tunnel/proxy)
+**{[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}** 
+- is in general a central coordinator (bridge, and/or tunnel/proxy)
+
+---
+
+## Potential routes what needs to support
+
+- Airpad (PWA) or Native from `L-192.168.0.196` to https://192.168.0.110:8443/ (local/private network)
+- Airpad (PWA) or Native from `L-192.168.0.196` through `https://192.168.0.200:8443/`  to `L-192.168.0.110` (local/private network)
+- Airpad (PWA) or Native from `L-192.168.0.196` through `https://45.147.121.152:8443/` to `L-192.168.0.110` (any network of device)
+- Native (app) Clipboard (and/or other data) from `L-192.168.0.196` to https://192.168.0.110:8443/ (local network, directly)
+- Native (app) Clipboard (and/or other data) from `L-192.168.0.196` to through `https://192.168.0.200:8443/`  to `L-192.168.0.110` (local network, directly)
+- Native (app) Clipboard (and/or other data) from `L-192.168.0.196` to through `https://45.147.121.152:8443/` to `L-192.168.0.110` (any network of device)
+- CWSP/`endpoint` Clipboard (and/or other data) from `L-192.168.0.110` to https://192.168.0.196:8443/ (rare case, local network, directly)
+- CWSP/`endpoint` Clipboard (and/or other data) from `L-192.168.0.110` to through `https://192.168.0.200:8443/`  to `L-192.168.0.196` (local network, directly)
+- CWSP/`endpoint` Clipboard (and/or other data) from `L-192.168.0.110` to through `https://45.147.121.152:8443/` to `L-192.168.0.196` (any network of device)
+
+### `L-192.168.0.196` may/can be:
+
+- Simulator/debug client from `45.150.9.153` (VDS), with client token `n3v3rm1nd` instead of IP
+- PWA or Native application from NAT (unknown IP, but with client token `n3v3rm1nd` instead of IP)
+- PWA or Native application from private/local network with IP `192.168.0.196`.

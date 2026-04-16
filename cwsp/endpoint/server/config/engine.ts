@@ -43,27 +43,29 @@ const uniqueStrings = (items: unknown[]): string[] => {
     return Array.from(new Set(values));
 };
 
+const compatSocketIoEnabled = ["1", "true", "yes", "on"].includes(String(process.env.CWS_COMPAT_SOCKETIO || "false").trim().toLowerCase());
+
 const collectTransports = (snapshot: Record<string, any>): ServerV2Transport[] => {
     const transports = new Set<ServerV2Transport>();
     if (Number.isFinite(snapshot?.httpPort)) {
         transports.add("http");
         transports.add("ws");
-        transports.add("socketio");
+        if (compatSocketIoEnabled) transports.add("socketio");
     }
     if (Number.isFinite(snapshot?.publicHttpPort)) {
         transports.add("http");
         transports.add("ws");
-        transports.add("socketio");
+        if (compatSocketIoEnabled) transports.add("socketio");
     }
     if (Number.isFinite(snapshot?.listenPort)) {
         transports.add("https");
         transports.add("ws");
-        transports.add("socketio");
+        if (compatSocketIoEnabled) transports.add("socketio");
     }
     if (Number.isFinite(snapshot?.publicListenPort)) {
         transports.add("https");
         transports.add("ws");
-        transports.add("socketio");
+        if (compatSocketIoEnabled) transports.add("socketio");
     }
     if (snapshot?.bridge?.enabled !== false) {
         transports.add("bridge");

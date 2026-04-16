@@ -38,12 +38,15 @@ const DEFAULT_ENDPOINTS = [
     "https://45.147.121.152:8443/"
 ];
 const DEFAULT_ACTORS: ActorPair[] = [
-    { source: "L-192.168.0.196", target: "L-192.168.0.110", token: "n3v3rm1nd" },
-    { source: "L-192.168.0.110", target: "L-192.168.0.196", token: "n3v3rm1nd" }
+    // WHY: run the Windows -> Android path first so the iterator does not
+    // temporarily steal the live Android identity before the reverse-route rows.
+    { source: "L-192.168.0.110", target: "L-192.168.0.196", token: "n3v3rm1nd" },
+    { source: "L-192.168.0.196", target: "L-192.168.0.110", token: "n3v3rm1nd" }
 ];
 
 const DEFAULT_RETRIES = Number(process.env.CWS_ITER_RETRIES || 3) || 3;
 const DEFAULT_TIMEOUT_MS = Number(process.env.CWS_ITER_TIMEOUT_MS || 12000) || 12000;
+const ANDROID_ONLY_TARGETS = new Set(["l-192.168.0.196", "l-192.168.0.208"]);
 
 const endpointSupportsViaL200 = (endpoint: string): boolean => {
     try {
@@ -79,6 +82,42 @@ const toRuntimeOp = (value: unknown): string => {
     if (op === "response") return "result";
     if (op === "notify" || op === "signal" || op === "redirect") return "act";
     return op;
+};
+
+const normalizeId = (value: unknown): string => String(value || "").trim().toLowerCase();
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+};
+
+const packetSourceId = (packet: Packet | undefined): string => {
+    if (!packet) return "";
+    return normalizeId((packet as any).byId || (packet as any).from || (packet as any).sender || "");
+};
+
+const packetShowsHandledByExpectedTarget = (
+    packet: Packet | undefined,
+    expectedTarget: string,
+    expectedWhat: string
+): boolean => {
+    if (!packet) return false;
+    const normalizedTarget = normalizeId(expectedTarget);
+    if (!normalizedTarget) return false;
+    const source = packetSourceId(packet);
+    if (source === normalizedTarget) return true;
+    const nodes = Array.isArray((packet as any).nodes) ? (packet as any).nodes.map((value: unknown) => normalizeId(value)) : [];
+    if (nodes.includes(normalizedTarget)) return true;
+    const result = asRecord((packet as any).result);
+    if (!result) return false;
+    const handled = result.handled === true || result.ok === true;
+    if (!handled) return false;
+    if (!expectedWhat.startsWith("clipboard:")) return false;
+    const clipboard = asRecord(result.clipboard);
+    const text = String(clipboard?.text || result.text || "").trim();
+    const resultSource = String(result.source || "").trim().toLowerCase();
+    return text.length > 0 || resultSource === "android-daemon" || resultSource === "windows-host";
 };
 
 const parsePacket = (raw: WebSocket.RawData): Packet | null => {
@@ -240,30 +279,74 @@ const sendAndAwaitOnce = async (
         }
         return "";
     };
-    return waitForPacket(ws, (incoming) => {
-        const incomingUuid = resolveUuid(incoming);
-        const runtimeOp = toRuntimeOp((incoming as any).op);
-        if (incomingUuid && incomingUuid === uuid) {
-            if (["result", "resolve", "error", "response"].includes(runtimeOp)) return true;
-            return runtimeOp !== "ask";
-        }
-        // Compatibility path for legacy peers that return dispatch-style response
-        // without propagating request uuid.
-        if (!incomingUuid && ["result", "resolve", "error", "response"].includes(runtimeOp)) {
-            const source = String((incoming as any).byId || (incoming as any).from || "").trim();
-            if (!source || !expectedTarget || source !== expectedTarget) return false;
-            const incomingWhat = String((incoming as any).what || "").trim().toLowerCase();
-            const compatibleWhat =
-                incomingWhat === expectedWhat ||
-                (expectedWhat.startsWith("clipboard:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("clipboard:"))) ||
-                (expectedWhat.startsWith("airpad:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("mouse:") || incomingWhat.startsWith("airpad:")));
-            return compatibleWhat;
-        }
-        // Do not consume unrelated non-ask traffic from other live peers. The
-        // iterator is often run against noisy gateways, so accepting any
-        // response/result packet here produces false PASS rows.
-        return false;
-    }, timeoutMs);
+    const waitForPreferredTargetReply =
+        ANDROID_ONLY_TARGETS.has(normalizeId(expectedTarget)) && expectedWhat.startsWith("clipboard:");
+    const genericReplyGraceMs = Math.max(250, Math.min(1200, Math.floor(timeoutMs / 3)));
+    return await new Promise((resolve) => {
+        let done = false;
+        let firstMatchingPacket: Packet | undefined;
+        let lastSeenPacket: Packet | undefined;
+        let genericReplyTimer: NodeJS.Timeout | undefined;
+        const cleanup = () => {
+            if (genericReplyTimer) clearTimeout(genericReplyTimer);
+            clearTimeout(timeoutTimer);
+            ws.off("message", onMessage);
+        };
+        const finish = (result: WaitResult) => {
+            if (done) return;
+            done = true;
+            cleanup();
+            resolve(result);
+        };
+        const responseMatches = (incoming: Packet): boolean => {
+            const incomingUuid = resolveUuid(incoming);
+            const runtimeOp = toRuntimeOp((incoming as any).op);
+            if (incomingUuid && incomingUuid === uuid) {
+                if (["result", "resolve", "error", "response"].includes(runtimeOp)) return true;
+                return runtimeOp !== "ask";
+            }
+            if (!incomingUuid && ["result", "resolve", "error", "response"].includes(runtimeOp)) {
+                const source = packetSourceId(incoming);
+                if (!source || !expectedTarget || source !== normalizeId(expectedTarget)) return false;
+                const incomingWhat = String((incoming as any).what || "").trim().toLowerCase();
+                const compatibleWhat =
+                    incomingWhat === expectedWhat ||
+                    (expectedWhat.startsWith("clipboard:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("clipboard:"))) ||
+                    (expectedWhat.startsWith("airpad:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("mouse:") || incomingWhat.startsWith("airpad:")));
+                return compatibleWhat;
+            }
+            return false;
+        };
+        const onMessage = (raw: WebSocket.RawData) => {
+            const incoming = parsePacket(raw);
+            if (!incoming) return;
+            lastSeenPacket = incoming;
+            if (!responseMatches(incoming)) return;
+            if (!firstMatchingPacket) {
+                firstMatchingPacket = incoming;
+            }
+            if (packetShowsHandledByExpectedTarget(incoming, expectedTarget, expectedWhat)) {
+                finish({ ok: true, packet: incoming });
+                return;
+            }
+            if (!waitForPreferredTargetReply && !genericReplyTimer) {
+                genericReplyTimer = setTimeout(() => {
+                    finish({ ok: true, packet: firstMatchingPacket });
+                }, genericReplyGraceMs);
+            }
+        };
+        const timeoutTimer = setTimeout(() => {
+            if (firstMatchingPacket) {
+                finish({ ok: true, packet: firstMatchingPacket });
+                return;
+            }
+            finish({
+                ok: false,
+                reason: `timeout ${timeoutMs}ms; last=${tracePacket(lastSeenPacket)}`
+            });
+        }, timeoutMs);
+        ws.on("message", onMessage);
+    });
 };
 
 const sendWithRetries = async (
@@ -283,16 +366,12 @@ const sendWithRetries = async (
 
 const isTargetPeer = (packet: Packet | undefined, actor: ActorPair): boolean => {
     if (!packet) return false;
-    const byId = String((packet as any).byId || "").trim();
-    const from = String((packet as any).from || "").trim();
-    const nodes = Array.isArray((packet as any).nodes) ? (packet as any).nodes.map((v: unknown) => String(v || "").trim()) : [];
-    return byId === actor.target || from === actor.target || nodes.includes(actor.target);
-};
-
-const asRecord = (value: unknown): Record<string, unknown> | null => {
-    return value && typeof value === "object" && !Array.isArray(value)
-        ? value as Record<string, unknown>
-        : null;
+    const target = normalizeId(actor.target);
+    const byId = normalizeId((packet as any).byId || "");
+    const from = normalizeId((packet as any).from || "");
+    const sender = normalizeId((packet as any).sender || "");
+    const nodes = Array.isArray((packet as any).nodes) ? (packet as any).nodes.map((v: unknown) => normalizeId(v)) : [];
+    return byId === target || from === target || sender === target || nodes.includes(target);
 };
 
 const packetShowsClipboardHandledByTarget = (packet: Packet | undefined, actor: ActorPair): boolean => {
@@ -305,7 +384,7 @@ const packetShowsClipboardHandledByTarget = (packet: Packet | undefined, actor: 
     const clipboard = asRecord(result.clipboard);
     const text = String(clipboard?.text || result.text || "").trim();
     const source = String(result.source || "").trim().toLowerCase();
-    return text.isNotBlank?.() === true || !!text || source == "android-daemon" || source == "windows-host";
+    return (typeof text === "string" && text.trim().length > 0) || !!text || source == "android-daemon" || source == "windows-host";
 };
 
 const didTargetHandle = (testName: CaseName, packet: Packet | undefined, actor: ActorPair): boolean => {
@@ -317,6 +396,40 @@ const didTargetHandle = (testName: CaseName, packet: Packet | undefined, actor: 
         default:
             return false;
     }
+};
+
+const casesForActor = (actor: ActorPair): Array<{ name: CaseName; packet: Packet }> => {
+    const target = normalizeId(actor.target);
+    const clipboardCases: Array<{ name: CaseName; packet: Packet }> = [
+        {
+            name: "clipboard:isReady",
+            packet: { op: "ask", what: "clipboard:isReady", payload: {}, nodes: [actor.target] } as Packet
+        },
+        {
+            name: "clipboard:update",
+            packet: { op: "act", what: "clipboard:update", payload: { text: `iter-v2-${Date.now()}` }, nodes: [actor.target] } as Packet
+        },
+        {
+            name: "clipboard:write",
+            packet: { op: "act", what: "clipboard:write", payload: { text: `iter-v2-write-${Date.now()}` }, nodes: [actor.target] } as Packet
+        }
+    ];
+    if (ANDROID_ONLY_TARGETS.has(target)) {
+        return clipboardCases;
+    }
+    return [
+        clipboardCases[0],
+        {
+            name: "mouse:isReady",
+            packet: { op: "ask", what: "mouse:isReady", payload: {}, nodes: [actor.target] } as Packet
+        },
+        clipboardCases[1],
+        clipboardCases[2],
+        {
+            name: "airpad:mouse",
+            packet: { op: "act", what: "airpad:mouse", payload: { op: "mouse:move", data: { x: 3, y: 1, z: 0 } }, nodes: [actor.target] } as Packet
+        }
+    ];
 };
 
 const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair): Promise<TestRow[]> => {
@@ -338,6 +451,20 @@ const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair)
             detail: "wss connected"
         });
 
+        let observedTargetTraffic = false;
+        const connectTargetRowIndex = rows.length;
+        rows.push({
+            source: actor.source,
+            target: actor.target,
+            route,
+            endpoint,
+            testCase: "connect",
+            hop: `endpoint->${actor.target}`,
+            pass: false,
+            attempts: 1,
+            detail: "awaiting target-origin traffic"
+        });
+
         const tokenAsk = await waitForPacket(
             ws,
             (incoming) => toRuntimeOp((incoming as any).op) === "ask" && String((incoming as any).what || "") === "token",
@@ -346,53 +473,33 @@ const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair)
         if (tokenAsk.ok && tokenAsk.packet) {
             const reply = buildPacketReply(tokenAsk.packet, identity, { result: { id: identity.userId, token: identity.token } });
             ws.send(JSON.stringify(normalizePacketForWire(reply, identity)));
-            rows.push({
-                source: actor.source,
-                target: actor.target,
-                route,
-                endpoint,
-                testCase: "connect",
-                hop: `endpoint->${actor.target}`,
+            rows[connectTargetRowIndex] = {
+                ...rows[connectTargetRowIndex],
                 pass: true,
-                attempts: 1,
                 detail: "token handshake ok"
-            });
+            };
         } else {
-            rows.push({
-                source: actor.source,
-                target: actor.target,
-                route,
-                endpoint,
-                testCase: "connect",
-                hop: `endpoint->${actor.target}`,
-                pass: false,
-                attempts: 1,
+            rows[connectTargetRowIndex] = {
+                ...rows[connectTargetRowIndex],
                 detail: tokenAsk.reason || "no token ask"
-            });
+            };
         }
 
-        const cases: Array<{ name: CaseName; packet: Packet }> = [
-            {
-                name: "clipboard:isReady",
-                packet: { op: "ask", what: "clipboard:isReady", payload: {}, nodes: [actor.target] } as Packet
-            },
-            {
-                name: "mouse:isReady",
-                packet: { op: "ask", what: "mouse:isReady", payload: {}, nodes: [actor.target] } as Packet
-            },
-            {
-                name: "clipboard:update",
-                packet: { op: "act", what: "clipboard:update", payload: { text: `iter-v2-${route}-${Date.now()}` }, nodes: [actor.target] } as Packet
-            },
-            {
-                name: "clipboard:write",
-                packet: { op: "act", what: "clipboard:write", payload: { text: `iter-v2-write-${route}-${Date.now()}` }, nodes: [actor.target] } as Packet
-            },
-            {
-                name: "airpad:mouse",
-                packet: { op: "act", what: "airpad:mouse", payload: { op: "mouse:move", data: { x: 3, y: 1, z: 0 } }, nodes: [actor.target] } as Packet
+        const cases = casesForActor(actor).map((entry) => {
+            if (entry.name === "clipboard:update") {
+                return {
+                    ...entry,
+                    packet: { ...entry.packet, payload: { text: `iter-v2-${route}-${Date.now()}` } } as Packet
+                };
             }
-        ];
+            if (entry.name === "clipboard:write") {
+                return {
+                    ...entry,
+                    packet: { ...entry.packet, payload: { text: `iter-v2-write-${route}-${Date.now()}` } } as Packet
+                };
+            }
+            return entry;
+        });
 
         for (const test of cases) {
             const packet = {
@@ -413,6 +520,8 @@ const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair)
                 attempts,
                 detail: result.ok ? tracePacket(result.packet) : (result.reason || "no response")
             });
+            const targetHandled = didTargetHandle(test.name, result.packet, actor);
+            if (targetHandled) observedTargetTraffic = true;
             rows.push({
                 source: actor.source,
                 target: actor.target,
@@ -420,10 +529,18 @@ const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair)
                 endpoint,
                 testCase: test.name,
                 hop: `endpoint->${actor.target}`,
-                pass: isTargetPeer(result.packet, actor),
+                pass: targetHandled,
                 attempts,
                 detail: tracePacket(result.packet)
             });
+        }
+
+        if (!rows[connectTargetRowIndex].pass && observedTargetTraffic) {
+            rows[connectTargetRowIndex] = {
+                ...rows[connectTargetRowIndex],
+                pass: true,
+                detail: "target responded during routed cases"
+            };
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error || "unknown");

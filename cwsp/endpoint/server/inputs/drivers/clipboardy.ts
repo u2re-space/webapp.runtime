@@ -1,4 +1,7 @@
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 type ClipboardyModule = {
     read: () => Promise<string>;
@@ -7,6 +10,9 @@ type ClipboardyModule = {
 
 let clipboardyModulePromise: Promise<ClipboardyModule | null> | null = null;
 let memoryClipboard = "";
+let ahkReadScriptPath = "";
+let ahkWriteScriptPath = "";
+const DEFAULT_AHK_PATH = "C:\\Program Files\\AutoHotkey\\v2\\AutoHotkey64.exe";
 
 const isHeadlessClipboardError = (error: unknown): boolean => {
     const msg = String((error as any)?.message || error || "").toLowerCase();
@@ -26,6 +32,59 @@ const loadClipboardy = async (): Promise<ClipboardyModule | null> => {
             .catch(() => null);
     }
     return clipboardyModulePromise;
+};
+
+const getAhkPath = (): string => String(process.env.CWS_AUTOHOTKEY_PATH || DEFAULT_AHK_PATH).trim();
+
+const ensureAhkScript = (kind: "read" | "write"): string => {
+    const existing = kind === "read" ? ahkReadScriptPath : ahkWriteScriptPath;
+    if (existing && fs.existsSync(existing)) return existing;
+    const scriptPath = path.join(os.tmpdir(), `cwsp-clipboard-${kind}.ahk`);
+    const script =
+        kind === "read"
+            ? `#Requires AutoHotkey v2.0
+FileEncoding("UTF-8")
+FileAppend(A_Clipboard, "*", "UTF-8")
+`
+            : `#Requires AutoHotkey v2.0
+FileEncoding("UTF-8")
+stdin := FileOpen("*", "r", "UTF-8")
+text := stdin.Read()
+A_Clipboard := text
+ClipWait(1)
+`;
+    fs.writeFileSync(scriptPath, script, "utf8");
+    if (kind === "read") ahkReadScriptPath = scriptPath;
+    else ahkWriteScriptPath = scriptPath;
+    return scriptPath;
+};
+
+const readViaAutoHotkey = async (): Promise<string> => {
+    const ahkPath = getAhkPath();
+    if (!ahkPath || !fs.existsSync(ahkPath)) {
+        throw new Error(`AutoHotkey executable not found: ${ahkPath || "(empty path)"}`);
+    }
+    const result = spawnSync(ahkPath, [ensureAhkScript("read")], {
+        encoding: "utf8",
+        windowsHide: true
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error((result.stderr || result.stdout || "AHK clipboard read failed").trim());
+    return String(result.stdout || "");
+};
+
+const writeViaAutoHotkey = async (text: string): Promise<void> => {
+    const ahkPath = getAhkPath();
+    if (!ahkPath || !fs.existsSync(ahkPath)) {
+        throw new Error(`AutoHotkey executable not found: ${ahkPath || "(empty path)"}`);
+    }
+    const result = spawnSync(ahkPath, [ensureAhkScript("write")], {
+        input: text,
+        encoding: "utf8",
+        windowsHide: true
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error((result.stderr || result.stdout || "AHK clipboard write failed").trim());
 };
 
 const readViaPowerShell = async (): Promise<string> => {
@@ -49,14 +108,14 @@ const writeViaPowerShell = async (text: string): Promise<void> => {
 export const clipboardyDriver = {
     read: async (): Promise<string> => {
         try {
-            const clipboardy = await loadClipboardy();
-            if (clipboardy) {
-                const value = await clipboardy.read();
+            if (process.platform === "win32") {
+                const value = await readViaAutoHotkey();
                 memoryClipboard = String(value ?? "");
                 return memoryClipboard;
             }
-            if (process.platform === "win32") {
-                const value = await readViaPowerShell();
+            const clipboardy = await loadClipboardy();
+            if (clipboardy) {
+                const value = await clipboardy.read();
                 memoryClipboard = String(value ?? "");
                 return memoryClipboard;
             }
@@ -67,7 +126,14 @@ export const clipboardyDriver = {
                     memoryClipboard = String(value ?? "");
                     return memoryClipboard;
                 } catch {
-                    // keep default fallback path below
+                    try {
+                        const clipboardy = await loadClipboardy();
+                        const value = clipboardy ? await clipboardy.read() : memoryClipboard;
+                        memoryClipboard = String(value ?? "");
+                        return memoryClipboard;
+                    } catch {
+                        // keep default fallback path below
+                    }
                 }
             }
             if (!isHeadlessClipboardError(error)) {
@@ -81,13 +147,13 @@ export const clipboardyDriver = {
         const value = String(text ?? "");
         memoryClipboard = value;
         try {
+            if (process.platform === "win32") {
+                await writeViaAutoHotkey(value);
+                return value;
+            }
             const clipboardy = await loadClipboardy();
             if (clipboardy) {
                 await clipboardy.write(value);
-                return value;
-            }
-            if (process.platform === "win32") {
-                await writeViaPowerShell(value);
                 return value;
             }
         } catch (error) {
@@ -96,7 +162,16 @@ export const clipboardyDriver = {
                     await writeViaPowerShell(value);
                     return value;
                 } catch {
-                    // keep default fallback path below
+                    try {
+                        const clipboardy = await loadClipboardy();
+                        if (clipboardy) {
+                            await clipboardy.write(value);
+                            return value;
+                        }
+                        return value;
+                    } catch {
+                        // keep default fallback path below
+                    }
                 }
             }
             if (!isHeadlessClipboardError(error)) {

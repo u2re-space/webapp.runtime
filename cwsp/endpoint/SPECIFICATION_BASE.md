@@ -91,10 +91,10 @@ Client permission and routing (destination) topology
         "platform": ["linux", "web", "chrome"],
         "roles": ["responser", "requestor", "exchanger", "bridge", "link", "sender"],
         "relations": {
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio",
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "forward": [{
             "id": "L-192.168.0.110",
@@ -155,10 +155,10 @@ Client permission and routing (destination) topology
         "roles": ["responser", "requestor", "exchanger", "actor", "executor", "bridge", "link", "sender"],
         "platform": ["windows", "web", "chrome"],
         "relations": {
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -218,10 +218,10 @@ Client permission and routing (destination) topology
         "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger", "sender"],
         "platform": ["android", "web"],
         "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -274,10 +274,10 @@ Client permission and routing (destination) topology
         "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger", "sender"],
         "platform": ["android", "web"],
         "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -330,10 +330,10 @@ Client permission and routing (destination) topology
         "tokens": ["inline:VDS-client", "env:CWS_ASSOCIATED_TOKEN"],
         "roles": ["responser", "requestor", "exchanger", "sender"],
         "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp"
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -396,7 +396,11 @@ Client permission and routing (destination) topology
 }
 ```
 
-## What I really needs for
+---
+
+## Network stack:
+
+How &ould works our network.
 
 ```
 [ Laptop/Ultrabook ] Bi-dir  {[ Server (Endpoint), Have External Entry IP ]}
@@ -408,7 +412,7 @@ Client permission and routing (destination) topology
                                 [Android Phone 1]         [Android Phone 2]
 ```
 
-### What exchanging between:
+### Topology
 
 **L-192.168.0.110 <---> L-192.168.0.196**
 - clipboard (via android application, and cwsp endpoint server)
@@ -437,4 +441,25 @@ Client permission and routing (destination) topology
 - `L-192.168.0.110` is one of `clipboard` (and/or other data) synchronize/exchanger member
   - Devices through bridge/proxy can/may ask or pass `clipboard` (and/or other data) data
 
-**{[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}** - is in general a central coordinator (bridge, and/or tunnel/proxy)
+**{[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}** 
+- is in general a central coordinator (bridge, and/or tunnel/proxy)
+
+---
+
+## Potential routes what needs to support
+
+- Airpad (PWA) or Native from `L-192.168.0.196` to https://192.168.0.110:8443/ (local/private network)
+- Airpad (PWA) or Native from `L-192.168.0.196` through `https://192.168.0.200:8443/`  to `L-192.168.0.110` (local/private network)
+- Airpad (PWA) or Native from `L-192.168.0.196` through `https://45.147.121.152:8443/` to `L-192.168.0.110` (any network of device)
+- Native (app) Clipboard (and/or other data) from `L-192.168.0.196` to https://192.168.0.110:8443/ (local network, directly)
+- Native (app) Clipboard (and/or other data) from `L-192.168.0.196` to through `https://192.168.0.200:8443/`  to `L-192.168.0.110` (local network, directly)
+- Native (app) Clipboard (and/or other data) from `L-192.168.0.196` to through `https://45.147.121.152:8443/` to `L-192.168.0.110` (any network of device)
+- CWSP/`endpoint` Clipboard (and/or other data) from `L-192.168.0.110` to https://192.168.0.196:8443/ (rare case, local network, directly)
+- CWSP/`endpoint` Clipboard (and/or other data) from `L-192.168.0.110` to through `https://192.168.0.200:8443/`  to `L-192.168.0.196` (local network, directly)
+- CWSP/`endpoint` Clipboard (and/or other data) from `L-192.168.0.110` to through `https://45.147.121.152:8443/` to `L-192.168.0.196` (any network of device)
+
+### `L-192.168.0.196` may/can be:
+
+- Simulator/debug client from `45.150.9.153` (VDS), with client token `n3v3rm1nd` instead of IP
+- PWA or Native application from NAT (unknown IP, but with client token `n3v3rm1nd` instead of IP)
+- PWA or Native application from private/local network with IP `192.168.0.196`.

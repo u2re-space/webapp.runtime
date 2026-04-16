@@ -174,6 +174,8 @@ const pickTransportSender = (
         const sender = transports[transport];
         if (sender) return sender;
     }
+    // WHY: if policy resolution did not yield a usable sender, stay websocket-first
+    // and only fall back to compatibility relay transports as the last resort.
     return transports.ws || transports.bridge || transports.socketio;
 };
 

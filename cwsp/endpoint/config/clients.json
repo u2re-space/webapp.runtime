@@ -25,10 +25,10 @@
         "platform": ["linux", "web", "chrome"],
         "roles": ["responser", "requestor", "exchanger", "bridge", "link", "sender"],
         "relations": {
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio",
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "forward": [{
             "id": "L-192.168.0.110",
@@ -90,10 +90,10 @@
         "roles": ["responser", "requestor", "exchanger", "actor", "executor", "bridge", "link", "sender"],
         "platform": ["windows", "web", "chrome"],
         "relations": {
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -154,10 +154,10 @@
         "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger", "sender"],
         "platform": ["android", "web"],
         "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -210,10 +210,10 @@
         "roles": ["responser", "requestor", "exchanger", "actor", "executor", "exchanger", "sender"],
         "platform": ["android", "web"],
         "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp",
-            "L-wan-client": "both ws,socketio,http,tcp"
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio",
+            "L-wan-client": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,
@@ -266,10 +266,10 @@
         "tokens": ["inline:VDS-client", "env:CWS_ASSOCIATED_TOKEN"],
         "roles": ["responser", "requestor", "exchanger", "sender"],
         "relations": {
-            "L-192.168.0.110": "both ws,socketio,http,tcp",
-            "L-192.168.0.200": "both ws,socketio,http,tcp",
-            "L-192.168.0.196": "both ws,socketio,http,tcp",
-            "L-192.168.0.208": "both ws,socketio,http,tcp"
+            "L-192.168.0.110": "both ws,http,tcp,socketio",
+            "L-192.168.0.200": "both ws,http,tcp,socketio",
+            "L-192.168.0.196": "both ws,http,tcp,socketio",
+            "L-192.168.0.208": "both ws,http,tcp,socketio"
         },
         "flags": {
             "initiator": true,

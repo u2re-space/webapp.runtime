@@ -27,6 +27,7 @@ const RAW_CLIENTS_CONFIG_PATH = path.join(CONFIG_DIR, "clients.json");
 const normalizeString = (value: unknown): string => String(value || "").trim();
 const normalizeToken = (value: unknown): string => String(value || "").trim().toLowerCase();
 const VERB_OPS = new Set(["ask", "act", "resolve", "result", "error", "signal", "request", "response", "redirect", "notify"]);
+const COORDINATOR_DELIVERY = "ws";
 
 const resolveDispatchOp = (value: unknown): string => {
     const op = normalizeString(value).toLowerCase();
@@ -300,7 +301,7 @@ export const registerTransportHttpHandlers = async (
         const targets = normalizeTargets(body);
         if (targets.length) {
             const delivered = sockets.sendCoordinatorMessage(targets, "clipboard:update", { text }, selfId, "act");
-            return { ok: delivered, delivered: delivered ? "socketio" : "none", targets };
+            return { ok: delivered, delivered: delivered ? COORDINATOR_DELIVERY : "none", targets };
         }
 
         try {
@@ -377,12 +378,12 @@ export const registerTransportHttpHandlers = async (
             ? socketRequests.map((entry) => ({
                   target: entry.target,
                   ok: sockets.sendCoordinatorMessage([entry.target], entry.type, entry.payload, auth.userId, entry.op as any),
-                  delivered: "socketio"
+                  delivered: COORDINATOR_DELIVERY
               }))
             : targets.map((target) => ({
                   target,
                   ok: sockets.sendCoordinatorMessage([target], type, payload, auth.userId, op as any),
-                  delivered: "socketio"
+                  delivered: COORDINATOR_DELIVERY
               }));
         const httpResults = await Promise.all(externalRequests.map((entry) => forwardHttpRequest(entry)));
 
@@ -415,7 +416,7 @@ export const registerTransportHttpHandlers = async (
             byId: auth.userId,
             timestamp: Date.now()
         });
-        return { ok: delivered, delivered: delivered ? "socketio" : "none" };
+        return { ok: delivered, delivered: delivered ? COORDINATOR_DELIVERY : "none" };
     };
 
     app.post("/core/ops/ws/send", wsSendHandler);
@@ -434,7 +435,7 @@ export const registerTransportHttpHandlers = async (
             auth.userId,
             "act"
         );
-        return { ok: delivered, delivered: delivered ? "socketio" : "none", targets };
+        return { ok: delivered, delivered: delivered ? COORDINATOR_DELIVERY : "none", targets };
     };
 
     app.post("/core/reverse/send", reverseSendHandler);
@@ -546,7 +547,7 @@ export const registerTransportHttpHandlers = async (
             : sockets.notify(auth.userId, featureType, payload);
         return {
             ok: delivered,
-            delivered: delivered ? "socketio" : "none",
+            delivered: delivered ? COORDINATOR_DELIVERY : "none",
             targets
         };
     };
@@ -566,7 +567,7 @@ export const registerTransportHttpHandlers = async (
         const delivered = targets.length
             ? sockets.sendCoordinatorMessage(targets, "notification:speak", payload, auth.userId, "act")
             : sockets.notify(auth.userId, "notification:speak", payload);
-        return { ok: delivered, delivered: delivered ? "socketio" : "none" };
+        return { ok: delivered, delivered: delivered ? COORDINATOR_DELIVERY : "none" };
     };
 
     app.post("/core/ops/notifications/speak", notificationsSpeakHandler);
@@ -577,7 +578,7 @@ export const registerTransportHttpHandlers = async (
         if (!auth.ok) return auth;
         const body = asRecord(request.body);
         const delivered = sockets.notify(auth.userId, normalizeString(body.type || body.action || "action") || "action", body.data ?? body.payload ?? body);
-        return { ok: delivered, delivered: delivered ? "socketio" : "none" };
+        return { ok: delivered, delivered: delivered ? COORDINATOR_DELIVERY : "none" };
     };
 
     app.post("/core/ops/notify", notifyHandler);

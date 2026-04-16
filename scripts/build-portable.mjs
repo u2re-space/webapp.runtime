@@ -76,6 +76,7 @@ async function runBuild() {
                 "@fastify/static",
                 "socket.io",
                 "socket.io-client",
+                "ws",
                 "@rs-core/service/AI-ops/RecognizeData"
             ],
             format: "esm",

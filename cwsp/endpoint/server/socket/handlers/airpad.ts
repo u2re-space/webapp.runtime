@@ -81,23 +81,37 @@ export const handleAirpadAction = async (what: string, payload: any, packet: Pac
     const keyboardAccess = Promised(Promised(await import("@inputs/access/keyboard.ts"))?.default);
     if (!mouseAccess || !keyboardAccess) return null;
     const normalized = normalizeAirpadAction(what, payload);
+    const ack = (extra: Record<string, unknown> = {}) => ({
+        ok: true,
+        handled: true,
+        action: normalized.what,
+        ...extra
+    });
     switch (normalized.what) {
         case "mouse:move":
-            return mouseAccess?.move?.(normalized.payload.x, normalized.payload.y);
+            await mouseAccess?.move?.(normalized.payload.x, normalized.payload.y);
+            return ack();
         case "mouse:click":
-            return mouseAccess?.click?.(normalized.payload.button, normalized.payload.double);
+            await mouseAccess?.click?.(normalized.payload.button, normalized.payload.double);
+            return ack();
         case "mouse:scroll":
-            return mouseAccess?.scroll?.(normalized.payload.dx, normalized.payload.dy);
+            await mouseAccess?.scroll?.(normalized.payload.dx, normalized.payload.dy);
+            return ack();
         case "mouse:down":
-            return mouseAccess?.down?.(normalized.payload.button);
+            await mouseAccess?.down?.(normalized.payload.button);
+            return ack();
         case "mouse:up":
-            return mouseAccess?.up?.(normalized.payload.button);
+            await mouseAccess?.up?.(normalized.payload.button);
+            return ack();
         case "keyboard:tap":
-            return keyboardAccess?.tap?.(normalized.payload.key, normalized.payload.modifier);
+            await keyboardAccess?.tap?.(normalized.payload.key, normalized.payload.modifier);
+            return ack();
         case "keyboard:toggle":
-            return keyboardAccess?.toggle?.(normalized.payload.key, normalized.payload.state);
+            await keyboardAccess?.toggle?.(normalized.payload.key, normalized.payload.state);
+            return ack();
         case "keyboard:type":
-            return keyboardAccess?.type?.(normalized.payload.text);
+            await keyboardAccess?.type?.(normalized.payload.text);
+            return ack();
         case "voice:submit":
             return sendVoiceToPython((packet as any).__socket, String(normalized.payload.text || ""));
         default:
