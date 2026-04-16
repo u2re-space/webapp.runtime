@@ -545,3 +545,48 @@ The following action names should be treated as stable contract names unless the
 - `nodes` and `destinations` are both still supported.
 - `/ws` is the native-first route, but Socket.IO and HTTP remain important compatibility paths.
 - The specification should prefer describing canonical meaning first, then compatibility aliases second.
+
+---
+
+## What I really needs for
+
+```
+[ Laptop/Ultrabook ] Bi-dir  {[ Server (Endpoint), Have External Entry IP ]}
+[ L-192.168.0.110  ] ←←---→→ {[ 192.168.0.200:8443 / 45.147.121.152:8443  ]}
+          ↑                         ↑                         ↑
+          ┷                         ↑                         ↑ 
+          |                         ↓                         ↓ 
+          ┗------------------{[ [L-192.168.0.196] |- - -| [L-192.168.0.208] ]}   # Phone device groups (cws-androids, PWA-airpad)
+                                [Android Phone 1]         [Android Phone 2]
+```
+
+### What exchanging between:
+
+**L-192.168.0.110 <---> L-192.168.0.196**
+- clipboard (via android application, and cwsp endpoint server)
+- `airpad` signals (PWA/WebView application)
+  - mouse
+  - keyboard
+  - clipboard
+- tunneling through 192.168.0.200:8443 / 45.147.121.152:8443 if in LTE/NAT mode, using identification client token
+
+**L-192.168.0.110 <---> L-192.168.0.208**
+- clipboard (via android application, and cwsp endpoint server)
+- `airpad` signals (PWA/WebView application)
+  - mouse
+  - keyboard
+  - clipboard
+- tunneling through 192.168.0.200:8443 / 45.147.121.152:8443 if in LTE/NAT mode, using identification client token
+
+**L-192.168.0.196 <---> L-192.168.0.208**
+- clipboard (via android application, and cwsp endpoint server)
+- tunneling through 192.168.0.200:8443 / 45.147.121.152:8443 if one of in LTE/NAT mode, using identification client token
+
+**L-192.168.0.110 <---> {[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}**
+- initiated or initiator exchanger (bridge/tunnel/link)
+- `L-192.168.0.110` is AirPad controllable (by PWA apps)
+  - Or directly, or through bridge/proxy
+- `L-192.168.0.110` is one of `clipboard` (and/or other data) synchronize/exchanger member
+  - Devices through bridge/proxy can/may ask or pass `clipboard` (and/or other data) data
+
+**{[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}** - is in general a central coordinator (bridge, and/or tunnel/proxy)

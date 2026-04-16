@@ -152,6 +152,23 @@ const main = () => {
         String(vdsEnv.CWS_ASSOCIATED_TOKEN || "") === "n3v3rm1nd",
         `token=${String(vdsEnv.CWS_ASSOCIATED_TOKEN || "")}`
     );
+    addCheck(
+        "portable.vds primary endpoint uses WAN gateway ingress",
+        String(vdsEnv.CWS_BRIDGE_ENDPOINT_URL || "") === "https://45.147.121.152:8443/",
+        `endpoint=${String(vdsEnv.CWS_BRIDGE_ENDPOINT_URL || "")}`
+    );
+    const vdsEndpoints = asStringList(vdsEnv.CWS_BRIDGE_ENDPOINTS);
+    addCheck(
+        "portable.vds endpoint candidates start with WAN gateway ingress",
+        vdsEndpoints[0] === "https://45.147.121.152:8443/",
+        `first=${String(vdsEndpoints[0] || "")}`
+    );
+    const vdsPreconnectTargets = asStringList(vdsEnv.CWS_BRIDGE_PRECONNECT_TARGETS);
+    addCheck(
+        "portable.vds preconnect targets only gateway relay",
+        vdsPreconnectTargets.length === 1 && vdsPreconnectTargets[0] === "L-192.168.0.200",
+        `targets=${vdsPreconnectTargets.join(",")}`
+    );
 
     let failures = 0;
     for (const result of checks) {

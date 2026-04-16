@@ -223,12 +223,15 @@ export class WsGatewayCanonical {
                 try {
                     const decoded = JSON.parse(text);
                     const event = String((decoded as any)?.event || "").trim();
-                    const payload = (decoded as any)?.payload ?? decoded;
                     if (event) {
+                        const payload = (decoded as any)?.payload ?? decoded;
                         shim.emit(event, payload);
                         return;
                     }
-                    shim.receive(payload);
+                    // Canonical `/ws` peers send full frame objects with top-level
+                    // `op/what/nodes/payload`. Unwrapping `payload` here would drop
+                    // the routing envelope and degrade the packet into generic dispatch.
+                    shim.receive(decoded);
                 } catch {
                     shim.receive(text);
                 }

@@ -11,6 +11,7 @@ const path = require("path");
 const ROOT_DIR = path.resolve(__dirname, "..");
 
 const NODE_BIN = (process.env.CWS_NODE_BIN || process.execPath || "node").trim();
+const TSX_CLI = path.join(ROOT_DIR, "node_modules", "tsx", "dist", "cli.mjs");
 
 const resolveValue = (value) => {
     if (Array.isArray(value)) return value.join(",");
@@ -139,7 +140,7 @@ module.exports = {
             name: "cwsp",
             cwd: ROOT_DIR,
             script: NODE_BIN,
-            args: ["./node_modules/tsx/dist/cli.mjs", "server/index.ts"],
+            args: [TSX_CLI, "server/index.ts"],
             interpreter: "none",
             exec_mode: "fork",
             instances: 1,

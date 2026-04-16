@@ -252,6 +252,35 @@ const sanitizePacketForWire = (packet: Packet): Packet => {
     return (sanitizeWireValue(packet) || {}) as Packet;
 };
 
+/**
+ * Prefer an already-live gateway socket as a relay hop before opening a fresh
+ * direct dial to a target that may only be reachable through WAN/LAN proxying.
+ *
+ * WHY: external/mobile peers like `L-192.168.0.196` often cannot reach
+ * `L-192.168.0.110` directly, but they can already be connected to
+ * `L-192.168.0.200` / `45.147.121.152`, which should relay the packet.
+ */
+const resolveLiveGatewayRelayWrappers = (targetId: string, selfId?: string): SocketWrapper[] => {
+    const targetAlias = resolveKnownClientId(targetId) || normalizeNodeId(targetId);
+    const seenPeerInstances = new Set<string>();
+    const out: SocketWrapper[] = [];
+    for (const [candidateId, candidateConfig] of knownClients.entries()) {
+        const flags = candidateConfig && typeof candidateConfig === "object"
+            ? ((candidateConfig as any).flags && typeof (candidateConfig as any).flags === "object" ? (candidateConfig as any).flags : {})
+            : {};
+        if (flags.gateway !== true) continue;
+        if (selfId && areNodeIdsEquivalent(candidateId, selfId)) continue;
+        if (targetAlias && areNodeIdsEquivalent(candidateId, targetAlias)) continue;
+        for (const wrapper of resolveLocalSocketWrappersForTarget(candidateId)) {
+            const peerInstance = normalizeNodeId(wrapper?.peerInstanceId || wrapper?.socketId || wrapper?.peerId);
+            if (!peerInstance || seenPeerInstances.has(peerInstance)) continue;
+            seenPeerInstances.add(peerInstance);
+            out.push(wrapper);
+        }
+    }
+    return out;
+};
+
 //
 /**
  * Deliver one packet to one or more peers, dialing known endpoints on demand.
@@ -280,11 +309,31 @@ export const populateToOthers = (
         : scopedRequestedNodes;
     const rejectOnFailure = options?.rejectOnFailure === true;
     for (const nodeId of uniqueNodeIds(filterByActivePeers(excludeSelf(candidateNodes, selfId))).filter((nodeId) => nodeId && nodeId !== "*")) { 
-        const localWrappers = resolveLocalSocketWrappersForTarget(nodeId);
+        const localWrappers = resolveLocalSocketWrappersForTarget(nodeId).filter((entry) => doesWrapperMatchTarget(entry, nodeId));
+        const relayWrappers = localWrappers.length > 0 ? [] : resolveLiveGatewayRelayWrappers(nodeId, selfId);
         const dispatchList =
             localWrappers.length > 0
                 ? localWrappers
-                : [findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined];
+                : relayWrappers.length > 0
+                  ? relayWrappers.slice(0, 1)
+                  : [findOrInitiateConnection(nodeId, selfId) as SocketWrapper | Promise<SocketWrapper | undefined> | undefined];
+        if (packet?.what?.startsWith?.("clipboard:")) {
+            const describe = (entry: SocketWrapper | Promise<SocketWrapper | undefined> | undefined) => {
+                if (!entry) return "none";
+                if (entry instanceof SocketWrapper) {
+                    return `socket:${entry.peerId || entry.socketId || entry.peerInstanceId}`;
+                }
+                if (typeof (entry as any)?.then === "function") {
+                    return "promise";
+                }
+                return typeof entry;
+            };
+            console.log(
+                `[clipboard-debug] populate target=${nodeId} local=${localWrappers.map(describe).join(",") || "-"} ` +
+                `relay=${relayWrappers.map(describe).join(",") || "-"} dispatch=${dispatchList.map(describe).join(",") || "-"} ` +
+                `from=${selfId || "-"} what=${packet?.what || "-"}`
+            );
+        }
         for (const entry of dispatchList) {
             const promise = Promise.resolve(entry);
             promisedArray.push(promise.then((socket) => {
@@ -306,6 +355,15 @@ export const populateToOthers = (
                         return undefined;
                     }
                     throw new Error(`Unable to connect to node: ${nodeId}`);
+                }
+                if (relayWrappers.length > 0 && relayWrappers.includes(socket)) {
+                    traceSocket("forward-via-gateway", {
+                        from: selfId,
+                        target: nodeId,
+                        relay: socket.peerId || socket.socketId,
+                        op: packet?.op,
+                        what: packet?.what
+                    });
                 }
                 // `direct()` keeps one resolver chain per outbound UUID, so all
                 // ask/result/error diagnostics converge on the same call path.
@@ -630,6 +688,17 @@ const resolveHandshakeTokenString = (value: unknown): string => {
     return String(value).trim();
 };
 
+const isCanonicalServerV2Peer = (socket: SocketConnect | SocketClient): boolean => {
+    const query = getSocketHandshakeQuery(socket);
+    const auth = ((socket as any)?.handshake?.auth && typeof (socket as any).handshake.auth === "object")
+        ? ((socket as any).handshake.auth as Record<string, unknown>)
+        : {};
+    const archetype = normalizeNodeId(auth.archetype || query.archetype).toLowerCase();
+    if (archetype === "server-v2") return true;
+    const connectionType = normalizeNodeId(auth.connectionType || query.connectionType).toLowerCase();
+    return connectionType.startsWith("exchanger-");
+};
+
 const splitLegacyTargets = (value: unknown): string[] => {
     if (Array.isArray(value)) {
         return value.map((entry) => normalizeNodeId(entry)).filter(Boolean);
@@ -856,6 +925,21 @@ export const resolveLocalSocketWrappersForTarget = (
     return out;
 };
 
+const doesWrapperMatchTarget = (
+    entry: SocketWrapper | Promise<SocketWrapper | undefined> | undefined,
+    targetId: string
+): boolean => {
+    if (!(entry instanceof SocketWrapper)) {
+        return true;
+    }
+    const peerInstance = normalizeNodeId(entry.peerInstanceId || entry.socketId);
+    if (peerInstance && socketMatchesRoutingTarget(peerInstance, targetId)) {
+        return true;
+    }
+    const peerId = normalizeNodeId(entry.peerId || entry.socketId);
+    return !!peerId && areNodeIdsEquivalent(peerId, targetId);
+};
+
 export const socketMatchesRoutingTarget = (peerInstanceId: string, targetId: string): boolean => {
     if (areNodeIdsEquivalent(peerInstanceId, targetId)) return true;
     const t = normalizeNodeId(targetId).toLowerCase();
@@ -1019,7 +1103,6 @@ export class SocketWrapper {
     rememberPeerId(candidate?: unknown) {
         const peerInstance = this.peerInstanceId || resolvePeerInstanceIdFromSocket(this.socket);
         this.peerInstanceId = peerInstance;
-        this.peerId = peerInstance;
         this.socketId = peerInstance;
         internalNodeMap.set(peerInstance, this.socket);
         cachePeerInstanceOnly(peerInstance, this);
@@ -1044,6 +1127,14 @@ export class SocketWrapper {
             expanded.push(...getKnownClientAliases(h));
         }
         registerAccountPeersForSocket(peerInstance, expanded);
+        const preferredPeerId =
+            resolveKnownClientId(cand) ||
+            resolveKnownClientId(handshakeClient) ||
+            resolveKnownClientIdForPeerInstance(peerInstance) ||
+            cand ||
+            handshakeClient ||
+            peerInstance;
+        this.peerId = preferredPeerId;
         // Ensure `nodeMap` resolves policy ids (e.g. `L-192.168.0.196`) to this live socket, not only
         // peerInstance / accountPeerByAlias — avoids intermittent fan-out misses when routing by endpoint key.
         try {
@@ -1100,8 +1191,14 @@ export class SocketWrapper {
     }
 
     private buildReplyNodes(packet: Packet): string[] {
+        const directReplyTargets = uniqueNodeIds(
+            excludeSelf([packet.byId, packet.from, packet.sender], this.selfId)
+        ).filter((nodeId) => nodeId !== "*");
+        if (directReplyTargets.length > 0) {
+            return directReplyTargets;
+        }
         return uniqueNodeIds(
-            excludeSelf([packet.byId, ...(Array.isArray(packet.nodes) ? packet.nodes : [])], this.selfId)
+            excludeSelf(Array.isArray(packet.nodes) ? packet.nodes : [], this.selfId)
         ).filter((nodeId) => nodeId !== "*");
     }
 
@@ -1274,7 +1371,21 @@ export class SocketWrapper {
                 if ((entry as any)?.body !== undefined) return (entry as any).body;
                 return undefined;
             };
-            this.rememberPeerId(packet?.byId || packet?.from || this.socketId || this.peerId);
+            const packetSourceHint = normalizeNodeId(packet?.byId || packet?.from);
+            const handshakeClientId = normalizeNodeId(
+                (this.socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(this.socket).clientId
+            );
+            const currentPeerInstance = normalizeNodeId(this.peerInstanceId || this.socketId);
+            const currentPeerId = normalizeNodeId(this.peerId);
+            const canRefreshPeerIdentity =
+                !currentPeerId ||
+                !packetSourceHint ||
+                areNodeIdsEquivalent(packetSourceHint, currentPeerId) ||
+                areNodeIdsEquivalent(packetSourceHint, currentPeerInstance) ||
+                (handshakeClientId && areNodeIdsEquivalent(packetSourceHint, handshakeClientId));
+            if (canRefreshPeerIdentity) {
+                this.rememberPeerId(packetSourceHint || this.socketId || this.peerId);
+            }
             const payload = this.unpackPayload(packet?.payload);
             const uuid = packet?.uuid;
             const runtimeOp = normalizeRuntimeOp(packet?.op);
@@ -1329,6 +1440,14 @@ export class SocketWrapper {
                 : populateToOthers("data", packet, excludeSelf(packet?.nodes, this.selfId), this.selfId, runtimeOp, {
                     rejectOnFailure: shouldRejectForwarded
                 });
+            if (packet?.what?.startsWith?.("clipboard:")) {
+                console.log(
+                    `[clipboard-debug] packet local=${this.selfId} peer=${this.peerId || this.socketId} ` +
+                    `byId=${packet?.byId || "-"} from=${packet?.from || "-"} op=${runtimeOp} ` +
+                    `what=${packet?.what || "-"} nodes=${(Array.isArray(packet?.nodes) ? packet.nodes.join(",") : "") || "-"} ` +
+                    `targetSelf=${targetsSelf} forwarded=${forwarded.length}`
+                );
+            }
             traceSocket("route-decision", {
                 local: this.selfId,
                 peer: this.peerId || this.socketId,
@@ -1432,7 +1551,8 @@ export class SocketWrapper {
 
         //
         socket.on("connect", async () => {
-            this.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
+            const expectedPeerId = normalizeNodeId((socket as any)?.__cwsExpectedPeerId);
+            this.rememberPeerId((expectedPeerId || await identifyNodeIdFromIncomingConnection(socket, {})) as string);
             this.isConnected = true;
             traceSocket("transport-connect", {
                 local: this.selfId,
@@ -1459,7 +1579,8 @@ export class SocketWrapper {
         //
         socket.on("reconnect", async () => {
             this.isConnected = false;
-            this.rememberPeerId(await identifyNodeIdFromIncomingConnection(socket, {}) as string);
+            const expectedPeerId = normalizeNodeId((socket as any)?.__cwsExpectedPeerId);
+            this.rememberPeerId((expectedPeerId || await identifyNodeIdFromIncomingConnection(socket, {})) as string);
             this.isConnected = true;
             traceSocket("transport-reconnect", {
                 local: this.selfId,
@@ -1520,6 +1641,10 @@ export class SocketWrapper {
         };
 
         const startClipboardWatch = () => {
+            if (isCanonicalServerV2Peer(socket)) {
+                stopClipboardWatch();
+                return;
+            }
             const targets = resolveLegacyTargetNodes(socket, this.selfId).filter((target) => !areNodeIdsEquivalent(target, this.selfId));
             if (targets.length === 0) {
                 stopClipboardWatch();
@@ -1750,6 +1875,14 @@ export const loadFromClientsConfig = (clientsData: Record<string, any>[]) => {
  * ids used by `clients.json`, policy tables, and HTTP transport targets.
  */
 export const identifyNodeIdFromIncomingConnection = async (socket: SocketConnect | SocketClient, packet?: Packet): Promise<string | null> => { 
+    const expectedPeerId = normalizeNodeId((socket as any)?.__cwsExpectedPeerId);
+    if (expectedPeerId) {
+        const expectedEntry = getKnownClientConfig(expectedPeerId);
+        if (expectedEntry) {
+            return pickCanonicalKnownClientId(expectedEntry, expectedPeerId);
+        }
+        return expectedPeerId;
+    }
     if (packet?.byId) { return packet?.byId as string; }
     const hintedId = normalizeNodeId((socket as any)?.handshake?.auth?.clientId || getSocketHandshakeQuery(socket).clientId);
     if (hintedId) {
@@ -1980,6 +2113,7 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
             rejectUnauthorized,
             ...(tlsServername ? { servername: tlsServername } : {})
         });
+        (rawSocket as any).__cwsExpectedPeerId = dialId;
         const connectedSocket = await new Promise<SocketWrapper | undefined>((resolve) => {
             let settled = false;
             const finish = (value?: SocketWrapper) => {
@@ -2051,9 +2185,9 @@ export const initiateConnection = async (forId: string, fromId: string): Promise
  */
 export const findOrInitiateConnection = (id: string, selfId: string): SocketWrapper | Promise<SocketWrapper | undefined> | undefined => {
     const dialId = resolveDialTargetId(id) || id;
-    let localPeers = resolveLocalSocketWrappersForTarget(id);
+    let localPeers = resolveLocalSocketWrappersForTarget(id).filter((entry) => doesWrapperMatchTarget(entry, id));
     if (localPeers.length === 0 && dialId !== id) {
-        localPeers = resolveLocalSocketWrappersForTarget(dialId);
+        localPeers = resolveLocalSocketWrappersForTarget(dialId).filter((entry) => doesWrapperMatchTarget(entry, dialId));
     }
     if (localPeers.length > 0) {
         const first = localPeers[0];
@@ -2108,8 +2242,10 @@ export const findOrInitiateConnection = (id: string, selfId: string): SocketWrap
                     socketId: socket.socketId,
                     peer: socket.peerId
                 });
-                cacheNodeConnection(id, socket);
-                if (dialId !== id) {
+                if (doesWrapperMatchTarget(socket, id)) {
+                    cacheNodeConnection(id, socket);
+                }
+                if (dialId !== id && doesWrapperMatchTarget(socket, dialId)) {
                     cacheNodeConnection(dialId, socket);
                 }
                 cacheNodeConnection(socket.socketId, socket);

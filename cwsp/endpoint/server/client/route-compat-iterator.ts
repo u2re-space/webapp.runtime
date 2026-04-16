@@ -259,7 +259,10 @@ const sendAndAwaitOnce = async (
                 (expectedWhat.startsWith("airpad:") && (incomingWhat === "dispatch" || incomingWhat.startsWith("mouse:") || incomingWhat.startsWith("airpad:")));
             return compatibleWhat;
         }
-        return runtimeOp !== "ask";
+        // Do not consume unrelated non-ask traffic from other live peers. The
+        // iterator is often run against noisy gateways, so accepting any
+        // response/result packet here produces false PASS rows.
+        return false;
     }, timeoutMs);
 };
 
@@ -284,6 +287,36 @@ const isTargetPeer = (packet: Packet | undefined, actor: ActorPair): boolean => 
     const from = String((packet as any).from || "").trim();
     const nodes = Array.isArray((packet as any).nodes) ? (packet as any).nodes.map((v: unknown) => String(v || "").trim()) : [];
     return byId === actor.target || from === actor.target || nodes.includes(actor.target);
+};
+
+const asRecord = (value: unknown): Record<string, unknown> | null => {
+    return value && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+};
+
+const packetShowsClipboardHandledByTarget = (packet: Packet | undefined, actor: ActorPair): boolean => {
+    if (!packet) return false;
+    if (isTargetPeer(packet, actor)) return true;
+    const result = asRecord((packet as any).result);
+    if (!result) return false;
+    const handled = result.handled === true || result.ok === true;
+    if (!handled) return false;
+    const clipboard = asRecord(result.clipboard);
+    const text = String(clipboard?.text || result.text || "").trim();
+    const source = String(result.source || "").trim().toLowerCase();
+    return text.isNotBlank?.() === true || !!text || source == "android-daemon" || source == "windows-host";
+};
+
+const didTargetHandle = (testName: CaseName, packet: Packet | undefined, actor: ActorPair): boolean => {
+    if (isTargetPeer(packet, actor)) return true;
+    switch (testName) {
+        case "clipboard:update":
+        case "clipboard:write":
+            return packetShowsClipboardHandledByTarget(packet, actor);
+        default:
+            return false;
+    }
 };
 
 const runOneRoute = async (endpoint: string, route: RouteMode, actor: ActorPair): Promise<TestRow[]> => {
