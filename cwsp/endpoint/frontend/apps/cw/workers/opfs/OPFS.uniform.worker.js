@@ -21,6 +21,35 @@ let WReflectAction = /* @__PURE__ */ function(WReflectAction) {
 	return WReflectAction;
 }({});
 //#endregion
+//#region shared/fest/uniform/newer/core/TransportCore.ts
+const TRANSPORT_TYPE_ALIASES = {
+	"ws": "websocket",
+	"socket": "websocket",
+	"socketio": "socket-io",
+	"service": "service-worker",
+	"sw": "service-worker",
+	"service-worker-client": "service-worker",
+	"service-worker-host": "service-worker",
+	"ring-buffer": "atomics"
+};
+function normalizeTransportTypeAlias(transport) {
+	const raw = String(transport ?? "").trim().toLowerCase();
+	if (!raw) return "internal";
+	return TRANSPORT_TYPE_ALIASES[raw] ?? raw;
+}
+function detectTransportType$1(transport) {
+	if (typeof Worker !== "undefined" && transport instanceof Worker) return "worker";
+	if (typeof SharedWorker !== "undefined" && transport instanceof SharedWorker) return "shared-worker";
+	if (typeof MessagePort !== "undefined" && transport instanceof MessagePort) return "message-port";
+	if (typeof BroadcastChannel !== "undefined" && transport instanceof BroadcastChannel) return "broadcast";
+	if (typeof WebSocket !== "undefined" && transport instanceof WebSocket) return "websocket";
+	if (typeof RTCDataChannel !== "undefined" && transport instanceof RTCDataChannel) return "rtc-data";
+	if (typeof chrome !== "undefined" && transport && typeof transport === "object" && typeof transport.postMessage === "function" && transport.onMessage?.addListener) return "chrome-port";
+	if (typeof transport === "string") return normalizeTransportTypeAlias(transport);
+	if (transport === "self") return "self";
+	return "internal";
+}
+//#endregion
 //#region shared/fest/core/runtime/dom-globals-polyfill.ts
 /**
 * Chrome MV3 service workers (and some workers) do not expose DOM interface
@@ -603,15 +632,9 @@ function detectContextType() {
 	return "unknown";
 }
 function detectTransportType(source) {
-	if (!source) return "internal";
-	if (typeof Worker !== "undefined" && source instanceof Worker) return "worker";
-	if (typeof SharedWorker !== "undefined" && source instanceof SharedWorker) return "shared-worker";
-	if (typeof MessagePort !== "undefined" && source instanceof MessagePort) return "message-port";
-	if (typeof BroadcastChannel !== "undefined" && source instanceof BroadcastChannel) return "broadcast";
-	if (typeof WebSocket !== "undefined" && source instanceof WebSocket) return "websocket";
 	if (typeof RTCDataChannel !== "undefined" && source instanceof RTCDataChannel) return "rtc-data";
-	if (source === "chrome-runtime" || source === "chrome-tabs" || source === "chrome-port" || source === "chrome-external") return source;
-	if (typeof chrome !== "undefined" && source && typeof source === "object" && typeof source.postMessage === "function" && source.onMessage?.addListener) return "chrome-port";
+	const detected = detectTransportType$1(source);
+	if (detected && detected !== "internal") return detected;
 	if (source === self || source === globalThis || source === "self") return "self";
 	return "internal";
 }

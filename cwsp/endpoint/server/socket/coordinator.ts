@@ -257,10 +257,11 @@ export async function findOrInitiateConnection(targetId: string, selfId?: string
     return undefined;
 }
 
-// Dummy for compatibility with runtime.ts which still calls it
-export function makeSocketServer() {
+// Dummy for compatibility with runtime.ts which still calls it with the older
+// `(server, selfId, extras)` and `populate(packet, targets)` signatures.
+export function makeSocketServer(..._args: unknown[]) {
     return {
         servers: [],
-        populate: () => {}
+        populate: (..._args: unknown[]) => {}
     };
 }

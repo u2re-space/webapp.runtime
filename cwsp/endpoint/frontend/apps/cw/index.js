@@ -1,7 +1,11 @@
-import { C as initReceivers, S as handleShareTarget, T as ensureServiceWorkerRegistered, b as checkPendingShareData, w as setupLaunchQueueConsumer, x as ensureAppCss } from "./views/airpad.js";
-import { Hn as loadAsAdopted, i as initializeAppChannels } from "./com/app.js";
-import { b as pickEnabledView, i as views_default } from "./shells/base.js";
-import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, t as ensureAppLayers, z as initializeLayers } from "./shells/boot-index.js";
+import { i as initReceivers, l as ensureServiceWorkerRegistered, n as ensureAppCss, o as setupLaunchQueueConsumer, r as handleShareTarget, t as checkPendingShareData } from "./com/app.js";
+import { h as loadAsAdopted } from "./fest/dom.js";
+import { $ as globalChannelRegistry, Q as globalChannelHealthMonitor, et as createDeferred } from "./fest/object.js";
+import { c as detectExecutionContext, l as supportsDedicatedWorkers, o as createQueuedOptimizedWorkerChannel } from "./fest/uniform.js";
+import { i as pickEnabledView } from "./chunks/views.js";
+import { s as initializeLayers } from "./shells/boot-ts-BootLoader.js";
+import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, t as ensureAppLayers } from "./shells/boot-ts-routing.js";
+import { t as views_default } from "./chunks/views2.js";
 //#region src/frontend/pwa/pwa-handling.ts
 var IS_DEV = Boolean(false);
 var AUTO_RELOAD_COOLDOWN_MS = 120 * 1e3;
@@ -431,6 +435,155 @@ var forceRefreshAssets = async () => {
 	}
 };
 //#endregion
+//#region src/com/core/UniformChannelManager.ts
+/**
+* Uniform Channel Manager for CrossWord
+* Re-exports fest/uniform channel management with app-specific configuration
+*/
+var UniformChannelManager = class UniformChannelManager {
+	static instance;
+	channels = /* @__PURE__ */ new Map();
+	viewChannels = /* @__PURE__ */ new Map();
+	initializedViews = /* @__PURE__ */ new Set();
+	viewReadyPromises = /* @__PURE__ */ new Map();
+	executionContext;
+	constructor() {
+		this.executionContext = detectExecutionContext();
+	}
+	static getInstance() {
+		if (!UniformChannelManager.instance) UniformChannelManager.instance = new UniformChannelManager();
+		return UniformChannelManager.instance;
+	}
+	/**
+	* Register channels for a specific view
+	*/
+	registerViewChannels(viewHash, configs) {
+		const channelNames = /* @__PURE__ */ new Set();
+		for (const config of configs) {
+			if (!this.isWorkerSupported(config)) {
+				console.log(`[UniformChannelManager] Skipping worker '${config.name}' in ${this.executionContext} context`);
+				continue;
+			}
+			const channel = createQueuedOptimizedWorkerChannel({
+				name: config.name,
+				script: config.script,
+				options: config.options,
+				context: this.executionContext
+			}, config.protocolOptions, () => {
+				console.log(`[UniformChannelManager] Channel '${config.name}' ready for view '${viewHash}' in ${this.executionContext} context`);
+			});
+			this.channels.set(`${viewHash}:${config.name}`, channel);
+			channelNames.add(config.name);
+		}
+		this.viewChannels.set(viewHash, channelNames);
+	}
+	isWorkerSupported(_config) {
+		if (this.executionContext === "service-worker") return true;
+		if (this.executionContext === "chrome-extension") return supportsDedicatedWorkers();
+		return true;
+	}
+	/**
+	* Initialize channels when a view becomes active
+	*/
+	async initializeViewChannels(viewHash) {
+		if (this.initializedViews.has(viewHash)) return;
+		const deferred = createDeferred();
+		this.viewReadyPromises.set(viewHash, deferred);
+		console.log(`[UniformChannelManager] Initializing channels for view: ${viewHash}`);
+		const channelNames = this.viewChannels.get(viewHash);
+		if (!channelNames) {
+			deferred.resolve();
+			return;
+		}
+		const initPromises = [];
+		for (const channelName of channelNames) {
+			const channelKey = `${viewHash}:${channelName}`;
+			const channel = this.channels.get(channelKey);
+			if (channel) {
+				globalChannelRegistry.register(channelKey, channel);
+				globalChannelHealthMonitor.registerHealthCheck(channelKey, async () => {
+					try {
+						await channel.request("ping", {});
+						return true;
+					} catch {
+						return false;
+					}
+				}, 3e4);
+				initPromises.push(channel.request("ping", {}).catch(() => {
+					console.log(`[UniformChannelManager] Channel '${channelName}' queued for view '${viewHash}'`);
+				}));
+			}
+		}
+		await Promise.allSettled(initPromises);
+		this.initializedViews.add(viewHash);
+		deferred.resolve();
+	}
+	/**
+	* Get a channel for a specific view and worker
+	*/
+	getChannel(viewHash, workerName) {
+		return this.channels.get(`${viewHash}:${workerName}`) ?? null;
+	}
+	/**
+	* Get all channels for a view
+	*/
+	getViewChannels(viewHash) {
+		const channelNames = this.viewChannels.get(viewHash);
+		if (!channelNames) return [];
+		return Array.from(channelNames).map((name) => this.channels.get(`${viewHash}:${name}`)).filter((channel) => channel != null);
+	}
+	/**
+	* Close all channels for a view
+	*/
+	closeViewChannels(viewHash) {
+		const channels = this.getViewChannels(viewHash);
+		for (const channel of channels) channel.close();
+		const channelNames = this.viewChannels.get(viewHash);
+		if (channelNames) for (const name of channelNames) this.channels.delete(`${viewHash}:${name}`);
+		this.viewChannels.delete(viewHash);
+		this.initializedViews.delete(viewHash);
+	}
+	/**
+	* Wait for a view's channels to be ready
+	*/
+	async waitForViewChannels(viewHash) {
+		const deferred = this.viewReadyPromises.get(viewHash);
+		if (deferred) await deferred.promise;
+		else if (!this.initializedViews.has(viewHash)) await this.initializeViewChannels(viewHash);
+	}
+	/**
+	* Check if a view's channels are ready
+	*/
+	isViewReady(viewHash) {
+		return this.initializedViews.has(viewHash);
+	}
+	/**
+	* Get channel status for debugging
+	*/
+	getStatus() {
+		const status = {};
+		const healthStatuses = globalChannelHealthMonitor.getAllHealthStatuses();
+		for (const [key, channel] of this.channels) status[key] = {
+			queueStatus: channel.getQueueStatus?.() ?? "unknown",
+			healthy: healthStatuses[key] ?? "unknown"
+		};
+		return {
+			totalChannels: this.channels.size,
+			initializedViews: Array.from(this.initializedViews),
+			registryChannels: globalChannelRegistry.getChannelNames(),
+			healthStatuses,
+			channels: status
+		};
+	}
+};
+/**
+* Pre-configured view channel registrations
+*/
+var initializeAppChannels = () => {
+	UniformChannelManager.getInstance();
+};
+UniformChannelManager.getInstance();
+//#endregion
 //#region src/index.ts
 /**
 * CrossWord Main Entry Point
@@ -571,7 +724,7 @@ async function index(mountElement) {
 	console.log("[Index] Starting CrossWord frontend loader");
 	console.log("[Index] Initializing uniform channels...");
 	initializeAppChannels();
-	import("./chunks/hub-socket-boot.js").then((m) => m.bootHubSocketFromStoredSettings()).catch(() => void 0);
+	import("./com/service14.js").then((n) => n.n).then((m) => m.bootHubSocketFromStoredSettings()).catch(() => void 0);
 	setLoadingState(mountElement, "Initializing CrossWord...");
 	try {
 		const pwaPromise = initPWA();
@@ -588,7 +741,7 @@ async function index(mountElement) {
 			console.warn("[Index] Pre-boot share/launch queue failed:", e);
 		}
 		const prePath = getNormalizedPathname();
-		if (!prePath || prePath === "viewer" || prePath === "share-target" || prePath === "share_target") import("./chunks/viewer.js").then((m) => m.warmViewerMarkdownEngine?.()).catch(() => {});
+		if (!prePath || prePath === "viewer" || prePath === "share-target" || prePath === "share_target") import("./views/viewer.js").then((m) => m.warmViewerMarkdownEngine?.()).catch(() => {});
 		if (prePath === "airpad") import("./chunks/main.js").catch(() => {});
 		withTimeout(pwaPromise, "initPWA", 5e3, null, { warnOnTimeout: false }).then(() => {
 			console.log("[Index] PWA initialization complete");

@@ -1,5 +1,5 @@
-import { v as ENABLED_VIEW_IDS } from "./base.js";
-import { r as WindowShell } from "./content-index.js";
+import { n as ENABLED_VIEW_IDS } from "../chunks/views.js";
+import { WindowShell } from "./window-index.scss?inline.js";
 //#region src/frontend/shells/environment/index.ts
 /**
 * Environment shell: canonical desktop/webtop orchestrator.
@@ -39,4 +39,4 @@ function createShell(_container) {
 	return new EnvironmentShell();
 }
 //#endregion
-export { createShell as n, EnvironmentShell as t };
+export { EnvironmentShell, createShell, createShell as default };

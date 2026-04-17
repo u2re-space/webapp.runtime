@@ -1,4 +1,4 @@
-import { r as WindowShell } from "./content-index.js";
+import { WindowShell } from "./window-index.scss?inline.js";
 //#region src/frontend/shells/tabbed/index.ts
 /**
 * Tabbed shell: window-style host with tab-oriented identity.
@@ -20,4 +20,4 @@ function createShell(_container) {
 	return new TabbedShell();
 }
 //#endregion
-export { createShell as n, TabbedShell as t };
+export { TabbedShell, createShell, createShell as default };

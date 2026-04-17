@@ -2,6 +2,7 @@ import type { Packet } from "./types.ts";
 
 export type ServerV2WireIdentity = {
     archetype?: string;
+    airpadToken?: string;
     connectionType?: string;
     deviceId?: string;
     /** Unique per device/session; avoids Socket.IO routing collisions when userId/clientId match. */
@@ -91,6 +92,7 @@ export const resolveServerV2WireIdentity = (identity: ServerV2WireIdentity): Req
         endpointUrl,
         peerInstanceId: normalizeString(identity.peerInstanceId),
         rejectUnauthorized: identity.rejectUnauthorized !== false,
+        airpadToken: normalizeString(identity.airpadToken),
         token: normalizeString(identity.token),
         userId: userId || clientId || "server-v2-client"
     };
@@ -111,11 +113,14 @@ export const buildServerV2SocketHandshake = (identity: ServerV2WireIdentity): Se
 
     if (resolved.token) {
         auth.token = resolved.token;
-        auth.airpadToken = resolved.token;
         auth.userKey = resolved.token;
         query.token = resolved.token;
-        query.airpadToken = resolved.token;
         query.userKey = resolved.token;
+    }
+
+    if (resolved.airpadToken) {
+        auth.airpadToken = resolved.airpadToken;
+        query.airpadToken = resolved.airpadToken;
     }
 
     if (resolved.clientId) {

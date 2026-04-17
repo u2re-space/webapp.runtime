@@ -12,6 +12,7 @@ import {
 } from "../inputs/clipboard.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "./endpoint-policy.ts";
 import { CONFIG_DIR } from "./paths.ts";
+import config from "@config/config.ts";
 
 const TRANSPORT_HANDLERS_KEY = Symbol.for("cws.serverV2.transportHandlers");
 const RAW_CLIENTS_CONFIG_PATH = path.join(CONFIG_DIR, "clients.json");
@@ -146,6 +147,245 @@ const verifyRequestUser = async (policies: ReturnType<typeof normalizeEndpointPo
     }
     return { ok: true as const, userId, userKey, record };
 };
+
+const resolveConfiguredControlTokens = (): string[] => {
+    return [
+        (config as any)?.secret
+    ]
+        .map((value) => normalizeToken(value))
+        .filter(Boolean);
+};
+
+const extractBearerToken = (request: FastifyRequest | undefined): string => {
+    const auth = String(request?.headers?.authorization || request?.headers?.Authorization || "").trim();
+    if (!auth) return "";
+    const match = auth.match(/^Bearer\s+(.+)$/i);
+    return normalizeToken(match?.[1]);
+};
+
+const collectControlTokenCandidates = (request: FastifyRequest | undefined, body: Record<string, unknown>): string[] => {
+    const query = asRecord((request as unknown as { query?: unknown })?.query);
+    return Array.from(
+        new Set(
+            [
+                body.authToken,
+                body.airpadToken,
+                body.hubToken,
+                body.masterToken,
+                body.controlToken,
+                request?.headers?.["x-auth-token"],
+                request?.headers?.["x-cws-airpad-token"],
+                request?.headers?.["x-cws-control-token"],
+                extractBearerToken(request),
+                query.authToken,
+                query.airpadToken,
+                query.hubToken,
+                query.masterToken
+            ]
+                .map((value) => normalizeToken(value))
+                .filter(Boolean)
+        )
+    );
+};
+
+const verifyDevicesRequestAccess = async (
+    policies: ReturnType<typeof normalizeEndpointPolicies>,
+    request: FastifyRequest | undefined,
+    body: Record<string, unknown>
+) => {
+    const normalizedUserId = normalizeString(body.userId || body.clientId);
+    const normalizedUserKey = normalizeString(body.userKey || body.token);
+    if (normalizedUserId && normalizedUserKey) {
+        return verifyRequestUser(policies, {
+            ...body,
+            userId: normalizedUserId,
+            userKey: normalizedUserKey
+        });
+    }
+
+    const controlTokens = collectControlTokenCandidates(request, body);
+    const configuredControlTokens = new Set(resolveConfiguredControlTokens());
+    if (controlTokens.some((token) => configuredControlTokens.has(token))) {
+        const userId = normalizedUserId || "control";
+        return {
+            ok: true as const,
+            access: "control" as const,
+            userId,
+            userKey: controlTokens[0] || "",
+            record: null
+        };
+    }
+
+    if (normalizedUserId && controlTokens.length) {
+        for (const candidate of controlTokens) {
+            const record = await verifyUser(normalizedUserId, candidate);
+            if (record) {
+                return {
+                    ok: true as const,
+                    access: "peer" as const,
+                    userId: normalizedUserId,
+                    userKey: candidate,
+                    record
+                };
+            }
+            const endpointRecord = verifyEndpointPolicyUser(policies, normalizedUserId, candidate);
+            if (endpointRecord) {
+                return {
+                    ok: true as const,
+                    access: "peer" as const,
+                    userId: normalizedUserId,
+                    userKey: candidate,
+                    record: endpointRecord
+                };
+            }
+        }
+    }
+
+    return {
+        ok: false as const,
+        error: controlTokens.length > 0 ? "Invalid control credentials" : "Missing credentials"
+    };
+};
+
+const renderDevicesPage = () => `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CWSP Devices</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin: 0; background: #0b1220; color: #e5eefc; }
+    main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1, h2 { margin: 0 0 12px; }
+    p { color: #b3c2dd; }
+    form { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin: 20px 0; }
+    label { display: grid; gap: 6px; font-size: 14px; }
+    input { border: 1px solid #31425f; border-radius: 10px; padding: 11px 12px; background: #10192c; color: #eef4ff; }
+    button { border: 0; border-radius: 10px; padding: 12px 16px; background: #4f7cff; color: white; font-weight: 600; cursor: pointer; }
+    .hint { margin: 8px 0 0; font-size: 13px; color: #8ea2c8; }
+    .panel { margin-top: 18px; padding: 16px; border: 1px solid #26344d; border-radius: 14px; background: #0f1728; }
+    .meta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .pill { padding: 6px 10px; border-radius: 999px; background: #17233b; color: #c8d7f2; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #24314a; font-size: 14px; vertical-align: top; }
+    th { color: #a9bbda; font-weight: 600; }
+    pre { overflow: auto; padding: 14px; border-radius: 12px; background: #09101d; color: #cfe0ff; }
+    .ok { color: #81d49a; }
+    .off { color: #f2b880; }
+    .error { color: #ff9a9a; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Devices / Nodes Map</h1>
+    <p>Use the endpoint master/control token here. If you do not have that, you can also try a client ID plus its associated client token.</p>
+    <form id="devices-form">
+      <label>
+        <span>Control or master token</span>
+        <input id="authToken" name="authToken" type="password" autocomplete="current-password" placeholder="Endpoint control token" />
+      </label>
+      <label>
+        <span>Client ID (optional)</span>
+        <input id="userId" name="userId" type="text" autocomplete="off" placeholder="L-192.168.0.196" />
+      </label>
+      <label style="align-self: end;">
+        <button type="submit">Load map</button>
+      </label>
+    </form>
+    <p class="hint">Control tokens may intentionally match the AirPad control token. Peer identity tokens stay separate.</p>
+    <div id="error" class="error"></div>
+    <section id="result" class="panel" hidden>
+      <div id="meta" class="meta"></div>
+      <h2>Known Peers</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Label</th>
+            <th>Status</th>
+            <th>Transport</th>
+            <th>Aliases</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <h2 style="margin-top: 20px;">Transport Status</h2>
+      <pre id="status"></pre>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById("devices-form");
+    const errorEl = document.getElementById("error");
+    const resultEl = document.getElementById("result");
+    const rowsEl = document.getElementById("rows");
+    const metaEl = document.getElementById("meta");
+    const statusEl = document.getElementById("status");
+    const authTokenEl = document.getElementById("authToken");
+    const userIdEl = document.getElementById("userId");
+
+    const params = new URLSearchParams(location.search);
+    if (params.get("userId")) userIdEl.value = params.get("userId");
+
+    const renderMeta = (data) => {
+      metaEl.replaceChildren();
+      const entries = [
+        ["Access", data.access || "peer"],
+        ["Connected", String((data.reverseDevices || []).length)],
+        ["Known", String((data.knownPeerProfiles || []).length)]
+      ];
+      for (const [label, value] of entries) {
+        const pill = document.createElement("div");
+        pill.className = "pill";
+        pill.textContent = label + ": " + value;
+        metaEl.append(pill);
+      }
+    };
+
+    const renderRows = (profiles) => {
+      rowsEl.replaceChildren();
+      for (const entry of profiles) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = [
+          "<td>" + (entry.id || "") + "</td>",
+          "<td>" + (entry.label || "") + "</td>",
+          "<td class=\\"" + (entry.connected ? "ok" : "off") + "\\">" + (entry.connected ? "connected" : "known") + "</td>",
+          "<td>" + (entry.transport || "") + "</td>",
+          "<td>" + ((entry.aliases || []).join(", ")) + "</td>"
+        ].join("");
+        rowsEl.append(tr);
+      }
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      errorEl.textContent = "";
+      resultEl.hidden = true;
+      const payload = {
+        authToken: authTokenEl.value.trim(),
+        userId: userIdEl.value.trim()
+      };
+      try {
+        const response = await fetch("/api/devices", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || ("HTTP " + response.status));
+        }
+        renderMeta(data);
+        renderRows(Array.isArray(data.knownPeerProfiles) ? data.knownPeerProfiles : []);
+        statusEl.textContent = JSON.stringify(data.status || {}, null, 2);
+        resultEl.hidden = false;
+      } catch (error) {
+        errorEl.textContent = String(error && error.message ? error.message : error);
+      }
+    });
+  </script>
+</body>
+</html>`;
 
 const forwardHttpRequest = async (entry: Record<string, unknown>) => {
     const url = normalizeString(entry.url);
@@ -441,16 +681,23 @@ export const registerTransportHttpHandlers = async (
     app.post("/api/network/fetch", requestHandler);
 
     const devicesHandler = async (request: FastifyRequest<{ Body: Record<string, unknown> }>) => {
-        const auth = await verifyRequestUser(endpointPolicies, asRecord(request.body));
+        const auth = await verifyDevicesRequestAccess(endpointPolicies, request, asRecord(request.body));
         if (!auth.ok) return auth;
         return {
             ok: true,
+            access: "access" in auth ? auth.access : "peer",
             reverseDevices: sockets.getConnectedDevices(auth.userId),
             reverseDeviceProfiles: sockets.getConnectedPeerProfiles(auth.userId).map((entry) => ({ id: entry.id, label: entry.label })),
+            knownPeerProfiles: sockets.getKnownPeerProfiles(),
+            status: sockets.getStatus(),
             configuredTargets: []
         };
     };
 
+    app.get("/devices", async (_request, reply) => {
+        reply.header("Content-Type", "text/html; charset=utf-8");
+        return reply.send(renderDevicesPage());
+    });
     app.post("/core/ops/devices", devicesHandler);
     app.post("/api/devices", devicesHandler);
 

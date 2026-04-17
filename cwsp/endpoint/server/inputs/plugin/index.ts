@@ -206,7 +206,10 @@ export const registerIoPlugin = async (adminApp: FastifyInstance, publicApp: Fas
 
     const engine = context.engine;
     const cfg = engine.config as Record<string, unknown>;
-    const bridge = (cfg.bridge || {}) as Record<string, unknown>;
+    const bridge = {
+        ...((cfg.bridge || {}) as Record<string, unknown>),
+        allowInsecureTls: asRecord(cfg.ops).allowInsecureTls === true
+    } as Record<string, unknown>;
 
     const identity = resolveServerV2WireIdentity({
         endpointUrl: String(bridge.endpointUrl || "").trim(),

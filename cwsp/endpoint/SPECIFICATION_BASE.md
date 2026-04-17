@@ -463,3 +463,33 @@ How &ould works our network.
 - Simulator/debug client from `45.150.9.153` (VDS), with client token `n3v3rm1nd` instead of IP
 - PWA or Native application from NAT (unknown IP, but with client token `n3v3rm1nd` instead of IP)
 - PWA or Native application from private/local network with IP `192.168.0.196`.
+
+### Associated Client ID and Token
+
+This pair is used for peer identity on the canonical `/ws` transport.
+
+- `clientId` identifies the peer/device.
+- `token` or `userKey` carries the associated client token.
+- A known LAN IP may stand in for the token side of identity in trusted cases.
+- Android-native and AirPad/PWA are parallel client apps, not one merged identity/runtime.
+- Both may connect directly or through a bridge/gateway, but they still join the shared endpoint world through `/ws` first.
+
+### Endpoint or Server Auth Token
+
+Additional Server (endpoint) Auth Token is a separate master/admin token for the endpoint itself. It is optional for ordinary peer connections and must not be fused with the associated client token.
+
+- This endpoint/master token may intentionally be the same literal value as an AirPad control token.
+- Sharing the same literal secret does not collapse the concepts: control auth remains separate from peer identity.
+
+### Encryption?
+
+Determined by `endpoint` server, while handshake with `client`, and only once, next time used Client ID and Token (or IP address) identifiers, encryption not dependent. 
+
+### Client ID Auth Token
+
+Optionally, some client IDs can/may use a second auth token for incoming control connections such as AirPad.
+
+- Wire name: `airpadToken`
+- It is optional and separate from `token` / `userKey`
+- A client may send both `token` and `airpadToken` in the same websocket handshake when required
+- Control-oriented endpoint surfaces such as `/devices` may accept the endpoint/master token or the AirPad control token when those are intentionally shared

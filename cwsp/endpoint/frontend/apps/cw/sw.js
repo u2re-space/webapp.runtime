@@ -2793,6 +2793,7 @@ var init_SettingsTypes = __esmMin((() => {
 			socket: {
 				protocol: "auto",
 				routeTarget: "",
+				selfId: "",
 				transportMode: "plaintext",
 				transportSecret: "",
 				signingSecret: ""
@@ -5932,6 +5933,38 @@ var init_Interface = __esmMin((() => {
 	}({});
 }));
 //#endregion
+//#region shared/fest/uniform/newer/core/TransportCore.ts
+function normalizeTransportTypeAlias(transport) {
+	const raw = String(transport ?? "").trim().toLowerCase();
+	if (!raw) return "internal";
+	return TRANSPORT_TYPE_ALIASES[raw] ?? raw;
+}
+function detectTransportType$1(transport) {
+	if (typeof Worker !== "undefined" && transport instanceof Worker) return "worker";
+	if (typeof SharedWorker !== "undefined" && transport instanceof SharedWorker) return "shared-worker";
+	if (typeof MessagePort !== "undefined" && transport instanceof MessagePort) return "message-port";
+	if (typeof BroadcastChannel !== "undefined" && transport instanceof BroadcastChannel) return "broadcast";
+	if (typeof WebSocket !== "undefined" && transport instanceof WebSocket) return "websocket";
+	if (typeof RTCDataChannel !== "undefined" && transport instanceof RTCDataChannel) return "rtc-data";
+	if (typeof chrome !== "undefined" && transport && typeof transport === "object" && typeof transport.postMessage === "function" && transport.onMessage?.addListener) return "chrome-port";
+	if (typeof transport === "string") return normalizeTransportTypeAlias(transport);
+	if (transport === "self") return "self";
+	return "internal";
+}
+var TRANSPORT_TYPE_ALIASES;
+var init_TransportCore = __esmMin((() => {
+	TRANSPORT_TYPE_ALIASES = {
+		"ws": "websocket",
+		"socket": "websocket",
+		"socketio": "socket-io",
+		"service": "service-worker",
+		"sw": "service-worker",
+		"service-worker-client": "service-worker",
+		"service-worker-host": "service-worker",
+		"ring-buffer": "atomics"
+	};
+}));
+//#endregion
 //#region shared/fest/core/runtime/dom-globals-polyfill.ts
 /**
 * Chrome MV3 service workers (and some workers) do not expose DOM interface
@@ -6862,15 +6895,9 @@ function detectContextType() {
 	return "unknown";
 }
 function detectTransportType(source) {
-	if (!source) return "internal";
-	if (typeof Worker !== "undefined" && source instanceof Worker) return "worker";
-	if (typeof SharedWorker !== "undefined" && source instanceof SharedWorker) return "shared-worker";
-	if (typeof MessagePort !== "undefined" && source instanceof MessagePort) return "message-port";
-	if (typeof BroadcastChannel !== "undefined" && source instanceof BroadcastChannel) return "broadcast";
-	if (typeof WebSocket !== "undefined" && source instanceof WebSocket) return "websocket";
 	if (typeof RTCDataChannel !== "undefined" && source instanceof RTCDataChannel) return "rtc-data";
-	if (source === "chrome-runtime" || source === "chrome-tabs" || source === "chrome-port" || source === "chrome-external") return source;
-	if (typeof chrome !== "undefined" && source && typeof source === "object" && typeof source.postMessage === "function" && source.onMessage?.addListener) return "chrome-port";
+	const detected = detectTransportType$1(source);
+	if (detected && detected !== "internal") return detected;
 	if (source === self || source === globalThis || source === "self") return "self";
 	return "internal";
 }
@@ -6888,6 +6915,7 @@ var DefaultReflect;
 var init_Invoker = __esmMin((() => {
 	init_core$3();
 	init_UnifiedChannel();
+	init_TransportCore();
 	DefaultReflect = {
 		get: (target, prop) => Reflect.get(target, prop),
 		set: (target, prop, value) => Reflect.set(target, prop, value),
@@ -11303,9 +11331,9 @@ var init_Utils$4 = __esmMin((() => {
 }));
 //#endregion
 //#region shared/fest/uniform/newer/messaging/Protocol.ts
-var PURPOSES, TYPES, DEFAULT_PURPOSE, asString, normalizePath$2, normalizeArgs, normalizeTransfer, normalizePurpose, inferType, inferOperation, inferProtocol, randomId, createProtocolEnvelope, isProtocolEnvelope, normalizeProtocolEnvelope, ProtocolReplayGuard;
+var PURPOSES$1, TYPES, DEFAULT_PURPOSE, asString, normalizePath$2, normalizeArgs, normalizeTransfer, normalizePurpose$1, inferType, inferOperation, inferProtocol, randomId$1, createProtocolEnvelope, isProtocolEnvelope, normalizeProtocolEnvelope, ProtocolReplayGuard;
 var init_Protocol = __esmMin((() => {
-	PURPOSES = new Set([
+	PURPOSES$1 = new Set([
 		"invoke",
 		"mail",
 		"attach",
@@ -11335,10 +11363,10 @@ var init_Protocol = __esmMin((() => {
 		if (transfer == null) return void 0;
 		return Array.isArray(transfer) ? transfer : [transfer];
 	};
-	normalizePurpose = (purpose) => {
+	normalizePurpose$1 = (purpose) => {
 		const input = Array.isArray(purpose) ? purpose : purpose ? [purpose] : [DEFAULT_PURPOSE];
 		const deduped = [];
-		for (const entry of input) if (PURPOSES.has(entry) && !deduped.includes(entry)) deduped.push(entry);
+		for (const entry of input) if (PURPOSES$1.has(entry) && !deduped.includes(entry)) deduped.push(entry);
 		return deduped.length > 0 ? deduped : [DEFAULT_PURPOSE];
 	};
 	inferType = (input) => {
@@ -11360,7 +11388,7 @@ var init_Protocol = __esmMin((() => {
 		if (!value) return "unknown";
 		return value;
 	};
-	randomId = () => {
+	randomId$1 = () => {
 		if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
 		return `uniform_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 	};
@@ -11369,12 +11397,12 @@ var init_Protocol = __esmMin((() => {
 		const source = asString(input.srcChannel ?? input.source) || "uniform";
 		const destination = asString(input.destination);
 		const dstChannel = input.dstChannel ?? (destination ? destination : void 0);
-		const uuid = asString(input.uuid ?? input.id) || randomId();
+		const uuid = asString(input.uuid ?? input.id) || randomId$1();
 		const type = inferType(input);
 		const payload = input.payload ?? input.data;
 		const metadata = { ...input.metadata ?? {} };
 		return {
-			purpose: normalizePurpose(input.purpose),
+			purpose: normalizePurpose$1(input.purpose),
 			protocol: inferProtocol(input.protocol),
 			redirect: Boolean(input.redirect),
 			flags: { ...input.flags ?? {} },
@@ -11894,6 +11922,7 @@ var init_ChannelMessageHandler = __esmMin((() => {
 //#region shared/fest/uniform/newer/index.ts
 var init_newer = __esmMin((() => {
 	init_Interface();
+	init_TransportCore();
 	init_RequestHandler();
 	init_Observable();
 	init_UnifiedChannel();
@@ -11925,7 +11954,7 @@ var init_newer = __esmMin((() => {
 	init_ChannelMessageHandler();
 })), init_uniform = __esmMin((() => {
 	init_newer();
-})), BROADCAST_CHANNELS, VIEW_POST_API_SEGMENTS, isViewPostApiPath, viewBroadcastChannelName, ROUTE_HASHES, DESTINATIONS, init_Names = __esmMin((() => {
+})), BROADCAST_CHANNELS, VIEW_POST_API_SEGMENTS, isViewPostApiPath, viewBroadcastChannelName, COMPONENTS, ROUTE_HASHES, DESTINATIONS, CANONICAL_VIEW_IDS, DESTINATION_ALIASES, DESTINATION_LOOKUP, normalizeDestination, getDestinationAliases, normalizeViewId, getBroadcastChannelForDestination, createDestinationChannelMappings, init_Names = __esmMin((() => {
 	BROADCAST_CHANNELS = {
 		SHARE_TARGET: "rs-share-target",
 		TOAST: "rs-toast",
@@ -11971,7 +12000,30 @@ var init_newer = __esmMin((() => {
 		return VIEW_POST_API_SEGMENTS.includes(seg) ? seg : null;
 	};
 	viewBroadcastChannelName = (viewId) => {
-		return `rs-view-${String(viewId || "").toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-+|-+$/g, "") || "app"}`;
+		return `rs-view-${normalizeViewId(viewId) || "app"}`;
+	};
+	COMPONENTS = {
+		WORK_CENTER: "workcenter",
+		MARKDOWN_VIEWER: "markdown-viewer",
+		MARKDOWN_EDITOR: "markdown-editor",
+		RICH_EDITOR: "rich-editor",
+		SETTINGS: "settings",
+		HISTORY: "history",
+		FILE_PICKER: "file-picker",
+		FILE_EXPLORER: "file-explorer",
+		WORKCENTER_CORE: "workcenter-core",
+		BASIC_WORKCENTER: "basic-workcenter",
+		BASIC_VIEWER: "basic-viewer",
+		BASIC_EXPLORER: "basic-explorer",
+		BASIC_SETTINGS: "basic-settings",
+		BASIC_HISTORY: "basic-history",
+		BASIC_PRINT: "basic-print",
+		AIRPAD: "airpad",
+		HOME: "home",
+		EDITOR: "editor",
+		VIEWER: "viewer",
+		EXPLORER: "explorer",
+		PRINT: "print"
 	};
 	ROUTE_HASHES = {
 		MARKDOWN_VIEWER: "#markdown-viewer",
@@ -11995,13 +12047,115 @@ var init_newer = __esmMin((() => {
 	DESTINATIONS = {
 		WORKCENTER: "workcenter",
 		CLIPBOARD: "clipboard",
+		VIEWER: "viewer",
 		MARKDOWN_VIEWER: "markdown-viewer",
 		SETTINGS: "settings",
 		HISTORY: "history",
+		EXPLORER: "explorer",
 		FILE_EXPLORER: "file-explorer",
+		PRINT: "print",
 		PRINT_VIEWER: "print-viewer",
+		EDITOR: "editor",
+		AIRPAD: "airpad",
+		HOME: "home",
 		BASIC_APP: "basic-app",
 		MAIN_APP: "main-app"
+	};
+	CANONICAL_VIEW_IDS = [
+		"viewer",
+		"workcenter",
+		"explorer",
+		"editor",
+		"settings",
+		"history",
+		"home",
+		"airpad",
+		"print"
+	];
+	DESTINATION_ALIASES = {
+		viewer: [
+			DESTINATIONS.VIEWER,
+			DESTINATIONS.MARKDOWN_VIEWER,
+			COMPONENTS.BASIC_VIEWER
+		],
+		workcenter: [
+			DESTINATIONS.WORKCENTER,
+			COMPONENTS.BASIC_WORKCENTER,
+			COMPONENTS.WORKCENTER_CORE
+		],
+		explorer: [
+			DESTINATIONS.EXPLORER,
+			DESTINATIONS.FILE_EXPLORER,
+			COMPONENTS.BASIC_EXPLORER
+		],
+		editor: [
+			DESTINATIONS.EDITOR,
+			COMPONENTS.MARKDOWN_EDITOR,
+			COMPONENTS.RICH_EDITOR
+		],
+		settings: [
+			DESTINATIONS.SETTINGS,
+			BROADCAST_CHANNELS.SETTINGS_CHANNEL,
+			COMPONENTS.BASIC_SETTINGS
+		],
+		history: [
+			DESTINATIONS.HISTORY,
+			BROADCAST_CHANNELS.HISTORY_CHANNEL,
+			COMPONENTS.BASIC_HISTORY
+		],
+		print: [
+			DESTINATIONS.PRINT,
+			DESTINATIONS.PRINT_VIEWER,
+			COMPONENTS.BASIC_PRINT
+		],
+		airpad: [DESTINATIONS.AIRPAD],
+		home: [DESTINATIONS.HOME],
+		clipboard: [DESTINATIONS.CLIPBOARD],
+		"basic-app": [DESTINATIONS.BASIC_APP],
+		"main-app": [DESTINATIONS.MAIN_APP]
+	};
+	DESTINATION_LOOKUP = Object.entries(DESTINATION_ALIASES).reduce((out, [canonical, aliases]) => {
+		out[canonical] = canonical;
+		for (const alias of aliases) out[String(alias).toLowerCase()] = canonical;
+		return out;
+	}, {});
+	normalizeDestination = (value) => {
+		const raw = String(value || "").trim().toLowerCase();
+		if (!raw) return "";
+		return DESTINATION_LOOKUP[raw] || raw;
+	};
+	getDestinationAliases = (value) => {
+		const canonical = normalizeDestination(value);
+		if (!canonical) return [];
+		return [...new Set([canonical, ...DESTINATION_ALIASES[canonical] || []])];
+	};
+	normalizeViewId = (value) => {
+		const canonical = normalizeDestination(value);
+		if (CANONICAL_VIEW_IDS.includes(canonical)) return canonical;
+		return "viewer";
+	};
+	getBroadcastChannelForDestination = (value) => {
+		switch (normalizeDestination(value)) {
+			case "viewer": return BROADCAST_CHANNELS.MARKDOWN_VIEWER;
+			case "workcenter": return BROADCAST_CHANNELS.WORK_CENTER;
+			case "explorer": return BROADCAST_CHANNELS.FILE_EXPLORER;
+			case "settings": return BROADCAST_CHANNELS.SETTINGS;
+			case "history": return BROADCAST_CHANNELS.HISTORY_VIEWER;
+			case "print": return BROADCAST_CHANNELS.PRINT_VIEWER;
+			case "clipboard": return BROADCAST_CHANNELS.CLIPBOARD;
+			case "main-app": return BROADCAST_CHANNELS.MAIN_APP;
+			case "basic-app": return BROADCAST_CHANNELS.MINIMAL_APP;
+			default: return null;
+		}
+	};
+	createDestinationChannelMappings = () => {
+		const mappings = {};
+		for (const canonical of Object.keys(DESTINATION_ALIASES)) {
+			const channel = getBroadcastChannelForDestination(canonical);
+			if (!channel) continue;
+			for (const alias of getDestinationAliases(canonical)) mappings[alias] = channel;
+		}
+		return mappings;
 	};
 	BROADCAST_CHANNELS.SERVICE_WORKCENTER, BROADCAST_CHANNELS.SERVICE_SETTINGS, BROADCAST_CHANNELS.SERVICE_VIEWER, BROADCAST_CHANNELS.SERVICE_EXPLORER, BROADCAST_CHANNELS.SERVICE_AIRPAD, BROADCAST_CHANNELS.SERVICE_PRINT, BROADCAST_CHANNELS.SERVICE_HISTORY, BROADCAST_CHANNELS.SERVICE_EDITOR, BROADCAST_CHANNELS.SERVICE_HOME;
 	ROUTE_HASHES.WORKCENTER, ROUTE_HASHES.SETTINGS, ROUTE_HASHES.MARKDOWN_VIEWER, ROUTE_HASHES.FILE_EXPLORER, ROUTE_HASHES.PRINT, ROUTE_HASHES.HISTORY, ROUTE_HASHES.MARKDOWN_EDITOR;
@@ -12799,6 +12953,114 @@ var init_ContentAssociations = __esmMin((() => {
 	init_UnifiedAIConfig();
 }));
 //#endregion
+//#region src/com/core/UniformInterop.ts
+var PROTOCOL_ALIASES, TRANSPORT_ALIASES, PURPOSES, randomId, normalizePurpose, normalizeInteropProtocolName, normalizeInteropTransportName, createInteropEnvelope;
+var init_UniformInterop = __esmMin((() => {
+	init_Names();
+	PROTOCOL_ALIASES = {
+		"chrome-runtime": "chrome",
+		"chrome-tabs": "chrome",
+		"chrome-port": "chrome",
+		"chrome-external": "chrome",
+		"service-worker": "worker",
+		"service-worker:http": "worker",
+		"service": "worker",
+		"sw": "worker",
+		"broadcast-channel": "broadcast",
+		"broadcastchannel": "broadcast",
+		"websocket": "socket",
+		"ws": "socket",
+		"socket-io": "socket",
+		"socketio": "socket"
+	};
+	TRANSPORT_ALIASES = {
+		"service": "service-worker",
+		"service-worker:http": "service-worker",
+		"sw": "service-worker",
+		"ws": "websocket",
+		"socket": "websocket",
+		"socketio": "socket-io",
+		"chrome": "chrome-runtime"
+	};
+	PURPOSES = new Set([
+		"invoke",
+		"mail",
+		"attach",
+		"deliver",
+		"defer"
+	]);
+	randomId = () => {
+		if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+		return `interop_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+	};
+	normalizePurpose = (value) => {
+		const raw = Array.isArray(value) ? value : value ? [value] : ["mail"];
+		const deduped = [];
+		for (const entry of raw) if (PURPOSES.has(entry) && !deduped.includes(entry)) deduped.push(entry);
+		return deduped.length > 0 ? deduped : ["mail"];
+	};
+	normalizeInteropProtocolName = (value) => {
+		const raw = String(value || "").trim().toLowerCase();
+		if (!raw) return "unknown";
+		return PROTOCOL_ALIASES[raw] || raw;
+	};
+	normalizeInteropTransportName = (value) => {
+		const raw = String(value || "").trim().toLowerCase();
+		if (!raw) return void 0;
+		return TRANSPORT_ALIASES[raw] || raw;
+	};
+	createInteropEnvelope = (input) => {
+		const id = String(input.id || input.uuid || "").trim() || randomId();
+		const source = String(input.source || input.sender || input.srcChannel || "interop").trim() || "interop";
+		const destination = normalizeDestination(input.destination || input.target);
+		const destinations = Array.isArray(input.destinations) && input.destinations.length > 0 ? [...new Set(input.destinations.map((entry) => normalizeDestination(entry)).filter(Boolean))] : destination ? getDestinationAliases(destination) : [];
+		const payload = input.payload ?? input.data;
+		const timestamp = Number(input.timestamp ?? Date.now()) || Date.now();
+		return {
+			id,
+			uuid: id,
+			type: String(input.type || "request"),
+			source,
+			sender: String(input.sender || source),
+			destination: destination || void 0,
+			target: destination || void 0,
+			contentType: input.contentType ? String(input.contentType) : void 0,
+			data: payload,
+			payload,
+			metadata: {
+				timestamp,
+				...input.metadata || {}
+			},
+			purpose: normalizePurpose(input.purpose),
+			protocol: normalizeInteropProtocolName(input.protocol),
+			transport: normalizeInteropTransportName(input.transport),
+			redirect: Boolean(input.redirect),
+			flags: { ...input.flags || {} },
+			op: String(input.op || (String(input.type || "").startsWith("response:") ? "response" : "deliver")),
+			timestamp,
+			srcChannel: String(input.srcChannel || source),
+			dstChannel: input.dstChannel ?? (destination || void 0),
+			destinations,
+			ids: {
+				byId: source,
+				from: source,
+				sender: source,
+				destinations,
+				...input.ids || {}
+			},
+			urls: Array.isArray(input.urls) ? [...input.urls] : [],
+			tokens: Array.isArray(input.tokens) ? [...input.tokens] : [],
+			toRoles: Array.isArray(input.toRoles) ? [...input.toRoles] : [],
+			tabId: input.tabId,
+			frameId: input.frameId,
+			status: typeof input.status === "number" ? input.status : void 0,
+			result: input.result,
+			results: input.results,
+			error: input.error
+		};
+	};
+}));
+//#endregion
 //#region src/com/core/UnifiedMessaging.ts
 /**
 * Get the app-configured UnifiedMessagingManager
@@ -12825,13 +13087,11 @@ var init_UnifiedMessaging = __esmMin((() => {
 	init_uniform();
 	init_Names();
 	init_ContentAssociations();
+	init_UniformInterop();
 	APP_CHANNEL_MAPPINGS = {
+		...createDestinationChannelMappings(),
 		[DESTINATIONS.WORKCENTER]: BROADCAST_CHANNELS.WORK_CENTER,
-		[DESTINATIONS.CLIPBOARD]: BROADCAST_CHANNELS.CLIPBOARD,
-		[DESTINATIONS.MARKDOWN_VIEWER]: BROADCAST_CHANNELS.MARKDOWN_VIEWER,
-		[DESTINATIONS.SETTINGS]: BROADCAST_CHANNELS.SETTINGS,
-		[DESTINATIONS.FILE_EXPLORER]: BROADCAST_CHANNELS.FILE_EXPLORER,
-		[DESTINATIONS.PRINT_VIEWER]: BROADCAST_CHANNELS.PRINT_VIEWER
+		[DESTINATIONS.CLIPBOARD]: BROADCAST_CHANNELS.CLIPBOARD
 	};
 	appMessagingInstance = null;
 	getUnifiedMessaging();
@@ -12849,7 +13109,13 @@ var cws_bridge_exports = /* @__PURE__ */ __exportAll({
 	isElectronCwsNativeShell: () => isElectronCwsNativeShell,
 	patchNativeUnifiedSettings: () => patchNativeUnifiedSettings
 });
-/** Best-effort: resolves shell metadata and subscribes to {@code nativeMessage} → {@code cws-native-message} on window. */
+/**
+* Initialize the native bridge surface and normalize inbound native messages.
+*
+* AI-READ: this is the TypeScript side of the WebView/native boundary, so it
+* is one of the first places to inspect when networking works natively but not
+* through the web shell or vice versa.
+*/
 async function initCwsNativeBridge() {
 	if (bridgeInitDone) return typeof globalThis.window !== "undefined" ? globalThis.window.__CWS_SHELL_INFO__ ?? null : null;
 	bridgeInitDone = true;
@@ -12866,9 +13132,10 @@ async function initCwsNativeBridge() {
 			await CwsBridge.addListener("nativeMessage", (event) => {
 				const payload = event && typeof event.payload === "object" && event.payload != null ? event.payload : {};
 				const envelopeRaw = payload?.envelope;
-				const envelope = envelopeRaw && typeof envelopeRaw === "object" && isProtocolEnvelope(envelopeRaw) ? normalizeProtocolEnvelope(envelopeRaw) : createProtocolEnvelope({
+				const envelope = envelopeRaw && typeof envelopeRaw === "object" && isProtocolEnvelope(envelopeRaw) ? normalizeProtocolEnvelope(envelopeRaw) : createProtocolEnvelope(createInteropEnvelope({
 					purpose: "mail",
 					protocol: "service",
+					transport: "service-worker",
 					type: "act",
 					op: "deliver",
 					source: "native",
@@ -12877,7 +13144,7 @@ async function initCwsNativeBridge() {
 					dstChannel: "webview",
 					payload,
 					data: payload
-				});
+				}));
 				globalThis.dispatchEvent(new CustomEvent("cws-native-message", { detail: {
 					event,
 					envelope,
@@ -12954,6 +13221,7 @@ async function getNativeUnifiedSettings() {
 		return null;
 	}
 }
+/** Patch native-side settings through the same bridge used by transport/runtime configuration. */
 async function patchNativeUnifiedSettings(appSettings) {
 	try {
 		const result = await invokeCwsPlatformIPC({
@@ -12969,6 +13237,7 @@ var CwsBridgeWeb, CwsBridge, bridgeInitDone, normalizeBridgeEnvelope, normalizeI
 var init_cws_bridge = __esmMin((() => {
 	init_dist$1();
 	init_UnifiedMessaging();
+	init_UniformInterop();
 	CwsBridgeWeb = class extends WebPlugin {
 		async getShellInfo() {
 			return {
@@ -12993,33 +13262,39 @@ var init_cws_bridge = __esmMin((() => {
 	normalizeBridgeEnvelope = (channel, payload, envelope) => {
 		if (envelope && isProtocolEnvelope(envelope)) return normalizeProtocolEnvelope(envelope);
 		return createProtocolEnvelope({
-			purpose: "invoke",
-			protocol: "service",
-			type: "invoke",
-			op: "invoke",
-			path: ["cws-bridge", channel],
-			source: "webview",
-			destination: "native",
-			srcChannel: "webview",
-			dstChannel: "native",
-			payload: payload ?? {},
-			data: payload ?? {}
+			...createInteropEnvelope({
+				purpose: "invoke",
+				protocol: "service",
+				transport: "service-worker",
+				type: "invoke",
+				op: "invoke",
+				source: "webview",
+				destination: "native",
+				srcChannel: "webview",
+				dstChannel: "native",
+				payload: payload ?? {},
+				data: payload ?? {}
+			}),
+			path: ["cws-bridge", channel]
 		});
 	};
 	normalizeInvokeResultEnvelope = (channel, payload, result) => {
 		if (result?.envelope && isProtocolEnvelope(result.envelope)) return normalizeProtocolEnvelope(result.envelope);
 		return createProtocolEnvelope({
-			purpose: "invoke",
-			protocol: "service",
-			type: result.ok ? "response" : "ack",
-			op: "invoke",
-			path: ["cws-bridge", channel],
-			source: "native",
-			destination: "webview",
-			srcChannel: "native",
-			dstChannel: "webview",
-			payload,
-			data: payload
+			...createInteropEnvelope({
+				purpose: "invoke",
+				protocol: "service",
+				transport: "service-worker",
+				type: result.ok ? "response" : "ack",
+				op: "invoke",
+				source: "native",
+				destination: "webview",
+				srcChannel: "native",
+				dstChannel: "webview",
+				payload,
+				data: payload
+			}),
+			path: ["cws-bridge", channel]
 		});
 	};
 	isCapacitorCwsNativeShell = () => {
@@ -14702,6 +14977,12 @@ var init_dom = __esmMin((() => {
 //#region shared/fest/object/wrap/Symbol.ts
 var $value, $extractKey$, $originalKey$, $registryKey$, $behavior$1, $promise, $triggerLess, $triggerLock, $trigger, $affected, $isNotEqual;
 var init_Symbol = __esmMin((() => {
+	/**
+	* Shared symbol registry for the `object.ts` reactive runtime.
+	*
+	* These symbols form the hidden protocol used across wrappers, proxies,
+	* registries, and refs so internal bookkeeping does not collide with user keys.
+	*/
 	Symbol.observable ||= Symbol.for("observable");
 	Symbol.subscribe ||= Symbol.for("subscribe");
 	Symbol.unsubscribe ||= Symbol.for("unsubscribe");
@@ -14719,6 +15000,12 @@ var init_Symbol = __esmMin((() => {
 }));
 //#endregion
 //#region shared/fest/object/wrap/Utils.ts
+/**
+* Append a callback to an object's disposal/call chain.
+*
+* AI-READ: `Symbol.dispose` is treated specially and kept in a side registry so
+* multiple callbacks can be composed without overwriting each other.
+*/
 function addToCallChain(obj, methodKey, callback) {
 	if (!callback || typeof callback != "function" || typeof obj != "object" && typeof obj != "function") return;
 	if (methodKey == Symbol.dispose) disposeMap?.getOrInsertComputed?.(obj, () => {
@@ -14841,6 +15128,7 @@ var init_Subscript = __esmMin((() => {
 			this.#native = typeof Observable != "undefined" ? new Observable(controller) : null;
 			this.compatible = () => this.#native;
 		}
+		/** Run one listener with simple re-entrancy and duplicate-same-tick guards. */
 		$safeExec(cb, ...args) {
 			if (!cb || this.#flags.has(cb)) return;
 			this.#flags.add(cb);
@@ -14888,6 +15176,12 @@ var init_Subscript = __esmMin((() => {
 		* - один dispatch на name за микро-тик
 		* - повторные trigger(name) до flush не вызывают повторно dispatch, а лишь обновляют аргументы
 		* - другие name не блокируются
+		*/
+		/**
+		* Queue and coalesce trigger events by property and operation per microtask.
+		*
+		* WHY: hot mutation paths can emit many intermediate writes; batching keeps
+		* subscribers deterministic and avoids recursive cascades on one property.
 		*/
 		trigger(name, value, oldValue, operation = null, ...etc) {
 			if (typeof name === "symbol") return;
@@ -15791,6 +16085,10 @@ function affected(obj, prop, cb = () => {}, ctx) {
 		});
 	}
 }
+/**
+* Subscribe to iteration-level changes for arrays, sets, maps, and ref-like
+* containers whose `value` should itself be treated as a collection.
+*/
 function iterated(tg, cb, ctx = null) {
 	if (!tg) return;
 	if (registeredIterated.has([tg, cb])) return registeredIterated.get([tg, cb]);
@@ -15819,6 +16117,7 @@ function iterated(tg, cb, ctx = null) {
 		return affected(tg, cb, ctx);
 	});
 }
+/** Remove a previously registered subscription. */
 function unaffected(tg, cb, ctx = null) {
 	return withPromise(tg, (target) => {
 		const isPair = Array.isArray(target) && target?.length == 2 && ["object", "function"].indexOf(typeof target?.[0]) >= 0 && isKeyType(target?.[1]);
@@ -28679,6 +28978,10 @@ var init_EntityId = __esmMin((() => {
 }));
 //#endregion
 //#region src/core/storage/OPFSMod.ts
+/**
+* Walk a directory tree inside OPFS, apply a transform to every JSON-like file,
+* and optionally perform a dry run without writing changes.
+*/
 async function opfsModifyJson(options) {
 	const { dirPath, transform, filter, indent = 2, dryRun = false, prettyStable = true } = options;
 	assertOpfs();
@@ -28776,6 +29079,7 @@ async function getDirByPath(rootDirHandle, path) {
 	}
 	return dir;
 }
+/** Async generator for recursively walking an OPFS directory tree. */
 async function* walk(dirHandle, basePath = "") {
 	for await (const [name, handle] of dirHandle.entries()) {
 		const fullPath = basePath ? `${basePath}/${name}` : name;
@@ -28790,6 +29094,7 @@ async function* walk(dirHandle, basePath = "") {
 function serializeJSON(obj, { indent = 2, prettyStable = true } = {}) {
 	return JSON.stringify(obj, prettyStable ? stableReplacer : void 0, indent) + "\n";
 }
+/** Stable key ordering for deterministic JSON output and smaller diffs. */
 function stableReplacer(key, value) {
 	if (value && typeof value === "object" && !Array.isArray(value)) {
 		const out = {};
@@ -33978,6 +34283,7 @@ init_entities();
 init_unified();
 //#endregion
 //#region src/com/service/misc/ActionHistory.ts
+/** In-memory history store with optional browser persistence and lightweight filtering. */
 var ActionHistoryStore = class {
 	state;
 	storageKey = "rs-action-history";
@@ -33990,9 +34296,7 @@ var ActionHistoryStore = class {
 		};
 		this.loadHistory();
 	}
-	/**
-	* Add a new action entry
-	*/
+	/** Insert a new entry at the front of the timeline and enforce the retention limit. */
 	addEntry(entry) {
 		const fullEntry = {
 			...entry,
@@ -34018,9 +34322,7 @@ var ActionHistoryStore = class {
 	getEntry(id) {
 		return this.state.entries.find((entry) => entry.id === id);
 	}
-	/**
-	* Get filtered entries
-	*/
+	/** Return entries matching the supplied filters without mutating store state. */
 	getEntries(filters) {
 		let entries = [...this.state.entries];
 		if (filters?.source) entries = entries.filter((entry) => entry.context.source === filters.source);
@@ -34056,9 +34358,7 @@ var ActionHistoryStore = class {
 	setFilters(filters) {
 		Object.assign(this.state.filters, filters);
 	}
-	/**
-	* Get statistics
-	*/
+	/** Summarize history health and distribution by source/action. */
 	getStats() {
 		const entries = this.state.entries;
 		const total = entries.length;
@@ -34163,7 +34463,15 @@ var ActionHistoryStore = class {
 var actionHistory = new ActionHistoryStore();
 //#endregion
 //#region src/com/service/misc/ExecutionCore.ts
+/**
+* Rule-based execution engine for recognition and post-processing flows.
+*
+* It selects the best rule for a given input/context pair, records execution
+* history, runs the processor, and optionally propagates clipboard/broadcast
+* side effects after success.
+*/
 init_GPT_Responses();
+/** Main rule engine shared by workcenter, share-target, launch-queue, and CRX flows. */
 var ExecutionCore = class {
 	rules = [];
 	ruleSets = /* @__PURE__ */ new Map();
@@ -34173,21 +34481,18 @@ var ExecutionCore = class {
 			processingFormat: "markdown"
 		});
 	}
-	/**
-	* Register a new execution rule
-	*/
+	/** Register one execution rule and keep rules sorted by descending priority. */
 	registerRule(rule) {
 		this.rules.push(rule);
 		this.rules.sort((a, b) => b.priority - a.priority);
 	}
-	/**
-	* Register a rule set
-	*/
+	/** Register a named rule subset for callers that want to restrict matching. */
 	registerRuleSet(name, rules) {
 		this.ruleSets.set(name, rules);
 	}
 	/**
-	* Execute an action based on input and context
+	* Resolve the best rule for this request, execute it, and mirror the result
+	* into action history plus any configured follow-up side effects.
 	*/
 	async execute(input, context, options = {}) {
 		const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -35511,15 +35816,17 @@ function checkSWAssociationConditions(conditions, content) {
 	});
 }
 /**
-* Resolve content association for service worker processing
+* Pick the highest-priority worker action for a piece of incoming content.
+*
+* WHY: share-target, launch-queue, push, and background-sync payloads all
+* enter through different browser events but should be normalized through one
+* decision table before handlers run.
 */
 function resolveSWContentAssociation(contentType, context, content) {
 	const matches = SW_CONTENT_ASSOCIATIONS.filter((assoc) => (assoc.contentType === contentType || assoc.contentType === "any") && assoc.context === context).filter((assoc) => !assoc.conditions || checkSWAssociationConditions(assoc.conditions, content)).sort((a, b) => b.priority - a.priority);
 	return matches.length > 0 ? matches[0] : null;
 }
-/**
-* Process content based on association rules
-*/
+/** Execute the worker action resolved by `resolveSWContentAssociation()`. */
 async function processContentWithAssociation(contentType, context, content, event) {
 	console.log("[SW-Association] Incoming content:", summarizeForLog({
 		contentType,
@@ -35879,7 +36186,7 @@ async function broadcastToClients(type, data) {
 		console.warn("[SW-Broadcast] Failed to broadcast to clients:", error);
 	}
 }
-var manifest = [{"revision":"402b66900e731ca748771b6fc5e7a068","url":"registerSW.js"},{"revision":"ea41481f55be1094a2b02c5c2e07cc99","url":"index.js"},{"revision":"94e667335e7fcc48680153e139d18b23","url":"workers/opfs/OPFS.uniform.worker.js"},{"revision":"3afc36d0ca0303b307ff67c3960873e2","url":"views/workcenter.js"},{"revision":"6413f197425587b627f41cc5f51959c0","url":"views/settings.js"},{"revision":"2660af24d86ceb367f9b1911f3f33894","url":"views/home.js"},{"revision":"4bedeb65e2214fae0079a95f7606eded","url":"views/history.js"},{"revision":"e82fe9ca562781da9929743b24b97eea","url":"views/explorer.js"},{"revision":"589b2724a0c0932a209b3bf19739d329","url":"views/editor.js"},{"revision":"e0fc20de81e07745ec5e63700f7354b8","url":"views/airpad.js"},{"revision":"69ab23017456f8cb926eb4b6c7f38511","url":"vendor/socket.io-client.js"},{"revision":"de2c2760e8242be5c62fb1f8eefe9c07","url":"vendor/quill.js"},{"revision":"7e88756390f46618107efb0f8f7cbcaf","url":"vendor/parchment.js"},{"revision":"bbc6dc43ef991c2ee87877452c871921","url":"vendor/lodash.isequal.js"},{"revision":"65966eaf2927aafce866a54bd1c3aea5","url":"vendor/lodash.clonedeep.js"},{"revision":"3849f9e7b1e73df9c307370420c8ce2a","url":"vendor/lodash-es.js"},{"revision":"b4ff75363de50b97e9ccc230f30cb4e6","url":"vendor/fast-diff.js"},{"revision":"9e979c9b04554315d82c9ebaab7e84ed","url":"vendor/eventemitter3.js"},{"revision":"19f3da8be5045fac02f347e084d8d75e","url":"vendor/engine.io-client.js"},{"revision":"86dd05ab2c01b563395f9e1098ccc52f","url":"vendor/@socket.io_component-emitter.js"},{"revision":"976bffedd499320767003a59691277c1","url":"shells/tabbed-index.js"},{"revision":"9d3735b25ceffb1771f561d60f903b4c","url":"shells/print-index.js"},{"revision":"3e3ba21676d6c8f498431729c6d1b8c4","url":"shells/minimal.js"},{"revision":"3364436e05a0affa68bf08455485721e","url":"shells/environment-index.js"},{"revision":"1dfda9cf5428e712dd8baeb1f9b07818","url":"shells/content-index.js"},{"revision":"172fc1dbaea1efbcef274cc259d7b65d","url":"shells/boot-index.js"},{"revision":"98bd047ecc7db4b409e64c32c1c88025","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"d2e16c2c83e617c7641f88aa6cf3ab21","url":"fest/polyfill.js"},{"revision":"44adeea9caa5e0bb4118836825d9fa6d","url":"com/service.js"},{"revision":"160d2fb91157464d89cb55afe3835497","url":"com/app.js"},{"revision":"276b4827deb3cf110ad6e3a0ee56ff7a","url":"chunks/workcenter2.js"},{"revision":"7f5b5a59dadf872176d6259ad82381f6","url":"chunks/window.js"},{"revision":"db8cf5592f383ee93be2daf75e1fd8c5","url":"chunks/websocket.js"},{"revision":"683e8ba60840a3157d06a34329679269","url":"chunks/viewer.js"},{"revision":"be5926865a2f58c761d6fe044ea2479b","url":"chunks/unified.js"},{"revision":"90365694fe9d50ea253ac897bffbe211","url":"chunks/turndown.browser.es.js"},{"revision":"0c9237455ba07e90f2c58eb75a7e5256","url":"chunks/temml.js"},{"revision":"80f90bf75d448ee52fc6306a4518f073","url":"chunks/tabbed.js"},{"revision":"44ce152c4a8aa8e998e28e4fe67d24f2","url":"chunks/settings.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"205257bdc4d09723979d30fbfce426ac","url":"chunks/registry.js"},{"revision":"01dd2b84c897b4f8619981c651d3a96c","url":"chunks/preview.js"},{"revision":"844f1e08c8bfb43fc617d0917dbe61e3","url":"chunks/outdated.js"},{"revision":"db0fc0ceee056ecc901e0d52668a74e6","url":"chunks/main.js"},{"revision":"f4a6a40b7ad5876df6152af6c039b057","url":"chunks/hub-socket-boot.js"},{"revision":"ff50a5c7e28bceeaa42f5e12fd46a1db","url":"chunks/history.js"},{"revision":"b60e2eafd1e295f03bdb3678dadc676d","url":"chunks/explorer.js"},{"revision":"4517a128d0eb076ad2abc8adf9c033d3","url":"chunks/environment.js"},{"revision":"116801269d2861d25c07768c11d04d31","url":"chunks/entities.js"},{"revision":"795eda67f1d7c09b92e63cf25f5de7ee","url":"chunks/editor.js"},{"revision":"098575cb74bde5a131a29ce1b0e346da","url":"chunks/cws-bridge.js"},{"revision":"f819cc8cfb15a4681645ee216ba0555d","url":"chunks/content.js"},{"revision":"c27b90ab041a7ab82972b148038025af","url":"chunks/clipboard-device.js"},{"revision":"0cc13e61f1c9cb6cc6277a44b0f4fc1a","url":"chunks/channel-unknown.js"},{"revision":"217aa0d7c8584dbdd9d86a08f676b36c","url":"chunks/bundle.min.js"},{"revision":"ae5d7f4ee84e78238483e11d5d37416a","url":"chunks/base.js"},{"revision":"38a4b779532210d287a59448fe73b0c9","url":"chunks/airpad.js"},{"revision":"a13d8b25c020b7794050c6f314be4005","url":"chunks/admin-doors.js"},{"revision":"21c6a9a1cd86986f657aa77c1b2708cd","url":"chunks/WorkCenterState.js"},{"revision":"e0a944eeab006b64201e110a6c51ae1d","url":"chunks/WorkCenterDataProcessing.js"},{"revision":"53cec20263487603ae321df82f5052a7","url":"chunks/WorkCenter.js"},{"revision":"c1ed1d617bacff6feb74c0915cf4eafe","url":"chunks/RuntimeSettings.js"},{"revision":"75d3b1a23bdac32732ecf6e6aacd5605","url":"chunks/RecognizeData.js"},{"revision":"16803a9e95702acb86e07663270e9447","url":"chunks/QuillEditor.js"},{"revision":"ba771b7ea93617ba32e09020cf6564bc","url":"chunks/MarkdownEditor.js"},{"revision":"1e1e286ccd7371a3bc632b0284bec30f","url":"chunks/CustomInstructions.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
+var manifest = [{"revision":"402b66900e731ca748771b6fc5e7a068","url":"registerSW.js"},{"revision":"33abe6924ad282e045abc238f60bf3cc","url":"index.js"},{"revision":"e936543ec0405a88f4ed664d3289a0f8","url":"workers/opfs/OPFS.uniform.worker.js"},{"revision":"c7ec44b3bdf6569777bc86d48cdd3a91","url":"views/workcenter4.js"},{"revision":"045a686f3fe24fc829044df0a8d31afe","url":"views/workcenter3.js"},{"revision":"af008164489561c41e7e78472f2b89db","url":"views/workcenter2.js"},{"revision":"88d8896586eb020164df39d681fdeef6","url":"views/workcenter.js"},{"revision":"622cf127736d4371ad34bb24439a086d","url":"views/viewer.js"},{"revision":"0cda31f0a93325bbf2fbe388994f991e","url":"views/settings.js"},{"revision":"05d581e04954abeac7d19bc61ab990ae","url":"views/home.js"},{"revision":"3491c805f2e93adefc5b4d6ea9bb2a0e","url":"views/history.js"},{"revision":"7595bc83166d055651ef19e98ffa2829","url":"views/explorer.js"},{"revision":"393a81975a610b580f453b8a1fcad4fc","url":"views/editor2.js"},{"revision":"415b951ba247801b82028ccde64b5280","url":"views/editor.js"},{"revision":"aaf9b6bc7bab0a93894dcb527af997d9","url":"views/base.js"},{"revision":"22088c001594a0f95e143ddd0fe7f62f","url":"views/api.js"},{"revision":"98c97984cbeb5aa46717ae2b96e734ac","url":"views/airpad4.js"},{"revision":"ca3d353c061d223e6a7da799fc2cdda2","url":"views/airpad3.js"},{"revision":"c77b128e1d6e2cb7ae0d489dfc1233db","url":"views/airpad2.js"},{"revision":"7b448a1848fe6c8fc994bd413e5c727f","url":"views/airpad.js"},{"revision":"3e0d26d4d596eea355d493565040adf7","url":"vendor/marked.js"},{"revision":"bbaec8928c21cd700626494e33dc4381","url":"vendor/marked-katex-extension.js"},{"revision":"409b8eb63574c58bf56fc48fbba50dca","url":"vendor/lodash-es.js"},{"revision":"f41363b85242eae40cbf4fe71a7c4def","url":"vendor/katex2.js"},{"revision":"36ba6fdacbcd6cbedc1b2ccc19744270","url":"vendor/katex.js"},{"revision":"6a5e3243da297a99f4b881140bc2d092","url":"vendor/jsox.js"},{"revision":"cc5189cd52b9b50e75c06d99cbcbcb4f","url":"vendor/dompurify.js"},{"revision":"bc9de84acb4b026dc2ea3e3dbe45ca57","url":"vendor/@capacitor_core.js"},{"revision":"bb7e21aa57a69a4bd8012a99d9d9954a","url":"shells/window-index.scss?inline.js"},{"revision":"36959046272eb45cd743ce0a52d24e5f","url":"shells/tabbed-index.js"},{"revision":"b9239414fe0d8aea2e3a22a89c7591be","url":"shells/shells.js"},{"revision":"72b031cea23ca4d8e4a1f2f444bd85f5","url":"shells/print-index.js"},{"revision":"d81eee8f154dd7efb90952e1ee68495e","url":"shells/preference.js"},{"revision":"dd9aaf53c4e777f43e29fef7a8d48898","url":"shells/minimal.js"},{"revision":"36dedd92259d663b5a674815389295ee","url":"shells/environment-index.js"},{"revision":"e051930e26a32c16e91c227f0927c420","url":"shells/content-index.js"},{"revision":"4dde463003d5a574029f728b88b9c373","url":"shells/boot-ts-routing.js"},{"revision":"c8b088dc01b2380a578a7eca308b41fe","url":"shells/boot-ts-BootLoader.js"},{"revision":"2af093b6f5ac4ce349276aaec236197e","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"574b5d300d371f66458f70332fedbaab","url":"fest/veela.js"},{"revision":"baa11e379f60b00586ae15df0beadd31","url":"fest/uniform.js"},{"revision":"d2e16c2c83e617c7641f88aa6cf3ab21","url":"fest/polyfill.js"},{"revision":"c1a2789a346668ed9478ac04aa1a6c44","url":"fest/object.js"},{"revision":"492225a5ccd7ca56819d06d1455012f3","url":"fest/icon.js"},{"revision":"d896ee31977cb8aacc338e1d1e4e81c7","url":"fest/dom.js"},{"revision":"9c43890423745b0f9aca3a3540b70ca2","url":"core/clipboard.js"},{"revision":"29df94ececa81d077b1a65ede18d20cc","url":"com/service9.js"},{"revision":"a379b25f2bf8b06d64f9c8e9c7f33014","url":"com/service8.js"},{"revision":"459f6d5debdd29103d740f29fe452568","url":"com/service7.js"},{"revision":"8465d56f87ac882adda0cd3140ed1c97","url":"com/service6.js"},{"revision":"0b6e4ed028740d3e9276b070f1dc950e","url":"com/service5.js"},{"revision":"94697bbee2a3f8e997ec85ab5e50978e","url":"com/service4.js"},{"revision":"9080cd51947b4a3129f69cf22946ad3f","url":"com/service3.js"},{"revision":"50c7866034f1bc965e92627addfeed0a","url":"com/service29.js"},{"revision":"9f3d45ec9f122ad42ccdc33436541ba9","url":"com/service28.js"},{"revision":"03bd7a5b5e448b9886f46305242b19a1","url":"com/service27.js"},{"revision":"76f129da45ffb16059e7e52bf73309ad","url":"com/service26.js"},{"revision":"795c484e36490dbbc1b0e1d85f96e1b3","url":"com/service25.js"},{"revision":"c38f7869e19a9a388646a354b5c0e6d7","url":"com/service24.js"},{"revision":"ae44b5af18bc37862d784007d38f4bfd","url":"com/service23.js"},{"revision":"a49a2691a051949c329831aa7d4cd95a","url":"com/service22.js"},{"revision":"6ebfd6ce7ae9d5b12c3420dfe638e822","url":"com/service21.js"},{"revision":"08cd3068b363ca7d889b954a589caa2b","url":"com/service20.js"},{"revision":"19ea36681efe9bb44a872003fd9dc589","url":"com/service2.js"},{"revision":"32891e549044537fe415f10d6cf2bbb5","url":"com/service19.js"},{"revision":"e1debd7c25f64e8ee0a5d9548ce22d84","url":"com/service18.js"},{"revision":"1a3f5462d25735ceaa79eeb8b3e1182c","url":"com/service17.js"},{"revision":"335c0e708c7a8d7fb3fe6e40f0a2dc88","url":"com/service16.js"},{"revision":"8d08939d39b906f07acafa98755f408b","url":"com/service15.js"},{"revision":"bdc33a72f27d16017b8aabfaf9fc084e","url":"com/service14.js"},{"revision":"11e5e25d09899973f06dad91132c9804","url":"com/service13.js"},{"revision":"3e52fb014784f0101679f5448108bf65","url":"com/service12.js"},{"revision":"214dc62a53fc2b9de464f55bdbd79aff","url":"com/service11.js"},{"revision":"bc70293f367e69d60f16a32adf1ded72","url":"com/service10.js"},{"revision":"9649a42f74a09df419e0bf025453468c","url":"com/service.js"},{"revision":"9750627d607c112e88d40d36378061f6","url":"com/app9.js"},{"revision":"03d119242178f23c4b2786f7be11978b","url":"com/app8.js"},{"revision":"53d35ab03974bea08e3e884576013792","url":"com/app7.js"},{"revision":"4a196e11ed767d7d8d9d3f859ee533b9","url":"com/app6.js"},{"revision":"25eaee65a8c29033a01de51d76b414b8","url":"com/app5.js"},{"revision":"8cb4afe97eb337caffb47a1931097555","url":"com/app4.js"},{"revision":"65e59467c60f0812bca044fe1ac01ed1","url":"com/app3.js"},{"revision":"4dd84062c8d0b2c968b69fdda9dcffde","url":"com/app2.js"},{"revision":"c11e4222285046c13572ee8b9de7f7f1","url":"com/app11.js"},{"revision":"ec51d5246d5d9b85c4d5bd6b460c3c7f","url":"com/app10.js"},{"revision":"b4f56895a8c73bd1565df2abec130eca","url":"com/app.js"},{"revision":"b1bee18bcfbebc02771f0eb3818b7043","url":"chunks/views2.js"},{"revision":"c3e3ba8239f2ba7f3df9cdd2ca483d52","url":"chunks/views.js"},{"revision":"7519db553093058c1593117d57850c8e","url":"chunks/types.js"},{"revision":"90365694fe9d50ea253ac897bffbe211","url":"chunks/turndown.browser.es.js"},{"revision":"0c9237455ba07e90f2c58eb75a7e5256","url":"chunks/temml.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"54d90ed0c991ee944843e5463a351dca","url":"chunks/main.js"},{"revision":"fb419c49218f8a75e9155708e116dd39","url":"chunks/decorate.js"},{"revision":"fde93a553776d5286b3f43a0011c4056","url":"chunks/clipboard-device.js"},{"revision":"217aa0d7c8584dbdd9d86a08f676b36c","url":"chunks/bundle.min.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
 cleanupOutdatedCaches();
 if (manifest && true) precacheAndRoute(manifest.filter((entry) => {
 	const url = typeof entry === "string" ? entry : String(entry?.url || "");
@@ -37136,6 +37443,7 @@ self.addEventListener?.("launchqueue", async (event) => {
 			fileCount: launchQueue?.files?.length,
 			hasFilesIterator: typeof launchQueue?.files?.[Symbol.asyncIterator] === "function"
 		}));
+		const files = [];
 		for await (const fileHandle of launchQueue.files) try {
 			console.log("[LaunchQueue] Processing file:", fileHandle.name);
 			const file = await fileHandle.getFile();
@@ -37144,14 +37452,38 @@ self.addEventListener?.("launchqueue", async (event) => {
 				type: file?.type,
 				size: file?.size
 			}));
-			await processContentWithAssociation("files", "launch-queue", {
-				files: [file],
-				timestamp: Date.now(),
-				source: "launch-queue"
-			}, event);
+			files.push(file);
 		} catch (error) {
 			console.error("[LaunchQueue] Failed to process file:", error);
 		}
+		if (files.length <= 0) return;
+		const categorized = categorizeFiles(files);
+		const shareData = {
+			title: "",
+			text: "",
+			url: "",
+			files,
+			imageFiles: categorized.imageFiles,
+			textFiles: categorized.textFiles,
+			otherFiles: categorized.otherFiles,
+			timestamp: Date.now()
+		};
+		await cacheShareData(shareData);
+		notifyShareReceived?.({
+			timestamp: shareData.timestamp,
+			fileCount: shareData.files.length,
+			imageCount: shareData.imageFiles.length,
+			source: "launch-queue",
+			route: "launch-queue"
+		});
+		sendToast(`Received ${shareData.files.length} launched file(s)`, "info");
+		const targetUrl = "/share-target?shared=1";
+		const clientsList = await self.clients?.matchAll?.({
+			type: "window",
+			includeUncontrolled: true
+		}) || [];
+		if (clientsList.length > 0) await clientsList[0].focus?.();
+		else await self.clients?.openWindow?.(targetUrl);
 	} catch (error) {
 		console.error("[LaunchQueue] Failed to handle launch queue:", error);
 	}

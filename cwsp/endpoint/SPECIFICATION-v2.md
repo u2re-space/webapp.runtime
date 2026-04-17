@@ -605,3 +605,35 @@ How &ould works our network.
 - Simulator/debug client from `45.150.9.153` (VDS), with client token `n3v3rm1nd` instead of IP
 - PWA or Native application from NAT (unknown IP, but with client token `n3v3rm1nd` instead of IP)
 - PWA or Native application from private/local network with IP `192.168.0.196`.
+
+### Associated Client ID and Token
+
+This pair is the normal peer identity for websocket-first clients.
+
+- `clientId` identifies the peer/device.
+- `token` or `userKey` carries the associated client token.
+- In some trusted LAN cases, a known IP can stand in for the token side of identity.
+- Android-native and AirPad/PWA are parallel client apps, not one merged client model.
+- Both may connect directly to a target endpoint or indirectly through a bridge/gateway, but they should still enter the shared world through `/ws` first.
+
+### Endpoint or Server Auth Token
+
+Additional Server (endpoint) Auth Token is a master/admin token for the endpoint itself. It is optional for normal peer connections and must stay separate from the associated client token stored in `clients.json`.
+
+- This control/master token may intentionally be the same literal secret as an AirPad control token.
+- Even when the literal value is the same, the concepts remain separate: endpoint control auth is not the same field as peer identity.
+
+### Encryption?
+
+Determined by `endpoint` server, while handshake with `client`, and only once, next time used Client ID and Token (or IP address) identifiers, encryption not dependent. 
+
+### Client ID Auth Token
+
+Optionally, some client IDs can/may have/use a second auth token for incoming control connections, for example AirPad remote-control flows.
+
+- Wire name: `airpadToken`
+- This token is optional.
+- It must not silently replace `token` / `userKey`.
+- A client may send both: `token` for peer identity and `airpadToken` for control auth.
+- Control-oriented endpoint surfaces such as `/devices` may accept the endpoint/master token or the AirPad control token when they are intentionally shared.
+- Socket.IO is compatibility-only here; Android-native clients should not depend on it.

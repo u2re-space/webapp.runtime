@@ -1,4 +1,8 @@
-import { Gn as removeAdopted, Hn as loadAsAdopted, S as setItem, b as getItem, cn as H, mt as writeText, pn as observe } from "../com/app.js";
+import { h as loadAsAdopted, v as removeAdopted } from "../fest/dom.js";
+import { c as observe } from "../fest/object.js";
+import { V as H } from "../com/app3.js";
+import { i as writeText } from "../core/clipboard.js";
+import { i as setItem, n as getItem } from "../com/service18.js";
 //#region src/frontend/views/history/scss/history.scss?inline
 var history_default = "@layer view.history{:is(html,body):has([data-view=history]){--view-layout:\"flex\";--view-content-max-width:1000px}.view-history{background-color:var(--view-bg,var(--color-surface,#ffffff));block-size:100%;color:var(--view-fg,var(--color-on-surface,#1a1a1a));display:flex;flex-direction:column;padding:1.5rem}.view-history__header{align-items:center;display:flex;justify-content:space-between;margin-block-end:1.5rem}.view-history__header h1{font-size:1.5rem;font-weight:700;margin:0}.view-history__clear-btn{align-items:center;background:transparent;border:none;border-radius:6px;color:#d32f2f;cursor:pointer;display:flex;font-size:.8125rem;font-weight:500;gap:.5rem;padding:.5rem .75rem}.view-history__clear-btn:hover{background-color:rgba(211,47,47,.1)}.view-history__list{flex:1;overflow-y:auto}.view-history__empty{align-items:center;block-size:100%;color:var(--view-fg);display:flex;flex-direction:column;gap:1rem;justify-content:center;opacity:.4}.view-history__empty p{font-size:1rem;margin:0}.view-history__item{background-color:var(--view-item-bg,rgba(0,0,0,.02));border-inline-start:3px solid var(--color-primary,#007acc);border-radius:8px;margin-block-end:.75rem;padding:1rem}.view-history__item.error{border-inline-start-color:#d32f2f}.view-history__item-header{align-items:center;display:flex;justify-content:space-between;margin-block-end:.5rem}.view-history__item-action{font-size:.875rem;font-weight:600}.view-history__item-time{color:var(--view-fg);font-size:.75rem;opacity:.6}.view-history__item-desc{color:var(--view-fg);font-size:.875rem;margin:0;opacity:.8}.view-history__item-error{color:#d32f2f;font-size:.8125rem;margin:.5rem 0 0}.view-history__item-actions{display:flex;gap:.5rem;margin-block-start:.75rem}.view-history__action-btn{align-items:center;background-color:rgba(0,0,0,.05);border:none;border-radius:4px;color:var(--view-fg);cursor:pointer;display:flex;font-size:.75rem;gap:.375rem;padding:.375rem .625rem}.view-history__action-btn:hover{background-color:rgba(0,0,0,.1)}}";
 //#endregion
@@ -172,4 +176,4 @@ function createView(options) {
 /** Alias for createView */
 var createHistoryView = createView;
 //#endregion
-export { createHistoryView as n, createView as r, HistoryView as t };
+export { HistoryView, createHistoryView, createView, createView as default };

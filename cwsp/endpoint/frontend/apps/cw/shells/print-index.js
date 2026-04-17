@@ -1,10 +1,4 @@
-import { r as __exportAll } from "../chunks/rolldown-runtime.js";
 //#region src/frontend/shells/print/index.ts
-var print_exports = /* @__PURE__ */ __exportAll({
-	PrintView: () => PrintView,
-	createPrintView: () => createPrintView,
-	default: () => createPrintView
-});
 var PrintView = class {
 	id = "print";
 	name = "Print";
@@ -29,4 +23,4 @@ function createPrintView(options) {
 	return new PrintView(options);
 }
 //#endregion
-export { print_exports as t };
+export { PrintView, createPrintView, createPrintView as default };

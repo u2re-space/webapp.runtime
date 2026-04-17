@@ -7,6 +7,7 @@ export const opsHttpBranch: ServerV2HttpBranch = {
     label: "Ops",
     notes: "Operational feature endpoints served directly by server-v2 transport runtime.",
     routes: [
+        { method: "GET", path: "/devices" },
         { method: "POST", path: "/core/ops/devices" },
         { method: "POST", path: "/api/devices" },
         { method: "POST", path: "/core/ops/sms" },

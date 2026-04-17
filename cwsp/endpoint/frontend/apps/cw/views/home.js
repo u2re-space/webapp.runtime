@@ -1,6 +1,20 @@
-import { $ as findSpeedDialItem, $t as LongPressHandler, B as showError, E as labelsPerAction, Gn as removeAdopted, Hn as loadAsAdopted, J as NAVIGATION_SHORTCUTS, Kn as setStyleProperty, L as openUnifiedContextMenu, Pt as writeFileSmart, Q as ensureSpeedDialMeta, Qn as redirectCell, T as iconsPerAction, V as showSuccess, X as createEmptySpeedDialItem, Xn as RAFBehavior, Xt as handleIncomingEntries, Y as addSpeedDialItem, Yn as MOCElement, Yt as pointerAnchorRef, Z as createSpeedDialItemFromClipboard, Zn as isInFocus, at as persistSpeedDialMeta, cn as H, ct as speedDialItems, dn as affected, dt as wallpaperState, en as clampCell, et as getSpeedDialMeta, fn as numberRef, gn as makeObjectAssignable, it as persistSpeedDialItems, ln as E, lt as speedDialMeta, mn as propRef, nn as makeShiftTrigger, nt as parseSpeedDialItemFromJSON, on as orientRef, ot as persistWallpaper, pn as observe, qn as resolveGridCellFromClientPoint, rt as parseSpeedDialItemFromURL, sn as registerModal, st as removeSpeedDialItem, tn as bindDraggable, tt as gridLayoutState, un as M, ut as upsertSpeedDialItem, w as actionRegistry } from "../com/app.js";
-import { y as isEnabledView } from "../shells/base.js";
+import { D as RAFBehavior, E as MOCElement, I as isInFocus, b as resolveGridCellFromClientPoint, h as loadAsAdopted, v as removeAdopted, y as setStyleProperty } from "../fest/dom.js";
+import { c as observe, f as makeObjectAssignable, l as propRef, r as affected, s as numberRef, x as redirectCell } from "../fest/object.js";
+import { A as LongPressHandler, H as E, M as bindDraggable, N as makeShiftTrigger, R as orientRef, U as M, V as H, b as handleIncomingEntries, j as clampCell, m as pointerAnchorRef, z as registerModal } from "../com/app3.js";
+import { n as writeFileSmart } from "../com/service8.js";
+import { r as isEnabledView } from "../chunks/views.js";
+import { _ as speedDialItems, a as createSpeedDialItemFromClipboard, b as wallpaperState, c as getSpeedDialMeta, d as parseSpeedDialItemFromURL, f as persistSpeedDialItems, h as removeSpeedDialItem, i as createEmptySpeedDialItem, l as gridLayoutState, m as persistWallpaper, n as addSpeedDialItem, o as ensureSpeedDialMeta, p as persistSpeedDialMeta, s as findSpeedDialItem, t as NAVIGATION_SHORTCUTS, u as parseSpeedDialItemFromJSON, v as speedDialMeta, y as upsertSpeedDialItem } from "../com/app4.js";
+import { i as showSuccess, r as showError } from "../com/app5.js";
+import { n as openUnifiedContextMenu } from "../com/app6.js";
+import { n as iconsPerAction, r as labelsPerAction, t as actionRegistry } from "../com/service15.js";
 //#region src/frontend/views/home/ts/Interact.ts
+/**
+* Grid/tile interaction helpers for the home/orient workspace.
+*
+* This module centralizes draggable tile behavior, CSS custom-property based
+* animation state, and cell reflection logic so the home view can keep its
+* layout deterministic across HMR, resize, and drag/drop interactions.
+*/
 var registeredCSSProperties = /* @__PURE__ */ new Set();
 [
 	{
@@ -141,6 +155,7 @@ var registeredCSSProperties = /* @__PURE__ */ new Set();
 		registeredCSSProperties.add(prop.name);
 	} catch {}
 });
+/** Apply redirected grid coordinates back onto the element's style-driven layout state. */
 var reflectCell = async (newItem, pArgs, _withAnimate = false) => {
 	const layout = [(pArgs?.layout)?.columns || pArgs?.layout?.[0] || 4, (pArgs?.layout)?.rows || pArgs?.layout?.[1] || 8];
 	const { item, list, items } = pArgs;
@@ -1379,4 +1394,4 @@ function createView(options) {
 /** Alias for createView */
 var createHomeView = createView;
 //#endregion
-export { createHomeView as n, createView as r, HomeView as t };
+export { HomeView, createHomeView, createView, createView as default };

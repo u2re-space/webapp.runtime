@@ -25,16 +25,29 @@ export class WsGatewayCanonical {
                 `anonymous-${++this.sequence}`
             ).trim();
 
-            const token = String(
+            const clientToken = String(
                 req.headers.authorization?.replace(/^Bearer\s+/i, "") ||
                 req.headers["x-cws-token"] ||
                 query.get("token") ||
+                query.get("userKey") ||
+                ""
+            ).trim();
+            const airpadToken = String(
+                req.headers["x-cws-control-token"] ||
+                req.headers["x-cws-airpad-token"] ||
+                req.headers["x-auth-token"] ||
+                query.get("authToken") ||
+                query.get("hubToken") ||
+                query.get("masterToken") ||
                 query.get("airpadToken") ||
                 ""
             ).trim();
 
             const connId = `ws-${++this.sequence}`;
-            new Connection(connId, peerId, token, ws, this.selfId);
+            if (airpadToken) {
+                (ws as typeof ws & { airpadToken?: string }).airpadToken = airpadToken;
+            }
+            new Connection(connId, peerId, clientToken, ws, this.selfId);
         });
     }
 

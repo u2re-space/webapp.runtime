@@ -63,6 +63,15 @@ const toPositiveInteger = (value: unknown, fallback: number): number => {
     return fallback;
 };
 
+const toOptionalBoolean = (value: unknown): boolean | undefined => {
+    if (typeof value === "boolean") return value;
+    const normalized = normalizeString(value).toLowerCase();
+    if (!normalized) return undefined;
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+    return undefined;
+};
+
 const splitList = (value: unknown): string[] => {
     if (Array.isArray(value)) return value.map((entry) => normalizeString(entry)).filter(Boolean);
     if (typeof value === "string") return value.split(/[;,]/).map((entry) => entry.trim()).filter(Boolean);
@@ -223,6 +232,25 @@ export class ServerV2SocketRuntime {
     /** Build lightweight peer rows for admin/status endpoints without exposing raw socket objects. */
     getConnectedPeerProfiles(_ownerId?: string): Array<{ id: string; label: string; userId: string; deviceId: string; transport: string }> {
         return this.getConnectedDevices().map((id) => this.profileFor(id));
+    }
+
+    /** Return configured peers plus live peers for browser-facing device maps. */
+    getKnownPeerProfiles(): Array<{ id: string; label: string; userId: string; deviceId: string; transport: string; aliases: string[]; connected: boolean }> {
+        const liveIds = this.getConnectedDevices();
+        const knownIds = new Set<string>();
+        for (const id of [...knownClients.keys(), ...liveIds]) {
+            const normalized = normalizeString(id);
+            if (normalized) knownIds.add(normalized);
+        }
+        return Array.from(knownIds).map((id) => {
+            const profile = this.profileFor(id);
+            const connected = liveIds.some((liveId) => socketMatchesRoutingTarget(liveId, id));
+            return {
+                ...profile,
+                aliases: [...profile.aliases],
+                connected
+            };
+        });
     }
 
     /** Return a transport summary suitable for diagnostics and admin endpoints. */
@@ -477,6 +505,11 @@ export class ServerV2SocketRuntime {
         this.bridgeEndpointCursor = (this.bridgeEndpointCursor + 1) % endpoints.length;
 
         const bridge = asRecord(this.bridgeConfig);
+        const rejectUnauthorized = toOptionalBoolean(bridge.rejectUnauthorized)
+            ?? toOptionalBoolean(process.env.CWS_BRIDGE_REJECT_UNAUTHORIZED);
+        const allowInsecureTls = toOptionalBoolean(bridge.allowInsecureTls) === true
+            || toOptionalBoolean(process.env.CWS_BRIDGE_ALLOW_INSECURE_TLS) === true
+            || rejectUnauthorized === false;
         const identity = resolveServerV2WireIdentity({
             endpointUrl: endpoint,
             userId: this.selfId,
@@ -484,7 +517,7 @@ export class ServerV2SocketRuntime {
             token: this.token,
             connectionType: normalizeString(bridge.connectionType) || "exchanger-initiator",
             archetype: "server-v2-bridge",
-            rejectUnauthorized: false
+            rejectUnauthorized: rejectUnauthorized ?? !allowInsecureTls
         });
         const handshake = buildServerV2SocketHandshake(identity);
         const parsed = new URL(identity.endpointUrl);
