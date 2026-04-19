@@ -19,12 +19,8 @@ var hostFromEndpointUrl = (endpointUrl) => {
 		return null;
 	}
 };
-/**
-* Resolves HTTPS (default :8443) and HTTP (default :8080) admin/control URLs for the CWS / cwsp endpoint.
-* When `core.admin.*` is empty, uses `endpointUrl` hostname with standard ports, then localhost.
-*/
-function resolveAdminDoorUrls(core) {
-	const path = normalizeAdminPath(core?.admin?.path);
+var resolveControlDoorUrls = (core, pathOverride) => {
+	const path = normalizeAdminPath(pathOverride ?? core?.admin?.path);
 	let httpsOrigin = (core?.admin?.httpsOrigin || "").trim();
 	let httpOrigin = (core?.admin?.httpOrigin || "").trim();
 	const host = hostFromEndpointUrl(core?.endpointUrl);
@@ -43,6 +39,13 @@ function resolveAdminDoorUrls(core) {
 		https: join(httpsOrigin),
 		http: join(httpOrigin)
 	};
+};
+/**
+* Resolves HTTPS (default :8443) and HTTP (default :8080) admin/control URLs for the CWS / cwsp endpoint.
+* When `core.admin.*` is empty, uses `endpointUrl` hostname with standard ports, then localhost.
+*/
+function resolveAdminDoorUrls(core) {
+	return resolveControlDoorUrls(core);
 }
 function openAdminDoorUrl(url, target = "_blank") {
 	try {

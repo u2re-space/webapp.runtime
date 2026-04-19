@@ -126,7 +126,7 @@ var remoteConfig = {
 	clientId: "",
 	peerInstanceId: ""
 };
-/** IndexedDB “Server” tab: userId/userKey as fallbacks for AirPad when local client/token empty (CWS_ASSOCIATED_*). */
+/** IndexedDB “Server” tab: userId fallback for AirPad client identity (CWS_ASSOCIATED_*). */
 var coreIdentityBridgeUserId = "";
 var coreIdentityBridgeUserKey = "";
 var coreIdentityUseForAirpad = true;
@@ -143,6 +143,7 @@ var shellNativeContactsEnabled = true;
 var coreSocketProtocol = "auto";
 var coreSocketRouteTarget = "";
 var coreSocketSelfId = "";
+var coreSocketAirpadAuthToken = "";
 var coreSocketTransportMode = "plaintext";
 var coreSocketTransportSecret = "";
 var remoteHost = "";
@@ -231,6 +232,7 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	coreSocketProtocol = socket?.protocol === "http" || socket?.protocol === "https" ? socket.protocol : "auto";
 	coreSocketRouteTarget = (socket?.routeTarget || "").trim();
 	coreSocketSelfId = (socket?.selfId || "").trim();
+	coreSocketAirpadAuthToken = (socket?.airpadAuthToken || "").trim();
 	coreSocketTransportMode = socket?.transportMode === "secure" ? "secure" : "plaintext";
 	coreSocketTransportSecret = (socket?.transportSecret || "").trim();
 	(socket?.signingSecret || "").trim();
@@ -335,16 +337,25 @@ function getAirPadTransportMode() {
 	return coreSocketTransportMode;
 }
 function getAirPadAuthToken() {
-	if (coreIdentityUseForAirpad && coreIdentityBridgeUserKey.trim()) return coreIdentityBridgeUserKey.trim();
 	const local = (remoteConfig.authToken || "").trim();
 	if (local) return local;
-	return readGlobalAirpadValue(["AIRPAD_AUTH_TOKEN", "AIRPAD_TOKEN"]);
+	if (coreSocketAirpadAuthToken.trim()) return coreSocketAirpadAuthToken.trim();
+	return readGlobalAirpadValue([
+		"AIRPAD_AUTH_TOKEN",
+		"AIRPAD_TOKEN",
+		"CWS_AUTH_TOKEN",
+		"HUB_AUTH_TOKEN",
+		"MASTER_AUTH_TOKEN"
+	]);
 }
 function getAirPadClientId() {
 	if (coreSocketSelfId.trim()) return coreSocketSelfId.trim();
 	if (coreIdentityUseForAirpad && coreIdentityBridgeUserId.trim()) return coreIdentityBridgeUserId.trim();
 	if (remoteConfig.clientId.trim()) return remoteConfig.clientId.trim();
 	return readGlobalAirpadValue(["AIRPAD_CLIENT_ID", "AIRPAD_CLIENT"]);
+}
+function getAssociatedClientToken() {
+	return coreIdentityBridgeUserKey.trim();
 }
 function getAirPadPeerInstanceId() {
 	const env = readGlobalAirpadValue(["AIRPAD_PEER_INSTANCE_ID", "AIRPAD_DEVICE_ID"]);
@@ -358,4 +369,4 @@ var MOTION_JITTER_EPS = .001;
 var REL_ORIENT_DEADZONE = .001;
 var REL_ORIENT_SMOOTH = .8;
 //#endregion
-export { setAirPadQuickConnectTarget as C, reloadAirpadRemoteConfigFromStorage as S, setAirpadCredentialInvalidator as T, isApplyRemoteClipboardToDeviceEnabled as _, attachAirpadCrossTabConfigSync as a, isPushLocalClipboardToLanEnabled as b, getAirPadPeerInstanceId as c, getAirPadTransportSecret as d, getClipboardBroadcastTargetNodes as f, getRemoteRouteTarget as g, getRemoteProtocol as h, applyAirpadRuntimeFromAppSettings as i, getAirPadQuickConnectTarget as l, getRemoteHost as m, REL_ORIENT_DEADZONE as n, getAirPadAuthToken as o, getClipboardPushIntervalMs as p, REL_ORIENT_SMOOTH as r, getAirPadClientId as s, MOTION_JITTER_EPS as t, getAirPadTransportMode as u, isMaintainHubSocketConnectionEnabled as v, invalidateAirpadTransportCredentials as w, isShellRemoteClipboardBridgeEnabled as x, isPreferNativeWebsocketEnabled as y };
+export { reloadAirpadRemoteConfigFromStorage as C, setAirpadCredentialInvalidator as E, isShellRemoteClipboardBridgeEnabled as S, invalidateAirpadTransportCredentials as T, getRemoteRouteTarget as _, attachAirpadCrossTabConfigSync as a, isPreferNativeWebsocketEnabled as b, getAirPadPeerInstanceId as c, getAirPadTransportSecret as d, getAssociatedClientToken as f, getRemoteProtocol as g, getRemoteHost as h, applyAirpadRuntimeFromAppSettings as i, getAirPadQuickConnectTarget as l, getClipboardPushIntervalMs as m, REL_ORIENT_DEADZONE as n, getAirPadAuthToken as o, getClipboardBroadcastTargetNodes as p, REL_ORIENT_SMOOTH as r, getAirPadClientId as s, MOTION_JITTER_EPS as t, getAirPadTransportMode as u, isApplyRemoteClipboardToDeviceEnabled as v, setAirPadQuickConnectTarget as w, isPushLocalClipboardToLanEnabled as x, isMaintainHubSocketConnectionEnabled as y };

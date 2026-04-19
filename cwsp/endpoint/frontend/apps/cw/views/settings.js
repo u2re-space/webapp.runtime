@@ -562,7 +562,7 @@ var createSettingsView = (opts) => {
         <input class="form-input" type="text" autocomplete="off" data-field="core.userId" placeholder="L-192.168.0.196" />
       </label>
       <label class="field">
-        <span>Connection token</span>
+        <span>Client token</span>
         <input class="form-input" type="password" autocomplete="off" data-field="core.userKey" placeholder="n3v3rm1nd" />
       </label>
       <label class="field checkbox form-checkbox">
@@ -576,7 +576,11 @@ var createSettingsView = (opts) => {
       </p>
       <label class="field checkbox form-checkbox">
         <input type="checkbox" data-field="core.useCoreIdentityForAirPad" />
-        <span>Use this device ID and token for AirPad</span>
+        <span>Use this device ID for AirPad</span>
+      </label>
+      <label class="field">
+        <span>AirPad control/auth token (optional)</span>
+        <input class="form-input" type="password" autocomplete="off" data-field="core.socket.airpadAuthToken" placeholder="Optional; may match the endpoint control/master token" />
       </label>
       <label class="field">
         <span>AirPad target device ID (optional)</span>
@@ -718,6 +722,7 @@ var createSettingsView = (opts) => {
 	const coreAdminHttp = field("[data-field=\"core.admin.httpOrigin\"]");
 	const coreAdminPath = field("[data-field=\"core.admin.path\"]");
 	const coreUseCoreIdentityAirpad = field("[data-field=\"core.useCoreIdentityForAirPad\"]");
+	const coreSocketAirpadAuthToken = field("[data-field=\"core.socket.airpadAuthToken\"]");
 	const coreSocketRouteTarget = field("[data-field=\"core.socket.routeTarget\"]");
 	const coreSocketSelfId = field("[data-field=\"core.socket.selfId\"]");
 	const shellMaintainHubSocket = field("[data-field=\"shell.maintainHubSocketConnection\"]");
@@ -806,6 +811,11 @@ var createSettingsView = (opts) => {
 		appClientId: coreAppClientId?.value?.trim() || "",
 		allowInsecureTls: Boolean(coreAllowInsecureTls?.checked),
 		useCoreIdentityForAirPad: (coreUseCoreIdentityAirpad?.checked ?? true) !== false,
+		socket: {
+			airpadAuthToken: coreSocketAirpadAuthToken?.value?.trim() || "",
+			routeTarget: coreSocketRouteTarget?.value?.trim() || "",
+			selfId: coreSocketSelfId?.value?.trim() || ""
+		},
 		admin: {
 			httpsOrigin: coreAdminHttps?.value?.trim() || "",
 			httpOrigin: coreAdminHttp?.value?.trim() || "",
@@ -965,6 +975,7 @@ var createSettingsView = (opts) => {
 		if (coreEncrypt) coreEncrypt.checked = Boolean(s?.core?.encrypt);
 		if (coreAppClientId) coreAppClientId.value = (s?.core?.appClientId || "").trim();
 		if (coreUseCoreIdentityAirpad) coreUseCoreIdentityAirpad.checked = (s?.core?.useCoreIdentityForAirPad ?? true) !== false;
+		if (coreSocketAirpadAuthToken) coreSocketAirpadAuthToken.value = (s?.core?.socket?.airpadAuthToken || "").trim();
 		if (coreSocketRouteTarget) coreSocketRouteTarget.value = (s?.core?.socket?.routeTarget || "").trim();
 		if (coreSocketSelfId) coreSocketSelfId.value = (s?.core?.socket?.selfId || "").trim();
 		if (coreAllowInsecureTls) coreAllowInsecureTls.checked = Boolean(s?.core?.allowInsecureTls);
@@ -1107,6 +1118,7 @@ var createSettingsView = (opts) => {
 					useCoreIdentityForAirPad: readCheckboxValue(coreUseCoreIdentityAirpad, (current.core?.useCoreIdentityForAirPad ?? true) !== false),
 					socket: {
 						...current.core?.socket || {},
+						airpadAuthToken: readTrimmedControlValue(coreSocketAirpadAuthToken, current.core?.socket?.airpadAuthToken || ""),
 						routeTarget: readTrimmedControlValue(coreSocketRouteTarget, current.core?.socket?.routeTarget || ""),
 						selfId: readTrimmedControlValue(coreSocketSelfId, current.core?.socket?.selfId || "")
 					},

@@ -2,7 +2,7 @@ import { r as __exportAll } from "../chunks/rolldown-runtime.js";
 import { t as JSOX } from "../vendor/jsox.js";
 import { n as DEFAULT_SETTINGS } from "./service10.js";
 import { r as isCapacitorCwsNativeShell } from "./service13.js";
-import { i as applyAirpadRuntimeFromAppSettings, m as getRemoteHost, v as isMaintainHubSocketConnectionEnabled, y as isPreferNativeWebsocketEnabled } from "../views/airpad.js";
+import { b as isPreferNativeWebsocketEnabled, h as getRemoteHost, i as applyAirpadRuntimeFromAppSettings, y as isMaintainHubSocketConnectionEnabled } from "../views/airpad.js";
 //#region src/frontend/shared/config/Settings.ts
 var SETTINGS_KEY = "rs-settings";
 var DB_NAME = "req-store";

@@ -1,5 +1,5 @@
 import { r as __exportAll } from "../chunks/rolldown-runtime.js";
-import { T as setAirpadCredentialInvalidator, _ as isApplyRemoteClipboardToDeviceEnabled, b as isPushLocalClipboardToLanEnabled, c as getAirPadPeerInstanceId, d as getAirPadTransportSecret, f as getClipboardBroadcastTargetNodes, g as getRemoteRouteTarget, h as getRemoteProtocol, m as getRemoteHost, o as getAirPadAuthToken, p as getClipboardPushIntervalMs, s as getAirPadClientId, u as getAirPadTransportMode, x as isShellRemoteClipboardBridgeEnabled } from "./airpad.js";
+import { E as setAirpadCredentialInvalidator, S as isShellRemoteClipboardBridgeEnabled, _ as getRemoteRouteTarget, c as getAirPadPeerInstanceId, d as getAirPadTransportSecret, f as getAssociatedClientToken, g as getRemoteProtocol, h as getRemoteHost, m as getClipboardPushIntervalMs, o as getAirPadAuthToken, p as getClipboardBroadcastTargetNodes, s as getAirPadClientId, u as getAirPadTransportMode, v as isApplyRemoteClipboardToDeviceEnabled, x as isPushLocalClipboardToLanEnabled } from "./airpad.js";
 import { i as writeClipboardTextToDevice, n as isCapacitorNativeShell, r as readClipboardTextFromDevice } from "../chunks/clipboard-device.js";
 //#region src/frontend/shared/transport/native-socket.ts
 var NativeSocket = class {
@@ -421,7 +421,8 @@ var shouldRotateCandidateOnDisconnect = (reason) => {
 };
 var getSecret = () => (getAirPadTransportSecret() || "").trim();
 var getClientId = () => (getAirPadClientId() || "").trim() || "airpad-client";
-var getAuthToken = () => (getAirPadAuthToken() || "").trim();
+var getClientToken = () => (getAssociatedClientToken() || "").trim();
+var getControlAuthToken = () => (getAirPadAuthToken() || "").trim();
 var parseNodeList = (value) => {
 	return Array.from(new Set(value.split(",").map((item) => item.trim()).filter(Boolean)));
 };
@@ -448,7 +449,8 @@ var mapRuntimeOpToFrameOp = (value) => {
 };
 var toCanonicalCoordinatorPacket = (packet) => {
 	const clientId = getClientId();
-	const authToken = getAuthToken();
+	const clientToken = getClientToken();
+	const airpadToken = getControlAuthToken();
 	const sender = String(packet.sender || packet.byId || packet.from || clientId || "").trim() || void 0;
 	const from = String(packet.from || sender || "").trim() || void 0;
 	const byId = String(packet.byId || sender || "").trim() || void 0;
@@ -474,8 +476,10 @@ var toCanonicalCoordinatorPacket = (packet) => {
 			destinations
 		},
 		urls: Array.isArray(packet.urls) && packet.urls.length ? packet.urls : [getRemoteHost()],
-		tokens: Array.isArray(packet.tokens) && packet.tokens.length ? packet.tokens : authToken ? [authToken] : [],
-		token: packet.token || authToken || void 0,
+		tokens: Array.isArray(packet.tokens) && packet.tokens.length ? packet.tokens : clientToken ? [clientToken] : [],
+		token: packet.token || clientToken || void 0,
+		userKey: typeof packet.userKey === "string" && packet.userKey.trim() ? packet.userKey : clientToken || void 0,
+		airpadToken: typeof packet.airpadToken === "string" && packet.airpadToken.trim() ? packet.airpadToken : airpadToken || void 0,
 		flags: packet.flags || { canonicalV2: true },
 		uuid,
 		timestamp: Number(packet.timestamp || 0) > 0 ? Number(packet.timestamp) : now
@@ -533,7 +537,8 @@ var emitCoordinatorPacket = (packet) => {
 /** Normalize the frontend's higher-level action/request inputs into the shared coordinator packet shape. */
 var buildCoordinatorPacket = (op, what, payload, options = {}) => {
 	const clientId = getClientId();
-	const authToken = getAuthToken();
+	const clientToken = getClientToken();
+	const airpadToken = getControlAuthToken();
 	return {
 		op: mapRuntimeOpToFrameOp(op),
 		what,
@@ -555,9 +560,11 @@ var buildCoordinatorPacket = (op, what, payload, options = {}) => {
 			destinations: options.nodes ?? getCoordinatorNodes()
 		},
 		urls: [getRemoteHost()],
-		tokens: authToken ? [authToken] : [],
+		tokens: clientToken ? [clientToken] : [],
 		flags: { canonicalV2: true },
-		token: authToken || void 0,
+		token: clientToken || void 0,
+		userKey: clientToken || void 0,
+		airpadToken: airpadToken || void 0,
 		timestamp: Date.now()
 	};
 };
@@ -1106,14 +1113,16 @@ function connectWS() {
 	};
 	const buildHandshakeForCandidate = (candidate) => {
 		const url = candidate.url;
-		const authToken = getAuthToken();
+		const clientToken = getClientToken();
+		const airpadToken = getControlAuthToken();
 		const clientId = getClientId();
 		const peerInstanceId = getAirPadPeerInstanceId().trim();
 		const handshakeAuth = {};
-		if (authToken) {
-			handshakeAuth.token = authToken;
-			handshakeAuth.airpadToken = authToken;
+		if (clientToken) {
+			handshakeAuth.token = clientToken;
+			handshakeAuth.userKey = clientToken;
 		}
+		if (airpadToken) handshakeAuth.airpadToken = airpadToken;
 		if (clientId) handshakeAuth.clientId = clientId;
 		if (peerInstanceId) {
 			handshakeAuth.peerInstanceId = peerInstanceId;
@@ -1142,14 +1151,15 @@ function connectWS() {
 		}
 		return {
 			url,
-			authToken,
+			clientToken,
+			airpadToken,
 			clientId,
 			peerInstanceId,
 			handshakeAuth,
 			queryParams
 		};
 	};
-	const finalizeConnectedSocket = (probeSocket, candidate, index, url, authToken, clientId, peerInstanceId, engine, onEngineClose, onEngineError) => {
+	const finalizeConnectedSocket = (probeSocket, candidate, index, url, clientToken, airpadToken, clientId, peerInstanceId, engine, onEngineClose, onEngineError) => {
 		socket = probeSocket;
 		logWsState("connected", `candidate=${index + 1}/${uniqueCandidates.length} candidate_url=${url} transport=${candidate.protocol} parallel=${AIRPAD_CANDIDATE_PARALLEL}`);
 		isConnecting = false;
@@ -1161,7 +1171,9 @@ function connectWS() {
 			byId: clientId,
 			from: clientId,
 			peerInstanceId: peerInstanceId || void 0,
-			token: authToken || void 0,
+			token: clientToken || void 0,
+			userKey: clientToken || void 0,
+			airpadToken: airpadToken || void 0,
 			nodes: getCoordinatorNodes()
 		});
 		socket.on("disconnect", (reason) => {
@@ -1276,7 +1288,7 @@ function connectWS() {
 			}
 			clearProbeTimer(winner);
 			activeProbeSockets.delete(winner);
-			finalizeConnectedSocket(winner, candidate, index, url, hs.authToken, hs.clientId, hs.peerInstanceId, engine, oec, oee);
+			finalizeConnectedSocket(winner, candidate, index, url, hs.clientToken, hs.airpadToken, hs.clientId, hs.peerInstanceId, engine, oec, oee);
 			resolve(true);
 		};
 		const finishAllDead = () => {

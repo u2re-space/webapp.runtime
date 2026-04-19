@@ -2,7 +2,7 @@ import { a as initServiceWorker, c as eventTargetElement } from "../com/app.js";
 import { h as loadAsAdopted } from "../fest/dom.js";
 import { V as H } from "../com/app3.js";
 import { r as loadSettings } from "../com/service11.js";
-import { C as setAirPadQuickConnectTarget, S as reloadAirpadRemoteConfigFromStorage, a as attachAirpadCrossTabConfigSync, h as getRemoteProtocol, l as getAirPadQuickConnectTarget, m as getRemoteHost, n as REL_ORIENT_DEADZONE, r as REL_ORIENT_SMOOTH, w as invalidateAirpadTransportCredentials, x as isShellRemoteClipboardBridgeEnabled } from "./airpad.js";
+import { C as reloadAirpadRemoteConfigFromStorage, S as isShellRemoteClipboardBridgeEnabled, T as invalidateAirpadTransportCredentials, a as attachAirpadCrossTabConfigSync, g as getRemoteProtocol, h as getRemoteHost, l as getAirPadQuickConnectTarget, n as REL_ORIENT_DEADZONE, r as REL_ORIENT_SMOOTH, w as setAirPadQuickConnectTarget } from "./airpad.js";
 import { C as getClipboardPreviewEl, D as queryAirpad, E as log, O as setAirpadDomRoot, S as getBtnPaste, T as getVoiceTextEl, _ as getAirpadDomRoot, a as onServerClipboardUpdate, b as getBtnCopy, c as sendCoordinatorAct, f as getAiButton, g as getAirStatusEl, h as getAirNeighborButton, i as isWSConnected, l as sendCoordinatorAsk, m as getAirButton, n as disconnectWS, o as onVoiceResult, p as getAiStatusEl, r as initWebSocket, s as onWSConnectionChange, t as connectWS, u as sendCoordinatorRequest, v as getAirpadOwnerDocument, w as getVkStatusEl, x as getBtnCut, y as getBtnConnect } from "./airpad2.js";
 //#region src/frontend/views/airpad/input/keyboard/api.ts
 var virtualKeyboardAPI = null;
