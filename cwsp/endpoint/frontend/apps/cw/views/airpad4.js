@@ -70,25 +70,25 @@ var CwAirpadAppElement = class extends HTMLElement {
 		this.started = false;
 	}
 	renderShell() {
-		if (this.contentHost?.isConnected && this.querySelector(".view-airpad")) return;
+		if (this.contentHost?.isConnected && this.querySelector(".view-cwsp")) return;
 		this.replaceChildren(H`
-            <div class="view-airpad">
-                <div class="view-airpad__content" data-airpad-content>
-                    <div class="view-airpad__loading">
-                        <div class="view-airpad__spinner"></div>
+            <div class="view-cwsp">
+                <div class="view-cwsp__content" data-cwsp-content>
+                    <div class="view-cwsp__loading">
+                        <div class="view-cwsp__spinner"></div>
                         <span>Loading Airpad...</span>
                     </div>
                 </div>
             </div>
         `);
-		this.contentHost = this.querySelector("[data-airpad-content]");
+		this.contentHost = this.querySelector("[data-cwsp-content]");
 	}
 	renderError(error) {
 		if (!this.contentHost) return;
 		this.contentHost.innerHTML = `
-            <div class="view-airpad__error">
+            <div class="view-cwsp__error">
                 <p>Failed to load Airpad</p>
-                <p class="view-airpad__error-detail">${String(error)}</p>
+                <p class="view-cwsp__error-detail">${String(error)}</p>
                 <button type="button" data-action="retry">Try Again</button>
             </div>
         `;
@@ -103,7 +103,7 @@ function ensureCwAirpadAppDefined() {
 }
 //#endregion
 //#region src/frontend/views/airpad/airpad.scss?inline
-var airpad_default = "@layer view.airpad{[data-shell-content]:has(>[data-view=airpad]){overflow:hidden;overscroll-behavior:none}:where(.app-shell__content)>:where([data-view=airpad]){overflow:visible}cw-airpad-app[data-view=airpad]{align-self:stretch;flex:1 1 auto;flex-direction:column;min-block-size:0;min-inline-size:0}.view-airpad,cw-airpad-app[data-view=airpad]{block-size:100%;display:flex;overflow:visible}.view-airpad{background-color:var(--view-bg,var(--color-surface,var(--surface,#0a0a0a)));color:var(--view-fg,var(--color-on-surface,var(--on-surface,#fff)));flex-direction:column;--action-rail-edge:0.75rem;pointer-events:auto}.view-airpad__content{display:flex;flex:1;flex-direction:column;min-block-size:0;overflow:visible;pointer-events:auto}.view-airpad__content>.container{flex:1 1 auto;min-block-size:0;overflow-block:auto;overflow-inline:hidden;pointer-events:auto}.view-airpad .log-overlay:not(.open){pointer-events:none}.bottom-toolbar{touch-action:pan-x}.bottom-toolbar button{-webkit-tap-highlight-color:transparent}.view-airpad__loading{align-items:center;block-size:100%;color:var(--view-fg,var(--on-surface));display:flex;flex-direction:column;gap:1rem;justify-content:center;opacity:.6}.view-airpad__spinner{animation:airpad-spin .8s linear infinite;block-size:32px;border:3px solid color-mix(in sRGB,currentColor 20%,transparent);border-block-start-color:var(--color-primary,var(--primary,#3794ff));border-radius:50%;inline-size:32px}.view-airpad__error{align-items:center;block-size:100%;display:flex;flex-direction:column;gap:1rem;justify-content:center;padding:2rem;text-align:center}.view-airpad__error p{margin:0}.view-airpad__error p:first-child{color:#ff5555;font-size:1.125rem;font-weight:600}.view-airpad__error button{background-color:var(--color-primary,#3794ff);border:none;border-radius:6px;color:white;cursor:pointer;padding:.5rem 1rem}.view-airpad__error button:hover{filter:brightness(1.1)}.view-airpad__error-detail{font-size:.875rem;max-inline-size:400px;opacity:.6}}";
+var airpad_default = "@layer view.airpad{[data-shell-content]:has(>[data-view=airpad]){overflow:hidden;overscroll-behavior:none}:where(.app-shell__content)>:where([data-view=airpad]){overflow:visible}cw-airpad-app[data-view=airpad]{align-self:stretch;flex:1 1 auto;flex-direction:column;min-block-size:0;min-inline-size:0}.view-cwsp,cw-airpad-app[data-view=airpad]{block-size:100%;display:flex;overflow:visible}.view-cwsp{background-color:var(--view-bg,var(--color-surface,var(--surface,#0a0a0a)));color:var(--view-fg,var(--color-on-surface,var(--on-surface,#fff)));flex-direction:column;--action-rail-edge:0.75rem;pointer-events:auto}.view-cwsp__content{display:flex;flex:1;flex-direction:column;min-block-size:0;overflow:visible;pointer-events:auto}.view-cwsp__content>.container{flex:1 1 auto;min-block-size:0;overflow-block:auto;overflow-inline:hidden;pointer-events:auto}.view-cwsp .log-overlay:not(.open){pointer-events:none}.bottom-toolbar{touch-action:pan-x}.bottom-toolbar button{-webkit-tap-highlight-color:transparent}.view-cwsp__loading{align-items:center;block-size:100%;color:var(--view-fg,var(--on-surface));display:flex;flex-direction:column;gap:1rem;justify-content:center;opacity:.6}.view-cwsp__spinner{animation:airpad-spin .8s linear infinite;block-size:32px;border:3px solid color-mix(in sRGB,currentColor 20%,transparent);border-block-start-color:var(--color-primary,var(--primary,#3794ff));border-radius:50%;inline-size:32px}.view-cwsp__error{align-items:center;block-size:100%;display:flex;flex-direction:column;gap:1rem;justify-content:center;padding:2rem;text-align:center}.view-cwsp__error p{margin:0}.view-cwsp__error p:first-child{color:#ff5555;font-size:1.125rem;font-weight:600}.view-cwsp__error button{background-color:var(--color-primary,#3794ff);border:none;border-radius:6px;color:white;cursor:pointer;padding:.5rem 1rem}.view-cwsp__error button:hover{filter:brightness(1.1)}.view-cwsp__error-detail{font-size:.875rem;max-inline-size:400px;opacity:.6}}";
 //#endregion
 //#region src/frontend/views/airpad/index.ts
 /**

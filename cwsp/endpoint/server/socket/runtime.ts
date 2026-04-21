@@ -15,13 +15,13 @@ import {
     Connection,
     SELF_DATA,
     areNodeIdsEquivalent,
+    findGatewayRelayConnection,
     findOrInitiateConnection,
     getConnectionRegistrySnapshot,
     internalNodeMap,
     knownClients,
     loadFromClientsConfig,
     makeSocketServer,
-    resolveKnownClientIdForPeerInstance,
     resolveKnownClientId,
     socketMatchesRoutingTarget
 } from "./coordinator.ts";
@@ -145,6 +145,23 @@ const collectTargetIds = (packet: Packet): string[] => {
         for (const entry of packet.nodes) {
             const normalized = normalizeToken(entry);
             if (normalized) targets.add(normalized);
+        }
+    }
+    const rawIds = (packet as Packet & { ids?: unknown }).ids;
+    if (Array.isArray(rawIds)) {
+        for (const entry of rawIds) {
+            const normalized = normalizeToken(entry);
+            if (normalized) targets.add(normalized);
+        }
+    } else if (rawIds && typeof rawIds === "object") {
+        const rec = rawIds as Record<string, unknown>;
+        const byId = normalizeToken(rec.byId);
+        if (byId) targets.add(byId);
+        if (Array.isArray(rec.destinations)) {
+            for (const entry of rec.destinations) {
+                const normalized = normalizeToken(entry);
+                if (normalized) targets.add(normalized);
+            }
         }
     }
     for (const candidate of [(packet as any).target, (packet as any).targetId, (packet as any).deviceId]) {
@@ -332,11 +349,11 @@ export class ServerV2SocketRuntime {
             }
         }
         if (pendingTargets.length) {
-            const relaySocket = this.findGatewayRelayConnection(pendingTargets);
+            const relaySocket = findGatewayRelayConnection(undefined, pendingTargets, this.selfId);
             if (relaySocket) {
                 // WHY: when the local runtime cannot satisfy every target, reuse
                 // an already-live gateway socket before dialing new relay paths.
-                relaySocket.send({ ...outbound, nodes: pendingTargets });
+                relaySocket.send({ ...outbound, nodes: pendingTargets, destinations: pendingTargets } as Packet);
                 delivered = true;
             } else if (this.socketServer) {
                 // `populate()` can dial or reuse remote-compatible relay sockets.
@@ -390,23 +407,6 @@ export class ServerV2SocketRuntime {
             }
         }
         return false;
-    }
-
-    private findGatewayRelayConnection(targetIds: string[]): { send: (payload: unknown) => void } | null {
-        const seenSockets = new Set<object>();
-        for (const [peerInstanceId, socket] of internalNodeMap.entries()) {
-            if (!socket || typeof socket !== "object") continue;
-            if (seenSockets.has(socket as object)) continue;
-            seenSockets.add(socket as object);
-            const relayId = resolveKnownClientIdForPeerInstance(peerInstanceId) || normalizeString(peerInstanceId);
-            if (!relayId || areNodeIdsEquivalent(relayId, this.selfId)) continue;
-            if (targetIds.some((targetId) => socketMatchesRoutingTarget(peerInstanceId, targetId))) continue;
-            const relayConfig = asRecord(knownClients.get(relayId) || knownClients.get(peerInstanceId));
-            if (asRecord(relayConfig.flags).gateway === true && typeof (socket as any).send === "function") {
-                return socket as { send: (payload: unknown) => void };
-            }
-        }
-        return null;
     }
 
     private resolveBridgePreconnectTargets(): string[] {

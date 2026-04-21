@@ -18,10 +18,12 @@ export class WsGatewayCanonical {
             
             // Extract identity from headers or query
             const peerId = String(
-                req.headers["x-cws-client-id"] || 
-                req.headers["x-client-id"] || 
-                query.get("clientId") || 
-                query.get("__airpad_client") ||
+                req.headers["x-cws-client-id"] ||
+                req.headers["x-client-id"] ||
+                query.get("clientId") ||
+                query.get("peerInstanceId") ||
+                query.get("deviceInstanceId") ||
+                query.get("userId") ||
                 `anonymous-${++this.sequence}`
             ).trim();
 

@@ -364,17 +364,22 @@ Dispatch payloads may nest another action inside `payload.payload` or `payload.d
 - keeps `protocol: "socket"` and `transport: "ws"` metadata
 - handles clipboard ask/result flows
 - probes multiple candidate origins
-- annotates AirPad route metadata in query params
+- annotates CWSP route metadata in query params (Socket.IO / optional diagnostics)
 
-Important AirPad query markers:
+Important CWSP route query markers (handshake URL; not canonical packet fields):
 
-- `__airpad_via`
-- `__airpad_endpoint`
-- `__airpad_route`
-- `__airpad_route_target`
-- `__airpad_hop`
-- `__airpad_host`
-- `__airpad_target`
+- `cwsp_via`
+- `cwsp_local_endpoint`
+- `cwsp_route`
+- `cwsp_route_target`
+- `cwsp_hop`
+- `cwsp_host`
+- `cwsp_target`
+- `cwsp_target_port`
+- `cwsp_via_port`
+- `cwsp_protocol`
+
+Older pre-v2 transport-hint query names are not supported; use the `cwsp_*` keys above only.
 
 These are transport diagnostics hints, not the canonical packet payload.
 

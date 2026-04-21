@@ -12,6 +12,8 @@ const ROOT_DIR = path.resolve(__dirname, "..");
 
 const NODE_BIN = (process.env.CWS_NODE_BIN || process.execPath || "node").trim();
 const TSX_CLI = path.join(ROOT_DIR, "node_modules", "tsx", "dist", "cli.mjs");
+/** Always pass an absolute entry path: `tsx server/index.ts` resolves relative to cwd (PM2 / shortcuts can use the wrong cwd on Windows). */
+const ENTRY_TS = path.join(ROOT_DIR, "server", "index.ts");
 
 const resolveValue = (value) => {
     if (Array.isArray(value)) return value.join(",");
@@ -143,7 +145,7 @@ module.exports = {
             name: "cwsp",
             cwd: ROOT_DIR,
             script: NODE_BIN,
-            args: [TSX_CLI, "server/index.ts"],
+            args: [TSX_CLI, ENTRY_TS],
             interpreter: "none",
             exec_mode: "fork",
             instances: 1,

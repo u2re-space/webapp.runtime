@@ -10,7 +10,6 @@
     ],
     "compilerOptions": {
         "baseUrl": "./",
-        "ignoreDeprecations": "6.0",
         "paths": {
             "@legacy/*": [
                 "../legacy/endpoint/server/legacy/*"
@@ -30,6 +29,9 @@
             "@server/*": [
                 "./server/*"
             ],
+            "server/*": [
+                "./server/*"
+            ],
             "@inputs/*": [
                 "./server/inputs/*"
             ],
@@ -38,11 +40,11 @@
             ]
         },
         "outDir": "./dist/",
-        "target": "ES2025",
+        "target": "ESNext",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "lib": [
-            "ES2025",
+            "ESNext",
             "DOM"
         ],
         "esModuleInterop": true,

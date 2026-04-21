@@ -35,7 +35,7 @@ function startCWSP() {
     CWS_PORTABLE_DATA_PATH: portableData,
     ...(useElectronAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {})
   };
-  cwspProcess = spawn(cmd, [tsxCli, 'server/index.ts'], {
+  cwspProcess = spawn(cmd, [tsxCli, entry], {
     cwd: cwspRoot,
     env,
     stdio: 'inherit',

@@ -130,7 +130,7 @@ function startCwspServer() {
     const useElectronAsNode =
         Boolean(process.versions.electron) && String(process.env.CWS_FORCE_NODE_BINARY || '').trim() !== '1';
     const cmd = useElectronAsNode ? process.execPath : 'node';
-    const args = [tsxCli, 'server/index.ts'];
+    const args = [tsxCli, entry];
     const portableConfig = process.env.CWS_PORTABLE_CONFIG_PATH || path.join(serverRoot, 'config', 'portable.config.json');
     const portableData = process.env.CWS_PORTABLE_DATA_PATH || path.join(serverRoot, '.data');
     const env = {

@@ -19,7 +19,7 @@ import {
 } from "../../inputs/clipboard.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../../utils/endpoint-policy.ts";
 import { CONFIG_DIR } from "../../utils/paths.ts";
-import { ServerV2SocketRuntime } from "server/socket/runtime.ts";
+import { ServerV2SocketRuntime } from "../../socket/runtime.ts";
 import config from "@config/config.ts";
 
 const TRANSPORT_HANDLERS_KEY = Symbol.for("cws.serverV2.transportHandlers");

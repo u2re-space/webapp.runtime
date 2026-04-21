@@ -210,12 +210,12 @@ const connectSocket = async (endpointUrl: string, route: RouteMode, actor: Actor
     });
     const hs = buildServerV2SocketHandshake(identity);
     if (route === "via-l200") {
-        hs.query.__airpad_via = "tunnel";
-        hs.query.__airpad_endpoint = "0";
-        hs.query.__airpad_route_target = VIA_ID;
+        hs.query.cwsp_via = "tunnel";
+        hs.query.cwsp_local_endpoint = "0";
+        hs.query.cwsp_route_target = VIA_ID;
         hs.query.routeTarget = VIA_ID;
     } else {
-        hs.query.__airpad_route_target = actor.target;
+        hs.query.cwsp_route_target = actor.target;
         hs.query.routeTarget = actor.target;
     }
     const parsed = new URL(identity.endpointUrl);

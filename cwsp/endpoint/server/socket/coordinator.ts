@@ -29,18 +29,32 @@ const extractPacketTargets = (packet: Packet): string[] => {
     if (Array.isArray(packet.destinations)) {
         for (const value of packet.destinations) append(value);
     }
+    const rawIds = (packet as Packet & { ids?: unknown }).ids;
+    if (Array.isArray(rawIds)) {
+        for (const value of rawIds) append(value);
+    } else if (rawIds && typeof rawIds === "object") {
+        const rec = rawIds as Record<string, unknown>;
+        append(rec.byId);
+        if (Array.isArray(rec.destinations)) {
+            for (const value of rec.destinations) append(value);
+        }
+    }
     append((packet as any).target);
     append((packet as any).targetId);
     append((packet as any).deviceId);
     return Array.from(out);
 };
 
-const findGatewayRelayConnection = (excludeInstanceId: string | undefined, targetIds: string[]): Connection | null => {
+export const findGatewayRelayConnection = (
+    excludeInstanceId: string | undefined,
+    targetIds: string[],
+    selfId: string
+): Connection | null => {
     for (const [instanceId, conn] of internalNodeMap.entries()) {
         if (excludeInstanceId && areNodeIdsEquivalent(instanceId, excludeInstanceId)) continue;
         if (targetIds.some((target) => socketMatchesRoutingTarget(instanceId, target))) continue;
         const relayId = normalizeRoutingToken(conn.peerId || instanceId);
-        if (!relayId || areNodeIdsEquivalent(relayId, SELF_DATA.ASSOCIATED_ID)) continue;
+        if (!relayId || areNodeIdsEquivalent(relayId, selfId)) continue;
         const relayConfig = knownClients.get(relayId) || knownClients.get(instanceId);
         const flags = relayConfig && typeof relayConfig === "object" && !Array.isArray(relayConfig)
             ? (relayConfig as Record<string, any>).flags
@@ -75,7 +89,7 @@ const routePacketToPeers = (packet: Packet, selfId: string, excludeInstanceId?: 
         // WHY: direct-connected endpoints like `L-192.168.0.110` still need to
         // forward peer-addressed packets through an already-live gateway bridge
         // when the final target is not locally attached.
-        const relay = findGatewayRelayConnection(excludeInstanceId, pendingTargets);
+        const relay = findGatewayRelayConnection(excludeInstanceId, pendingTargets, selfId);
         if (relay) {
             relay.send({
                 ...packet,
