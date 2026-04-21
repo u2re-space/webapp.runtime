@@ -1,5 +1,6 @@
 import { loadUserSettings, verifyUser } from "@protocol/http/routers/auth/users.ts";
 import { createOrchestrator } from "@inputs/assistant/Orchestrator.ts";
+import { matchesEndpointControlToken } from "../../../../shared/control-access-token.ts";
 import {
     hasExplicitCredentialInRequest,
     resolveGptProvider,
@@ -21,8 +22,37 @@ export type AiContextResult =
 
 export const createAiContext = async (body: any): Promise<AiContextResult> => {
     const userId = String(body?.userId || "").trim();
-    const userKey = String(body?.userKey || "").trim();
-    if (!userId || !userKey) return { ok: false, error: "Missing credentials" };
+    let userKey = String(body?.userKey || "").trim();
+    const wireAccess = String(body?.accessToken || body?.authToken || "").trim();
+
+    if (!userId) return { ok: false, error: "Missing credentials" };
+
+    /** Peer identity token optional when request carries a verified endpoint control {@code accessToken}. */
+    if (!userKey && wireAccess && matchesEndpointControlToken(wireAccess)) {
+        const settings = null;
+        const provider = resolveGptProvider(body, null);
+        if (!provider.apiKey && !provider.bearerToken) {
+            return { ok: false, error: "Missing AI api key or bearer token in request, settings, config, or env." };
+        }
+        return {
+            ok: true,
+            value: {
+                userId,
+                userKey: "",
+                settings,
+                provider,
+                orchestrator: createOrchestrator({
+                    apiKey: provider.apiKey || provider.bearerToken || "",
+                    baseUrl: provider.baseUrl,
+                    model: provider.model,
+                    mcp: provider?.mcp
+                }),
+                hasExplicitCredential: hasExplicitCredentialInRequest(body)
+            }
+        };
+    }
+
+    if (!userKey) return { ok: false, error: "Missing credentials" };
 
     const record = await verifyUser(userId, userKey);
     if (!record) return { ok: false, error: "Invalid credentials" };

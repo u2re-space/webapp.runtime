@@ -1,6 +1,7 @@
-import type { Server as HttpServer, IncomingMessage } from "node:http";
+import type { Server as HttpServer } from "node:http";
 import type { Server as HttpsServer } from "node:https";
 import { WebSocketServer } from "ws";
+import { resolveWireAccessToken } from "../../shared/wire-access-token.ts";
 import { Connection } from "./coordinator.ts";
 
 type NodeServer = HttpServer | HttpsServer;
@@ -34,20 +35,20 @@ export class WsGatewayCanonical {
                 query.get("userKey") ||
                 ""
             ).trim();
-            const airpadToken = String(
-                req.headers["x-cws-control-token"] ||
-                req.headers["x-cws-airpad-token"] ||
-                req.headers["x-auth-token"] ||
-                query.get("authToken") ||
-                query.get("hubToken") ||
-                query.get("masterToken") ||
-                query.get("airpadToken") ||
+            const accessToken = resolveWireAccessToken(req.headers, query);
+
+            const clientAccessToken = String(
+                req.headers["x-cws-client-access-token"] ||
+                query.get("clientAccessToken") ||
                 ""
             ).trim();
 
             const connId = `ws-${++this.sequence}`;
-            if (airpadToken) {
-                (ws as typeof ws & { airpadToken?: string }).airpadToken = airpadToken;
+            if (accessToken) {
+                (ws as typeof ws & { accessToken?: string }).accessToken = accessToken;
+            }
+            if (clientAccessToken) {
+                (ws as typeof ws & { clientAccessToken?: string }).clientAccessToken = clientAccessToken;
             }
             new Connection(connId, peerId, clientToken, ws, this.selfId);
         });

@@ -42,7 +42,7 @@ var DEFAULT_SETTINGS = {
 			protocol: "auto",
 			routeTarget: "",
 			selfId: "",
-			airpadAuthToken: "",
+			accessToken: "",
 			transportMode: "plaintext",
 			transportSecret: "",
 			signingSecret: ""

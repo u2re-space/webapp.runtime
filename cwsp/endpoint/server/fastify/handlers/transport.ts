@@ -222,19 +222,25 @@ const collectControlTokenCandidates = (request: FastifyRequest | undefined, body
     return Array.from(
         new Set(
             [
-                body.authToken,
+                body.accessToken,
+                body.authToken, // legacy JSON body key
                 body.airpadToken,
+                body.adminToken,
                 body.hubToken,
                 body.masterToken,
                 body.controlToken,
+                request?.headers?.["x-cws-access-token"],
                 request?.headers?.["x-auth-token"],
                 request?.headers?.["x-cws-airpad-token"],
                 request?.headers?.["x-cws-control-token"],
                 extractBearerToken(request),
-                query.authToken,
+                query.accessToken,
+                query.authToken, // legacy query key
                 query.airpadToken,
+                query.adminToken,
                 query.hubToken,
-                query.masterToken
+                query.masterToken,
+                query.controlToken
             ]
                 .map((value) => normalizeToken(value))
                 .filter(Boolean)
@@ -337,7 +343,7 @@ const renderDevicesPage = () => `<!doctype html>
     <form id="devices-form">
       <label>
         <span>Control or master token</span>
-        <input id="authToken" name="authToken" type="password" autocomplete="current-password" placeholder="Endpoint control token" />
+        <input id="accessToken" name="accessToken" type="password" autocomplete="current-password" placeholder="Endpoint control token" />
       </label>
       <label>
         <span>Client ID (optional)</span>
@@ -375,7 +381,7 @@ const renderDevicesPage = () => `<!doctype html>
     const rowsEl = document.getElementById("rows");
     const metaEl = document.getElementById("meta");
     const statusEl = document.getElementById("status");
-    const authTokenEl = document.getElementById("authToken");
+    const accessTokenEl = document.getElementById("accessToken");
     const userIdEl = document.getElementById("userId");
 
     const params = new URLSearchParams(location.search);
@@ -416,7 +422,7 @@ const renderDevicesPage = () => `<!doctype html>
       errorEl.textContent = "";
       resultEl.hidden = true;
       const payload = {
-        authToken: authTokenEl.value.trim(),
+        accessToken: accessTokenEl.value.trim(),
         userId: userIdEl.value.trim()
       };
       try {

@@ -107,7 +107,7 @@ function persistRemoteConfig() {
 			endpointUrl: remoteConfig.endpointUrl,
 			directUrl: remoteConfig.directUrl,
 			destinationId: remoteConfig.destinationId,
-			authToken: remoteConfig.authToken,
+			accessToken: remoteConfig.accessToken,
 			clientId: remoteConfig.clientId,
 			peerInstanceId: remoteConfig.peerInstanceId
 		}));
@@ -121,7 +121,7 @@ var remoteConfig = {
 	quickConnectValue: "",
 	endpointUrl: "",
 	directUrl: "",
-	authToken: "",
+	accessToken: "",
 	destinationId: "",
 	clientId: "",
 	peerInstanceId: ""
@@ -143,7 +143,7 @@ var shellNativeContactsEnabled = true;
 var coreSocketProtocol = "auto";
 var coreSocketRouteTarget = "";
 var coreSocketSelfId = "";
-var coreSocketAirpadAuthToken = "";
+var coreSocketAccessToken = "";
 var coreSocketTransportMode = "plaintext";
 var coreSocketTransportSecret = "";
 var remoteHost = "";
@@ -161,7 +161,7 @@ function hydrateFromStored(stored) {
 	const quickConnectValue = toTrimmedString(stored.quickConnectValue);
 	remoteConfig.endpointUrl = endpointUrl;
 	remoteConfig.directUrl = directUrl;
-	remoteConfig.authToken = stored.authToken || "";
+	remoteConfig.accessToken = toTrimmedString(stored.accessToken) || toTrimmedString(stored.authToken) || "";
 	remoteConfig.destinationId = toTrimmedString(stored.destinationId) || legacyRouteTarget;
 	remoteConfig.quickConnectValue = quickConnectValue || remoteConfig.destinationId || remoteConfig.directUrl;
 	remoteConfig.clientId = toTrimmedString(stored.clientId);
@@ -173,7 +173,9 @@ function hydrateFromStored(stored) {
 var stored = loadStoredRemoteConfig();
 hydrateFromStored(stored);
 if (!toTrimmedString(stored.peerInstanceId)) remoteConfig.peerInstanceId = remoteConfig.peerInstanceId || createPeerInstanceId();
-if (stored._legacyMigrated === true || !stored.peerInstanceId) persistRemoteConfig();
+var storedAccessToken = toTrimmedString(stored.accessToken);
+var storedLegacyAuthToken = toTrimmedString(stored.authToken);
+if (stored._legacyMigrated === true || !stored.peerInstanceId || storedLegacyAuthToken && !storedAccessToken) persistRemoteConfig();
 /** Re-read localStorage (e.g. after another tab saved, or before mounting AirPad). */
 function reloadAirpadRemoteConfigFromStorage() {
 	hydrateFromStored(loadStoredRemoteConfig());
@@ -192,7 +194,8 @@ function applyAirpadRemoteConfig(input, options) {
 	if (input.endpointUrl !== void 0) remoteConfig.endpointUrl = normalizeOriginUrl(input.endpointUrl);
 	else if (input.host !== void 0) remoteConfig.endpointUrl = normalizeOriginUrl(input.host);
 	if (input.directUrl !== void 0) remoteConfig.directUrl = normalizeOriginUrl(input.directUrl);
-	if (input.authToken !== void 0) remoteConfig.authToken = input.authToken || "";
+	if (input.accessToken !== void 0) remoteConfig.accessToken = input.accessToken || "";
+	else if (input.authToken !== void 0) remoteConfig.accessToken = input.authToken || "";
 	if (input.destinationId !== void 0) remoteConfig.destinationId = (input.destinationId || "").trim();
 	else if (input.routeTarget !== void 0) remoteConfig.destinationId = (input.routeTarget || "").trim();
 	if (input.clientId !== void 0) remoteConfig.clientId = (input.clientId || "").trim();
@@ -232,7 +235,7 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	coreSocketProtocol = socket?.protocol === "http" || socket?.protocol === "https" ? socket.protocol : "auto";
 	coreSocketRouteTarget = (socket?.routeTarget || "").trim();
 	coreSocketSelfId = (socket?.selfId || "").trim();
-	coreSocketAirpadAuthToken = (socket?.airpadAuthToken || "").trim();
+	coreSocketAccessToken = (socket?.accessToken || socket?.airpadAuthToken || "").trim();
 	coreSocketTransportMode = socket?.transportMode === "secure" ? "secure" : "plaintext";
 	coreSocketTransportSecret = (socket?.transportSecret || "").trim();
 	(socket?.signingSecret || "").trim();
@@ -337,9 +340,9 @@ function getAirPadTransportMode() {
 	return coreSocketTransportMode;
 }
 function getAirPadAuthToken() {
-	const local = (remoteConfig.authToken || "").trim();
+	const local = (remoteConfig.accessToken || "").trim();
 	if (local) return local;
-	if (coreSocketAirpadAuthToken.trim()) return coreSocketAirpadAuthToken.trim();
+	if (coreSocketAccessToken.trim()) return coreSocketAccessToken.trim();
 	return readGlobalAirpadValue([
 		"AIRPAD_AUTH_TOKEN",
 		"AIRPAD_TOKEN",

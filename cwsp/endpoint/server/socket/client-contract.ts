@@ -2,6 +2,9 @@ import type { Packet } from "./types.ts";
 
 export type ServerV2WireIdentity = {
     archetype?: string;
+    /** Access / control token for privileged operations (unified name). */
+    accessToken?: string;
+    /** @deprecated Prefer {@link accessToken}; still accepted when resolving identity. */
     airpadToken?: string;
     connectionType?: string;
     deviceId?: string;
@@ -84,6 +87,7 @@ export const resolveServerV2WireIdentity = (identity: ServerV2WireIdentity): Req
     const userId = normalizeWireNodeId(identity.userId || identity.deviceId);
     const deviceId = normalizeWireNodeId(identity.deviceId || identity.userId);
     const clientId = normalizeWireNodeId(userId || deviceId);
+    const accessToken = normalizeString(identity.accessToken) || normalizeString(identity.airpadToken);
     return {
         archetype: normalizeString(identity.archetype) || "server-v2",
         clientId: clientId || "server-v2-client",
@@ -92,7 +96,8 @@ export const resolveServerV2WireIdentity = (identity: ServerV2WireIdentity): Req
         endpointUrl,
         peerInstanceId: normalizeString(identity.peerInstanceId),
         rejectUnauthorized: identity.rejectUnauthorized !== false,
-        airpadToken: normalizeString(identity.airpadToken),
+        accessToken,
+        airpadToken: accessToken,
         token: normalizeString(identity.token),
         userId: userId || clientId || "server-v2-client"
     };
@@ -118,9 +123,11 @@ export const buildServerV2SocketHandshake = (identity: ServerV2WireIdentity): Se
         query.userKey = resolved.token;
     }
 
-    if (resolved.airpadToken) {
-        auth.airpadToken = resolved.airpadToken;
-        query.airpadToken = resolved.airpadToken;
+    if (resolved.accessToken) {
+        auth.accessToken = resolved.accessToken;
+        query.accessToken = resolved.accessToken;
+        auth.airpadToken = resolved.accessToken;
+        query.airpadToken = resolved.accessToken;
     }
 
     if (resolved.clientId) {

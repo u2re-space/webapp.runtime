@@ -79,7 +79,7 @@ const asProviderFromConfig = (raw: unknown): RawProvider | undefined => {
     const model = pickString(source.model, source.customModel, source.modelName);
     if (model) provider.model = model;
 
-    const bearerToken = pickString(source.bearerToken, source.bearer_token, source.token, source.authToken);
+    const bearerToken = pickString(source.bearerToken, source.bearer_token, source.token, source.accessToken, source.authToken);
     if (bearerToken) provider.bearerToken = bearerToken;
 
     const proxyPath = pickString(source.proxyPath, source.path, source.endpointPath);
@@ -123,7 +123,15 @@ export const resolveGptProvider = (body: unknown, settings?: Settings | null): G
     const apiKey = pickString(provider?.apiKey, userProvider?.apiKey, (body as any)?.apiKey, passthrough?.apiKey, settingsProvider?.apiKey, fallbackProvider?.apiKey, envProvider.apiKey);
     const baseUrl = pickString(provider?.baseUrl, (body as any)?.baseUrl, passthrough?.baseUrl, settingsProvider?.baseUrl, fallbackProvider?.baseUrl, envProvider.baseUrl);
     const model = pickString(provider?.model, (body as any)?.model, passthrough?.model, settingsProvider?.model, (settingsAi as any)?.customModel, fallbackProvider?.model, envProvider.model);
-    const bearerToken = pickString(provider?.bearerToken, (body as any)?.bearerToken, passthrough?.bearerToken, (settingsAi as any)?.bearerToken, envProvider.bearerToken);
+    const bearerToken = pickString(
+        provider?.bearerToken,
+        (body as any)?.bearerToken,
+        (body as any)?.accessToken,
+        (body as any)?.authToken,
+        passthrough?.bearerToken,
+        (settingsAi as any)?.bearerToken,
+        envProvider.bearerToken
+    );
     const proxyPath = normalizePath(pickString(provider?.proxyPath, (body as any)?.proxyPath, passthrough?.proxyPath, (settingsAi as any)?.proxyPath, fallbackProvider?.proxyPath, envProvider.proxyPath, DEFAULT_PROXY_PATH));
     const providerMcp = (provider?.mcp as Array<any> | undefined) || (userProvider?.mcp as Array<any> | undefined) || ((body as any)?.mcp as Array<any> | undefined) || (passthrough?.mcp as Array<any> | undefined) || (settingsProvider as any)?.mcp || (fallbackProvider as any)?.mcp || envProvider.mcp;
 
@@ -148,6 +156,7 @@ export const hasExplicitCredentialInRequest = (body: any): boolean => {
         Boolean(body.apiKey) ||
         Boolean(body.bearerToken) ||
         Boolean(body.token) ||
+        Boolean(body.accessToken) ||
         Boolean(body.authToken) ||
         Boolean((body as any).provider?.apiKey) ||
         Boolean((body as any).provider?.bearerToken) ||

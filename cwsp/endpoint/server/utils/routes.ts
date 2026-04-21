@@ -4,6 +4,8 @@
 
 import { writeClipboard, setBroadcasting } from "../inputs/clipboard.ts";
 import config from "../config/config.ts";
+import { matchesEndpointControlToken } from "../../shared/control-access-token.ts";
+import { parseWireTargetList, wireTargetNodeIds } from "../../shared/wire-target-id.ts";
 import { pickEnvBoolLegacy } from "./env.ts";
 import { CONFIG_DIR } from "./paths.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "@utils/endpoint-policy.ts";
@@ -13,6 +15,25 @@ import { normalizeIpForMatch } from "./ip-match.ts";
 
 function setUtf8Plain(reply: any) {
     reply.header("Content-Type", "text/plain; charset=utf-8");
+}
+
+function collectHttpAccessTokenCandidates(request: any): string[] {
+    const body = request?.body && typeof request.body === "object" ? (request.body as Record<string, unknown>) : {};
+    const headers = request?.headers || {};
+    const h = (name: string) => {
+        const v = headers[name] ?? headers[name.toLowerCase()];
+        return typeof v === "string" ? v : Array.isArray(v) ? String(v[0] ?? "") : "";
+    };
+    return [
+        body.accessToken,
+        body.authToken,
+        body.airpadToken,
+        h("x-cws-access-token"),
+        h("x-auth-token"),
+        h("authorization")?.replace(/^Bearer\s+/i, "")
+    ]
+        .map((v) => String(v || "").trim())
+        .filter(Boolean);
 }
 
 function isAuthorized(request: any): boolean {
@@ -27,6 +48,10 @@ function isAuthorized(request: any): boolean {
     if (typeof auth === "string") {
         const m = auth.match(/^Bearer\s+(.+)$/i);
         if (m && m[1] === secret) return true;
+    }
+
+    for (const c of collectHttpAccessTokenCandidates(request)) {
+        if (matchesEndpointControlToken(c)) return true;
     }
 
     return false;
@@ -84,10 +109,7 @@ const normalizeClipboardTarget = (value: any): string[] => {
     if (typeof value !== "string") return [];
     const normalized = value.trim();
     if (!normalized) return [];
-    return normalized
-        .split(/[;,]/)
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
+    return wireTargetNodeIds(parseWireTargetList(normalized));
 };
 
 const summarizeClipboardText = (text: string): { len: number; preview: string } => {
@@ -377,6 +399,9 @@ const collectClipboardTargets = (requestBody: any): string[] => {
     pushTargets(requestBody.targetId);
     pushTargets(requestBody.target);
     pushTargets(requestBody.to);
+    pushTargets(requestBody.clipboardDestinationIds);
+    pushTargets(requestBody.destinationNodeIds);
+    pushTargets(requestBody.shareDestinationIds);
     if (Array.isArray(requestBody.targets)) {
         for (const target of requestBody.targets) {
             pushTargets(target);
@@ -388,6 +413,17 @@ const collectClipboardTargets = (requestBody: any): string[] => {
 export const buildClipboardBroadcastPayload = (app: any, requestBody: any, text: string, request: any) => {
     let targets = collectClipboardTargets(requestBody);
     let sourceId = "";
+    const bypassWhitelist =
+        collectHttpAccessTokenCandidates(request).some((c) => matchesEndpointControlToken(c));
+    if (!targets.length && bypassWhitelist) {
+        const raw =
+            requestBody?.clipboardDestinationIds ||
+            requestBody?.destinationNodeIds ||
+            requestBody?.shareDestinationIds ||
+            requestBody?.nodes ||
+            "*";
+        targets = normalizeClipboardTarget(typeof raw === "string" ? raw : String(raw || ""));
+    }
     if (!targets.length) {
         const resolvedSource = resolveSourceEndpointPolicy(app, requestBody, request);
         if (resolvedSource) {

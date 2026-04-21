@@ -580,7 +580,7 @@ var createSettingsView = (opts) => {
       </label>
       <label class="field">
         <span>AirPad control/auth token (optional)</span>
-        <input class="form-input" type="password" autocomplete="off" data-field="core.socket.airpadAuthToken" placeholder="Optional; may match the endpoint control/master token" />
+        <input class="form-input" type="password" autocomplete="off" data-field="core.socket.accessToken" placeholder="Access / control (unified with control/master/hub)" />
       </label>
       <label class="field">
         <span>AirPad target device ID (optional)</span>
@@ -722,7 +722,7 @@ var createSettingsView = (opts) => {
 	const coreAdminHttp = field("[data-field=\"core.admin.httpOrigin\"]");
 	const coreAdminPath = field("[data-field=\"core.admin.path\"]");
 	const coreUseCoreIdentityAirpad = field("[data-field=\"core.useCoreIdentityForAirPad\"]");
-	const coreSocketAirpadAuthToken = field("[data-field=\"core.socket.airpadAuthToken\"]");
+	const coreSocketAccessToken = field("[data-field=\"core.socket.accessToken\"]");
 	const coreSocketRouteTarget = field("[data-field=\"core.socket.routeTarget\"]");
 	const coreSocketSelfId = field("[data-field=\"core.socket.selfId\"]");
 	const shellMaintainHubSocket = field("[data-field=\"shell.maintainHubSocketConnection\"]");
@@ -812,7 +812,7 @@ var createSettingsView = (opts) => {
 		allowInsecureTls: Boolean(coreAllowInsecureTls?.checked),
 		useCoreIdentityForAirPad: (coreUseCoreIdentityAirpad?.checked ?? true) !== false,
 		socket: {
-			airpadAuthToken: coreSocketAirpadAuthToken?.value?.trim() || "",
+			accessToken: coreSocketAccessToken?.value?.trim() || "",
 			routeTarget: coreSocketRouteTarget?.value?.trim() || "",
 			selfId: coreSocketSelfId?.value?.trim() || ""
 		},
@@ -975,7 +975,7 @@ var createSettingsView = (opts) => {
 		if (coreEncrypt) coreEncrypt.checked = Boolean(s?.core?.encrypt);
 		if (coreAppClientId) coreAppClientId.value = (s?.core?.appClientId || "").trim();
 		if (coreUseCoreIdentityAirpad) coreUseCoreIdentityAirpad.checked = (s?.core?.useCoreIdentityForAirPad ?? true) !== false;
-		if (coreSocketAirpadAuthToken) coreSocketAirpadAuthToken.value = (s?.core?.socket?.airpadAuthToken || "").trim();
+		if (coreSocketAccessToken) coreSocketAccessToken.value = ((s?.core?.socket?.accessToken || s?.core?.socket?.airpadAuthToken) || "").trim();
 		if (coreSocketRouteTarget) coreSocketRouteTarget.value = (s?.core?.socket?.routeTarget || "").trim();
 		if (coreSocketSelfId) coreSocketSelfId.value = (s?.core?.socket?.selfId || "").trim();
 		if (coreAllowInsecureTls) coreAllowInsecureTls.checked = Boolean(s?.core?.allowInsecureTls);
@@ -1116,12 +1116,16 @@ var createSettingsView = (opts) => {
 					appClientId: readTrimmedControlValue(coreAppClientId, current.core?.appClientId || ""),
 					allowInsecureTls: readCheckboxValue(coreAllowInsecureTls, Boolean(current.core?.allowInsecureTls)),
 					useCoreIdentityForAirPad: readCheckboxValue(coreUseCoreIdentityAirpad, (current.core?.useCoreIdentityForAirPad ?? true) !== false),
-					socket: {
-						...current.core?.socket || {},
-						airpadAuthToken: readTrimmedControlValue(coreSocketAirpadAuthToken, current.core?.socket?.airpadAuthToken || ""),
-						routeTarget: readTrimmedControlValue(coreSocketRouteTarget, current.core?.socket?.routeTarget || ""),
-						selfId: readTrimmedControlValue(coreSocketSelfId, current.core?.socket?.selfId || "")
-					},
+					socket: (() => {
+						const prev = { ...current.core?.socket || {} };
+						delete prev.airpadAuthToken;
+						return {
+							...prev,
+							accessToken: readTrimmedControlValue(coreSocketAccessToken, current.core?.socket?.accessToken || current.core?.socket?.airpadAuthToken || ""),
+							routeTarget: readTrimmedControlValue(coreSocketRouteTarget, current.core?.socket?.routeTarget || ""),
+							selfId: readTrimmedControlValue(coreSocketSelfId, current.core?.socket?.selfId || "")
+						};
+					})(),
 					admin: {
 						...current.core?.admin || {},
 						httpsOrigin: readTrimmedControlValue(coreAdminHttps, current.core?.admin?.httpsOrigin || ""),

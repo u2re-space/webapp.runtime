@@ -8,9 +8,13 @@
  * Proxies requests to the backend AI service or directly to OpenAI-compatible APIs.
  */
 
+import { matchesEndpointControlToken } from '../../shared/control-access-token.ts';
+
 // Default AI endpoint (can be overridden by env)
 const AI_BACKEND_URL = process.env.AI_BACKEND_URL || 'http://localhost:8080';
 const OPENAI_API_URL = process.env.OPENAI_API_URL || 'https://api.openai.com/v1';
+
+const normalizeString = (value: unknown): string => String(value ?? '').trim();
 
 /**
  * Safe JSON parse
@@ -148,8 +152,11 @@ export const registerAIProxyRoutes = async (fastify) => {
             return reply.code(result.ok ? 200 : (result.statusCode || 500)).send(result);
         }
 
-        // Otherwise proxy to backend
-        if (!userId || !userKey) {
+        // Otherwise proxy to backend (peer id + userKey, or peer id + verified endpoint accessToken)
+        const uid = normalizeString(userId);
+        const ukey = normalizeString(userKey);
+        const accessTok = normalizeString((req.body || {}).accessToken || (req.body || {}).authToken);
+        if (!uid || (!ukey && !(accessTok && matchesEndpointControlToken(accessTok)))) {
             return reply.code(401).send({ ok: false, error: 'Missing credentials' });
         }
 
@@ -177,8 +184,10 @@ export const registerAIProxyRoutes = async (fastify) => {
             return reply.code(result.ok ? 200 : (result.statusCode || 500)).send(result);
         }
 
-        // Otherwise proxy to backend
-        if (!userId || !userKey) {
+        const uid2 = normalizeString(userId);
+        const ukey2 = normalizeString(userKey);
+        const accessTok2 = normalizeString((req.body || {}).accessToken || (req.body || {}).authToken);
+        if (!uid2 || (!ukey2 && !(accessTok2 && matchesEndpointControlToken(accessTok2)))) {
             return reply.code(401).send({ ok: false, error: 'Missing credentials' });
         }
 

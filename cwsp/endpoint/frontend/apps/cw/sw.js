@@ -2794,7 +2794,7 @@ var init_SettingsTypes = __esmMin((() => {
 				protocol: "auto",
 				routeTarget: "",
 				selfId: "",
-				airpadAuthToken: "",
+				accessToken: "",
 				transportMode: "plaintext",
 				transportSecret: "",
 				signingSecret: ""
