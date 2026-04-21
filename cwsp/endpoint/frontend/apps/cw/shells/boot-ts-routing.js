@@ -9,6 +9,7 @@ import "../com/service11.js";
 import { n as initClipboardReceiver } from "../core/clipboard.js";
 import { a as bootTabbed, i as bootMinimal, n as bootBase, o as bootWindow, r as bootEnvironment } from "./boot-ts-BootLoader.js";
 import "../com/service13.js";
+import "../com/service14.js";
 import "../views/airpad.js";
 import { n as initToastReceiver } from "../com/app5.js";
 import { n as openUnifiedContextMenu, t as closeUnifiedContextMenu } from "../com/app6.js";

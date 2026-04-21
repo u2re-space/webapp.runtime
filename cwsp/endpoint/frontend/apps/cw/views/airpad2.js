@@ -185,11 +185,13 @@ function log(msg) {
 var websocket_exports = /* @__PURE__ */ __exportAll({
 	connectWS: () => connectWS,
 	disconnectWS: () => disconnectWS,
+	getWS: () => getWS,
 	initWebSocket: () => initWebSocket,
 	isWSConnected: () => isWSConnected,
 	onServerClipboardUpdate: () => onServerClipboardUpdate,
 	onVoiceResult: () => onVoiceResult,
 	onWSConnectionChange: () => onWSConnectionChange,
+	reconnectTransportAfterLifecycleResume: () => reconnectTransportAfterLifecycleResume,
 	sendCoordinatorAct: () => sendCoordinatorAct,
 	sendCoordinatorAsk: () => sendCoordinatorAsk,
 	sendCoordinatorRequest: () => sendCoordinatorRequest
@@ -301,6 +303,10 @@ var ensureCoordinatorSocketConnected = async (timeoutMs = 7e3) => {
 		const timeoutId = globalThis.setTimeout(() => finish(Boolean(socket?.connected)), timeoutMs);
 	});
 };
+/** Return the current live WebSocket instance, if any. */
+function getWS() {
+	return socket;
+}
 /** Report whether the primary transport socket is currently connected. */
 function isWSConnected() {
 	return wsConnected;
@@ -893,6 +899,42 @@ function handleServerMessage(msg) {
 		} catch {}
 		log("Voice result: " + text);
 	}
+}
+/**
+* Tear down the hub transport and immediately run a fresh {@link connectWS} probe.
+* Used when the PWA returns from background / bfcache: OS often kills WebSockets while
+* Socket.IO still reports `connected` until a failed send, so a soft resume reconnect
+* restores endpoint clipboard/coordinator without requiring a manual WS tap.
+*/
+function reconnectTransportAfterLifecycleResume(reason) {
+	if (typeof window === "undefined") return;
+	logWsState("lifecycle-reconnect", reason);
+	stopClipboardPushLoop();
+	connectAttemptId += 1;
+	manualDisconnectRequested = false;
+	for (const [uuid, pending] of coordinatorPending.entries()) {
+		clearTimeout(pending.timeoutId);
+		pending.reject({
+			ok: false,
+			error: `Disconnected before response for ${uuid}`
+		});
+		coordinatorPending.delete(uuid);
+	}
+	for (const probe of [...activeProbeSockets]) {
+		probe.removeAllListeners();
+		probe.close();
+		activeProbeSockets.delete(probe);
+	}
+	isConnecting = false;
+	if (socket) try {
+		socket.removeAllListeners();
+		socket.disconnect();
+	} catch {}
+	socket = null;
+	window.__socket = null;
+	setWsStatus(false);
+	autoReconnectAttempts = 0;
+	connectWS();
 }
 /**
 * Probe candidate origins and establish the primary WebSocket transport.
