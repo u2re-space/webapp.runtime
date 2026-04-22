@@ -383,6 +383,18 @@ Older pre-v2 transport-hint query names are not supported; use the `cwsp_*` keys
 
 These are transport diagnostics hints, not the canonical packet payload.
 
+#### Client wire identity (handshake query)
+
+WebSocket / Engine.IO handshakes send `connectionType` and `archetype` query parameters. Defaults match `server/socket/client-contract.ts` and `shared/cws-client-wire-defaults.ts` (`exchanger-initiator`, `server-v2`).
+
+CrossWord / Settings UI maps these from `AppSettings`:
+
+- `core.socket.connectionType` — optional; empty uses default
+- `core.socket.archetype` — optional; empty uses default
+- `core.socket.protocolLanesJson` — optional JSON object mirroring per-node config-v2 `Protocols` (lane → role strings); reserved for tooling / future wire hints
+
+When settings are not loaded (standalone bundles), the same values can be supplied via `globalThis.AIRPAD_CONFIG.connectionType` / `.archetype` or `globalThis.CWS_CONNECTION_TYPE` / `globalThis.CWS_ARCHETYPE` (see `runtime/cwsp/endpoint/frontend/apps/cw/views/airpad2.js`).
+
 ### PWA / service worker
 
 The PWA service worker must not intercept control-channel traffic that would break transport:

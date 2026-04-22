@@ -1,10 +1,15 @@
 /**
  * PM2 — CWSP **TypeScript** entry (`server/index.ts` via tsx), cwd = cwsp package root.
  *
- *   cd runtime/cwsp && pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env
+ *   cd runtime/cwsp/endpoint && pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env
  *
- * Same layout as `npm run deploy:server:ssh` target: `server/`, `web/`, `package.json`, `portable.config.json`.
- * Merges `launcherEnv` from `portable.config.json` (and optional `--config` / `--data` CLI args to pm2).
+ * Config profile (when `--config` / `CWS_PORTABLE_CONFIG_PATH` are unset):
+ *   - Windows: defaults to `config/portable.config.110.json` (`--110` forces it)
+ *   - Linux: defaults to `config/portable.config.json` (L-200 gateway; `--200` or `-200` forces it)
+ *   - Override: `CWS_DEFAULT_PORTABLE_PROFILE=110|200`
+ *
+ * `npm run distribute` runs `config:prepare` then deploys Windows + Linux hosts (`deploy-cwsp-hosts`).
+ * Single-target sync: `npm run distribute:ssh`.
  */
 const fs = require("fs");
 const path = require("path");

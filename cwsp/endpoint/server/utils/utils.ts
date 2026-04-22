@@ -6,6 +6,7 @@ import { parsePortableBoolean, parsePortableInteger, safeJsonParse, resolvePorta
 import { pickEnvBoolLegacy, pickEnvNumberLegacy, pickEnvStringLegacy } from "../lib/env.ts";
 import { SETTINGS_FILE, CONFIG_DIR } from "../lib/paths.ts";
 import type { EndpointConfig, EndpointIdPolicy, PortableConfigSeed } from "./schema.ts";
+import { extractNormalizedProtocols } from "./endpoint-policy.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -384,22 +385,7 @@ export const normalizeLegacyEndpointIds = (value: unknown): Record<string, Endpo
 
         if (typeof rawPolicySource !== "object" || Array.isArray(rawPolicySource)) continue;
         const policy = rawPolicySource as Record<string, unknown>;
-        const legacyOutgoing = parseLegacyAllowedForwardList(policy.allowedOutgoing);
-        const legacyForwards = parseLegacyAllowedForwardList(policy.allowedForwards);
-        const allowedOutgoing = legacyOutgoing.length ? legacyOutgoing : legacyForwards.length ? legacyForwards : ["*"];
-        const allowedIncoming = parseLegacyAllowedForwardList(policy.allowedIncoming);
-        out[policyId] = normalizeEndpointIdPolicy(policyId, {
-            origins: policy.origins,
-            tokens: policy.tokens,
-            forward: legacyPolicyForward(policy.forward),
-            ports: policy.ports,
-            modules: policy.modules,
-            flags: policy.flags,
-            relations: policy.relations,
-            allowedIncoming: allowedIncoming.length ? allowedIncoming : ["*"],
-            allowedOutcoming: allowedOutgoing,
-            roles: policy.roles
-        });
+        out[policyId] = normalizeEndpointIdPolicy(policyId, policy);
     }
 
     const resolveAliasTarget = (aliasId: string, seen = new Set<string>()) => {
@@ -433,6 +419,100 @@ export const normalizeLegacyEndpointIds = (value: unknown): Record<string, Endpo
     return out;
 };
 
+const ENDPOINT_FRAGMENT_PATTERN = /^endpoint-(.+)\.json$/i;
+
+const CLIENT_IDENTITY_KEYS = [
+    "origins",
+    "allowedOrigins",
+    "Origins",
+    "tokens",
+    "allowedIdentify",
+    "Identifier",
+    "AccessToken"
+] as const;
+
+const pickClientIdentityFields = (entry: Record<string, unknown> | undefined): Record<string, unknown> => {
+    if (!entry) return {};
+    const out: Record<string, unknown> = {};
+    for (const key of CLIENT_IDENTITY_KEYS) {
+        if (entry[key] !== undefined) out[key] = entry[key];
+    }
+    return out;
+};
+
+const findMatchingMapKey = (map: Record<string, unknown>, id: string): string | undefined => {
+    const target = id.trim().toLowerCase();
+    for (const k of Object.keys(map)) {
+        if (k.trim().toLowerCase() === target) return k;
+    }
+    return undefined;
+};
+
+/** Merge `endpoint-*.json` from `CONFIG_DIR` and `CONFIG_DIR/config-v2` (later dir wins on overlap). */
+const loadEndpointNodeFragmentsRaw = (): Record<string, Record<string, unknown>> => {
+    const dirs = [CONFIG_DIR, path.join(CONFIG_DIR, "config-v2")].filter((dir) => {
+        try {
+            return fs.existsSync(dir) && fs.statSync(dir).isDirectory();
+        } catch {
+            return false;
+        }
+    });
+    const byId: Record<string, Record<string, unknown>> = {};
+    for (const dir of dirs) {
+        let names: string[] = [];
+        try {
+            names = fs.readdirSync(dir);
+        } catch {
+            continue;
+        }
+        for (const name of names) {
+            if (!ENDPOINT_FRAGMENT_PATTERN.test(name)) continue;
+            const full = path.join(dir, name);
+            try {
+                if (!fs.statSync(full).isFile()) continue;
+            } catch {
+                continue;
+            }
+            const parsed = readJson(full);
+            if (!parsed) continue;
+            const idRaw = String(parsed.ID ?? parsed.Id ?? "").trim();
+            const key = (idRaw || name.replace(/\.json$/i, "")).trim().toLowerCase();
+            const prev = byId[key] || {};
+            byId[key] = { ...prev, ...parsed };
+        }
+    }
+    return byId;
+};
+
+/** Node fragments supply personalized policy; `clients.json` overlays identification fields only. */
+const mergeClientsWithNodeFragments = (clients: Record<string, unknown>, fragments: Record<string, Record<string, unknown>>): Record<string, unknown> => {
+    const out: Record<string, unknown> = { ...clients };
+    for (const frag of Object.values(fragments)) {
+        const canonical = String(frag.ID ?? frag.Id ?? "").trim();
+        if (!canonical) continue;
+        const matchKey = findMatchingMapKey(out, canonical);
+        const identity = pickClientIdentityFields(
+            matchKey && out[matchKey] && typeof out[matchKey] === "object" ? (out[matchKey] as Record<string, unknown>) : undefined
+        );
+        if (matchKey && typeof out[matchKey] === "string") {
+            out[canonical] = { ...frag };
+            continue;
+        }
+        if (matchKey && out[matchKey] && typeof out[matchKey] === "object") {
+            out[matchKey] = { ...frag, ...identity };
+        } else {
+            out[canonical] = { ...frag };
+        }
+    }
+    return out;
+};
+
+/** On-disk `clients.json` merged with per-node `endpoint-*.json` (identity map + node fragments). */
+export const loadMergedClientsPolicySource = (): Record<string, unknown> => {
+    const parsed = readJson(path.resolve(CONFIG_DIR, "clients.json")) || {};
+    return mergeClientsWithNodeFragments(parsed, loadEndpointNodeFragmentsRaw());
+};
+
 export const loadLegacyEndpointIds = (): Record<string, EndpointIdPolicy> => {
     const moduleDir = path.dirname(fileURLToPath(import.meta.url));
     const cwd = process.cwd();
@@ -459,11 +539,14 @@ export const loadLegacyEndpointIds = (): Record<string, EndpointIdPolicy> => {
     configLoadReport.legacyClientsMergedEntries = 0;
     configLoadReport.legacyGatewaysMergedEntries = 0;
 
+    const nodeFragments = loadEndpointNodeFragmentsRaw();
     for (const candidate of candidates) {
         const parsed = readJson(candidate);
         if (!parsed) continue;
-        const normalized = normalizeLegacyEndpointIds(parsed);
-        appendEndpointIdDefinitions(`legacy:${candidate}`, parsed);
+        const isClientsFile = path.basename(candidate).toLowerCase() === "clients.json";
+        const mergedSource = isClientsFile ? mergeClientsWithNodeFragments(parsed, nodeFragments) : parsed;
+        const normalized = normalizeLegacyEndpointIds(mergedSource);
+        appendEndpointIdDefinitions(`legacy:${candidate}`, mergedSource);
         Object.assign(merged, normalized);
         const normalizedCount = Object.keys(merged).length;
         const normalizedCandidate = candidate.toLowerCase();
@@ -788,31 +871,73 @@ export const normalizeEndpointPolicyList = (raw: unknown, preserveEmpty = true):
     return preserveEmpty ? ["*"] : [];
 };
 
+const buildClipboardModuleFromInputs = (inputsRaw: unknown): Record<string, unknown> | undefined => {
+    if (!inputsRaw || typeof inputsRaw !== "object" || Array.isArray(inputsRaw)) return undefined;
+    const inputs = inputsRaw as Record<string, unknown>;
+    const clip = inputs.clipboard;
+    if (!clip || typeof clip !== "object" || Array.isArray(clip)) return undefined;
+    const c = clip as Record<string, unknown>;
+    const shareTo = c.allowedToShare ?? c.shareTo;
+    const acceptFrom = c.allowedToAccept ?? c.acceptFrom;
+    if (!Array.isArray(shareTo) && !Array.isArray(acceptFrom)) return undefined;
+    return {
+        clipboard: [
+            {
+                shareTo: Array.isArray(shareTo) ? shareTo : [],
+                acceptFrom: Array.isArray(acceptFrom) ? acceptFrom : []
+            }
+        ]
+    };
+};
+
 export function normalizeEndpointIdPolicy(policyId: string, source: unknown): EndpointIdPolicy {
     const raw = source && typeof source === "object" ? (source as Record<string, unknown>) : {};
     const normalizedId = String(policyId || "")
         .trim()
         .toLowerCase();
-    const flags = raw.flags && typeof raw.flags === "object" ? (raw.flags as Record<string, unknown>) : {};
-    const forwardRaw = raw.forward;
+    const flagRecord = { ...asRecord(raw.Flags), ...asRecord(raw.flags) };
+    const forwardRaw = raw.forward ?? raw.DirectForward;
     const allowedOutgoingRaw = (raw as Record<string, unknown>).allowedOutcoming ?? (raw as Record<string, unknown>).allowedOutgoing ?? (raw as Record<string, unknown>).allowedForwards;
+    const originCandidates = [
+        ...normalizeEndpointPolicyList(raw.origins, false),
+        ...normalizeEndpointPolicyList(raw.allowedOrigins, false),
+        ...normalizeEndpointPolicyList("Origins" in raw ? raw.Origins : undefined, false)
+    ];
+    const origins = originCandidates.length ? originCandidates : normalizeEndpointPolicyList(undefined, true);
+    const tokenCandidates = [
+        ...normalizeEndpointPolicyList(raw.tokens, false),
+        ...normalizeEndpointPolicyList(raw.allowedIdentify, false),
+        ...normalizeEndpointPolicyList("Identifier" in raw ? raw.Identifier : undefined, false),
+        ...normalizeEndpointPolicyList("AccessToken" in raw ? raw.AccessToken : undefined, false)
+    ];
+    const tokens = Array.from(new Set(tokenCandidates)).filter(Boolean);
+    const fromInputs = buildClipboardModuleFromInputs(raw.inputs);
+    const baseModules = raw.modules && typeof raw.modules === "object" && !Array.isArray(raw.modules) ? (raw.modules as Record<string, unknown>) : {};
+    const mergedModules = { ...(fromInputs || {}), ...baseModules };
+    const modules = Object.keys(mergedModules).length ? mergedModules : undefined;
+    const portsRaw = raw.ports ?? raw.Ports;
     return {
         id: normalizedId,
-        origins: normalizeEndpointPolicyList(raw.origins, true),
-        tokens: normalizeEndpointPolicyList(raw.tokens, false),
+        origins,
+        tokens,
         forward: legacyPolicyForward(forwardRaw),
-        ports: raw.ports && typeof raw.ports === "object" && !Array.isArray(raw.ports) ? (raw.ports as Record<string, unknown>) : undefined,
-        modules: raw.modules && typeof raw.modules === "object" && !Array.isArray(raw.modules) ? (raw.modules as Record<string, unknown>) : undefined,
+        ports: portsRaw && typeof portsRaw === "object" && !Array.isArray(portsRaw) ? (portsRaw as Record<string, unknown>) : undefined,
+        modules,
         flags: {
-            mobile: typeof flags.mobile === "boolean" ? flags.mobile : undefined,
-            gateway: typeof flags.gateway === "boolean" ? flags.gateway : undefined,
-            direct: typeof flags.direct === "boolean" ? flags.direct : undefined,
-            ...Object.fromEntries(Object.entries(flags).filter(([, value]) => typeof value === "boolean"))
+            mobile: typeof flagRecord.mobile === "boolean" ? flagRecord.mobile : undefined,
+            gateway: typeof flagRecord.gateway === "boolean" ? flagRecord.gateway : undefined,
+            direct: typeof flagRecord.direct === "boolean" ? flagRecord.direct : undefined,
+            ...Object.fromEntries(Object.entries(flagRecord).filter(([, value]) => typeof value === "boolean"))
         },
         relations: raw.relations && typeof raw.relations === "object" && !Array.isArray(raw.relations) ? (raw.relations as Record<string, unknown>) : undefined,
         allowedIncoming: normalizeEndpointPolicyList(raw.allowedIncoming, true),
         allowedOutcoming: normalizeEndpointPolicyList(allowedOutgoingRaw, true),
-        roles: Array.isArray(raw.roles) ? raw.roles.map((entry) => String(entry || "").trim()).filter(Boolean) : undefined
+        roles: Array.isArray(raw.roles)
+            ? raw.roles.map((entry) => String(entry || "").trim()).filter(Boolean)
+            : Array.isArray(raw.Roles)
+              ? raw.Roles.map((entry) => String(entry || "").trim()).filter(Boolean)
+              : undefined,
+        protocols: extractNormalizedProtocols(raw)
     };
 }
 

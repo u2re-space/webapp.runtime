@@ -1,132 +1,16 @@
 {
-    "version": 2,
-    "schema": {
-        "network": 2,
-        "coordinator": "unified"
-    },
-    "portableModules": {
-        "clients": "fs:./clients.json",
-        "gateways": "fs:./gateways.json",
-        "endpointIDs": "fs:./clients.json",
-        "network": "fs:./network.json",
-        "core": "fs:./portable-core.json",
-        "endpoint": "fs:./portable-endpoint.json"
-    },
-    "build": {
-        "copyMode": "remote",
-        "outputDir": "",
-        "skipOutputCopy": false,
-        "nodeModulesMode": "none",
-        "includeNodeModules": false,
-        "archiveRetentionCount": 1,
-        "preserveTargets": [
-            "node_modules",
-            ".data",
-            ".endpoint.config.json",
-            ".config.endpoint.json",
-            "portable.config.json",
-            "portable.config.110.json"
-        ]
-    },
-    "remote": {
-        "host": "192.168.0.110",
-        "hosts": [
-            "192.168.0.110",
-            "192.168.0.111",
-            "100.110.152.73"
-        ],
-        "user": "U2RE",
-        "port": 22,
-        "path": "C:\\\\Users\\\\U2RE\\\\endpoint-portable",
-        "preserveTargets": [
-            "node_modules",
-            ".data",
-            ".endpoint.config.json",
-            ".config.endpoint.json",
-            "portable.config.json",
-            "portable.config.110.json"
-        ],
-        "pathCandidates": [
-            "C:/Users/U2RE/endpoint-portable",
-            "C:/Users/U2RE/cwsp-server",
-            "C:/Users/U2RE/U2RE.space/runtime/cwsp/endpoint"
-        ]
-    },
     "launcherEnv": {
-        "CWS_AIRPAD_VERBOSE": 1,
-        "CWS_PORTABLE_CONFIG_PATH": "./config/portable.config.110.json",
-        "CWS_NETWORK_SCHEMA_VERSION": 2,
-        "CWS_COORDINATOR_MODE": "unified",
-        "CORS_ALLOW_PRIVATE_NETWORK": true,
-        "CORS_ALLOWED_ORIGINS": "https://u2re.space,https://www.u2re.space,https://45.147.121.152,https://45.150.9.153,https://100.76.202.88,https://100.110.152.73,https://100.99.178.6,https://100.90.155.65,https://192.168.0.200,https://192.168.0.201,https://192.168.0.110,https://192.168.0.111,https://192.168.0.196,https://192.168.0.208,http://192.168.0.200,http://192.168.0.201,http://192.168.0.110,http://192.168.0.111,http://192.168.0.196,http://192.168.0.208,capacitor://localhost,https://localhost",
-        "CWS_SOCKET_STRICT_CORS": false,
-        "CWS_CAP_ALLOW_NAVIGATION": "https://u2re.space,https://www.u2re.space,https://45.147.121.152,https://45.150.9.153,https://100.76.202.88,https://100.110.152.73,https://100.99.178.6,https://100.90.155.65,https://192.168.0.200,https://192.168.0.201,https://192.168.0.110,https://192.168.0.111,https://192.168.0.196,https://192.168.0.208,http://192.168.0.200,http://192.168.0.201,http://192.168.0.110,http://192.168.0.111,http://192.168.0.196,http://192.168.0.208,http://localhost,https://localhost",
-        "CWS_CAP_CLEAR_DOMAINS": "localhost,127.0.0.1,10.0.2.2,192.168.0.200,192.168.0.201,192.168.0.110,192.168.0.111,192.168.0.196,192.168.0.208,100.110.152.73,100.99.178.6,100.90.155.65",
-        "CWS_COEP_POLICY": "unsafe-none",
-        "CWS_COOP_POLICY": "same-origin-allow-popups",
-        "CWS_CORP_POLICY": "cross-origin",
-        "CWS_CSP_ENABLED": true,
-        "CWS_ELECTRON_WEB_SECURITY": true,
-        "CWS_ELECTRON_ALLOW_INSECURE_CONTENT": true,
-        "CWS_BRIDGE_ENABLED": true,
-        "CWS_BRIDGE_MODE": "active",
-        "CWS_BRIDGE_CONNECTION_TYPE": "exchanger-initiator",
-        "CWS_BRIDGE_ENDPOINT_URL": "https://192.168.0.200:8443/",
-        "CWS_BRIDGE_ENDPOINTS": [
-            "https://192.168.0.200:8443/",
-            "https://192.168.0.201:8443/",
-            "https://192.168.0.110:8443/",
-            "https://192.168.0.111:8443/",
-            "https://192.168.0.196:8443/",
-            "https://192.168.0.208:8443/",
-            "https://45.147.121.152:8443/",
-            "https://45.150.9.153:8443/",
-            "https://100.76.202.88:8443/",
-            "https://100.110.152.73:8443/",
-            "https://100.99.178.6:8443/",
-            "https://100.90.155.65:8443/"
-        ],
-        "CWS_BRIDGE_PRECONNECT_TARGETS": [
-            "L-192.168.0.200",
-            "L-192.168.0.110",
-            "L-192.168.0.196",
-            "L-192.168.0.208"
-        ],
-        "CWS_BRIDGE_RECONNECT_MS": 3000,
-        "CWS_BRIDGE_KEEPALIVE": true,
-        "CWS_BRIDGE_KEEPALIVE_MS": 15000,
-        "CWS_BRIDGE_STALE_MS": 45000,
-        "CWS_BRIDGE_TUNNEL_ENABLED": true,
-        "CWS_BRIDGE_IDENTITY_BY_ID": true,
-        "CWS_COMPAT_SOCKETIO": "false",
-        "CWS_WS_CANONICAL": "true",
-        "CWS_BRIDGE_REJECT_UNAUTHORIZED": "false",
-        "CWS_PORTABLE_DATA_PATH": "./.data",
-        "CWS_HTTPS_ENABLED": true,
-        "CWS_ROLES": [
-            "responser-initiated",
-            "requestor-initiated",
-            "responser-initiator",
-            "requestor-initiator",
-            "exchanger-initiator",
-            "exchanger-initiated"
-        ],
+        "CWS_ASSOCIATED_ID": "L-192.168.0.110",
         "CWS_ASSOCIATED_TOKEN": "n3v3rm1nd",
-        "CWS_ASSOCIATED_NAME": "desktop-110",
         "CWS_BRIDGE_USER_ID": "L-192.168.0.110",
         "CWS_BRIDGE_USER_KEY": "n3v3rm1nd",
         "CWS_BRIDGE_DEVICE_ID": "L-192.168.0.110",
-        "CWS_BRIDGE_USER_ALIASES": "L-192.168.0.110,192.168.0.110,192.168.0.111",
-        "CWS_CLIPBOARD_LOG_PREVIEW": 64,
-        "CWS_AIRPAD_NATIVE_ACTIONS": "true",
-        "CWS_HTTPS_CERT": "fs:../https/private/multi.crt",
-        "CWS_ASSOCIATED_ID": "L-192.168.0.110",
-        "CWS_HTTPS_CA": "fs:../https/private/rootCA.crt",
-        "CWS_CLIPBOARD_LOGGING": "true",
-        "CWS_TUNNEL_DEBUG": true,
-        "CWS_CLIPBOARD_LOG_HASH": "true",
-        "CWS_HTTPS_KEY": "fs:../https/private/multi.key",
-        "CWS_AIRPAD_ROBOTJS_ENABLED": "true",
-        "CWS_HTTPS_CERT_MODULE": "fs:./certificate.mjs"
+        "CWS_BRIDGE_ENDPOINT_URL": "https://192.168.0.200:8443/",
+        "CWS_BRIDGE_ENDPOINTS": "https://192.168.0.200:8443/,https://192.168.0.110:8443/,https://45.147.121.152:8443/",
+        "CWS_ADVERTISE_HOST": "192.168.0.110"
+    },
+    "portableModules": {
+        "clients": "./clients.json",
+        "network": "./network.json"
     }
 }

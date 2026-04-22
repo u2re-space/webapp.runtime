@@ -7,8 +7,6 @@
  * requests and forwards them into the shared transport layer.
  */
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { readFileSync } from "node:fs";
-import path from "node:path";
 
 import { verifyUser } from "../routers/auth/users.ts";
 import type { ClipboardAccess } from "@inputs/access/clipboard.ts";
@@ -18,12 +16,11 @@ import {
     writeClipboard as writeLegacyClipboard
 } from "../../inputs/clipboard.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "../../utils/endpoint-policy.ts";
-import { CONFIG_DIR } from "../../utils/paths.ts";
+import { loadMergedClientsPolicySource } from "../../utils/utils.ts";
 import { ServerV2SocketRuntime } from "../../socket/runtime.ts";
 import config from "@config/config.ts";
 
 const TRANSPORT_HANDLERS_KEY = Symbol.for("cws.serverV2.transportHandlers");
-const RAW_CLIENTS_CONFIG_PATH = path.join(CONFIG_DIR, "clients.json");
 
 const normalizeString = (value: unknown): string => String(value || "").trim();
 const normalizeToken = (value: unknown): string => String(value || "").trim().toLowerCase();
@@ -43,8 +40,7 @@ const resolveDispatchOp = (value: unknown): string => {
 /** Load endpoint policy/identity config once so HTTP transport routes can verify non-DB peers. */
 const loadEndpointPolicies = () => {
     try {
-        const raw = JSON.parse(readFileSync(RAW_CLIENTS_CONFIG_PATH, "utf8")) as Record<string, unknown>;
-        return normalizeEndpointPolicies(raw);
+        return normalizeEndpointPolicies(loadMergedClientsPolicySource());
     } catch {
         return normalizeEndpointPolicies({});
     }

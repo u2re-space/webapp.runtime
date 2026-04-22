@@ -25,6 +25,12 @@ export type EndpointIdPolicy = {
     allowedIncoming: string[];
     allowedOutcoming: string[];
     roles: string[];
+    /**
+     * Per-lane role specializations (config `Protocols` / `protocols`).
+     * Keys: canonical lanes `websocket`, `http`, `socketio`, `tcp`, or other lowercase tokens.
+     * Values: allowed archetypes for that lane (`requestor`, `initiator`, `initiated`, `responser`, `exchanger`, …).
+     */
+    protocols?: Record<string, string[]>;
 };
 
 export type EndpointIdPolicyMap = Record<string, EndpointIdPolicy>;
@@ -131,20 +137,126 @@ const normalizeFlags = (raw: unknown): EndpointIdFlags => {
     return flags;
 };
 
+const mergeIdentifierLists = (...parts: unknown[]): string[] => {
+    const bucket = new Set<string>();
+    for (const part of parts) {
+        for (const entry of normalizeList(part, false)) {
+            if (entry) bucket.add(entry);
+        }
+    }
+    return Array.from(bucket);
+};
+
+const mergeOriginLists = (...parts: unknown[]): string[] => {
+    const bucket = new Set<string>();
+    let anyDefined = false;
+    for (const part of parts) {
+        if (part === undefined) continue;
+        anyDefined = true;
+        for (const entry of normalizeList(part, false)) {
+            if (entry) bucket.add(entry);
+        }
+    }
+    const merged = Array.from(bucket);
+    if (merged.length) return merged;
+    return anyDefined ? normalizeList([], false) : normalizeList(undefined);
+};
+
+const normalizeProtocolLaneKey = (key: string): string => {
+    const k = normalizeToken(key);
+    if (!k) return "";
+    if (k === "websocket" || k === "ws" || k === "wss") return "websocket";
+    if (k === "http" || k === "https") return "http";
+    if (k === "socketio" || k === "socket.io" || k === "io") return "socketio";
+    if (k === "tcp" || k === "tcp4" || k === "tcp6") return "tcp";
+    return k;
+};
+
+/**
+ * Normalize `protocols` / `Protocols` from endpoint JSON into canonical lane → role lists.
+ * Merges `ws`/`wss`/`websocket` and `http`/`https` into `websocket` and `http` respectively.
+ */
+export const extractNormalizedProtocols = (source: Record<string, unknown>): Record<string, string[]> | undefined => {
+    const lowerRec =
+        source.protocols && typeof source.protocols === "object" && !Array.isArray(source.protocols)
+            ? (source.protocols as Record<string, unknown>)
+            : {};
+    const upperRec =
+        source.Protocols && typeof source.Protocols === "object" && !Array.isArray(source.Protocols)
+            ? (source.Protocols as Record<string, unknown>)
+            : {};
+    const merged: Record<string, unknown> = { ...lowerRec, ...upperRec };
+    if (!Object.keys(merged).length) return undefined;
+
+    const out: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(merged)) {
+        const lane = normalizeProtocolLaneKey(key);
+        if (!lane) continue;
+        const roles = normalizeList(value, false);
+        if (!roles.length) continue;
+        out[lane] = out[lane] ? Array.from(new Set([...out[lane], ...roles])) : roles;
+    }
+    return Object.keys(out).length ? out : undefined;
+};
+
+/** If `policy.protocols` is set, require lane role (or `*`). If unset, allow all (legacy configs). */
+export const endpointSupportsProtocolRole = (policy: EndpointIdPolicy | undefined, lane: string, role: string): boolean => {
+    if (!policy?.protocols || !Object.keys(policy.protocols).length) return true;
+    const rn = normalizeToken(role);
+    if (!rn) return false;
+    const ln = normalizeToken(lane);
+    const canonicalLane =
+        ln === "ws" || ln === "wss" || ln === "websocket" ? "websocket" : ln === "http" || ln === "https" ? "http" : ln;
+    const laneRoles = policy.protocols[canonicalLane];
+    if (!laneRoles?.length) return true;
+    return laneRoles.includes("*") || laneRoles.includes(rn);
+};
+
+const forwardFromSource = (source: Record<string, unknown>): string => {
+    const direct = normalizeToken(source.forward);
+    if (direct) return direct;
+    const df = source.DirectForward;
+    if (Array.isArray(df)) {
+        for (const entry of df) {
+            if (typeof entry === "string") {
+                const t = normalizeToken(entry);
+                if (t) return t;
+            }
+            if (entry && typeof entry === "object") {
+                const id = normalizeToken((entry as Record<string, unknown>).id);
+                const target = normalizeToken((entry as Record<string, unknown>).target);
+                if (id) return id;
+                if (target) return target;
+            }
+        }
+        return "self";
+    }
+    if (typeof df === "string" && df.trim()) return normalizeToken(df) || "self";
+    return "self";
+};
+
 const normalizePolicy = (id: string, raw: unknown): EndpointIdPolicy => {
     const source = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const originParts = mergeOriginLists(source.origins, source.allowedOrigins, source.Origins);
+    const tokenParts = mergeIdentifierLists(
+        source.tokens,
+        source.allowedIdentify,
+        typeof source.Identifier === "string" ? [source.Identifier] : source.Identifier,
+        typeof source.AccessToken === "string" ? [source.AccessToken] : source.AccessToken
+    );
     return {
         id,
-        origins: normalizeList(source.origins),
-        tokens: normalizeList(source.tokens, false),
-        forward: normalizeToken(source.forward) || "self",
-        ports: normalizePorts(source.ports),
+        origins: originParts,
+        tokens: tokenParts,
+        forward: forwardFromSource(source),
+        ports: normalizePorts(source.ports ?? source.Ports),
         modules: source.modules && typeof source.modules === "object" && !Array.isArray(source.modules) ? (source.modules as Record<string, unknown>) : undefined,
-        flags: normalizeFlags(source.flags),
+        flags: normalizeFlags(source.flags ?? source.Flags),
         relations: normalizeRelations(source.relations),
         allowedIncoming: normalizeList(source.allowedIncoming),
-        allowedOutcoming: normalizeList(source.allowedOutcoming),
-        roles: normalizeList(source.roles, false)
+        allowedOutcoming: normalizeList(source.allowedOutcoming ?? source.allowedOutgoing ?? source.allowedForwards),
+        roles: normalizeList(source.roles ?? source.Roles, false),
+        protocols: extractNormalizedProtocols(source)
     };
 };
 

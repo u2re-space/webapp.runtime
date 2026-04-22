@@ -61,6 +61,8 @@ export type EndpointIdPolicy = {
     allowedIncoming: string[];
     allowedOutcoming: string[];
     roles?: string[];
+    /** Lane → roles from config `Protocols` (websocket, http, …). */
+    protocols?: Record<string, string[]>;
 };
 
 export type EndpointConfig = {

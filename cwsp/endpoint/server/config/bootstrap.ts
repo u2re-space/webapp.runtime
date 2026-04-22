@@ -46,6 +46,43 @@ const getCliArg = (args: string[], flag: string): string => {
     return "";
 };
 
+const argvHasFlag = (args: string[], ...flags: string[]): boolean => {
+    const set = new Set(flags);
+    for (const entry of args) {
+        if (set.has(entry)) return true;
+    }
+    return false;
+};
+
+/**
+ * Linux/default gateway profile (`portable.config.json`) vs Windows laptop (`portable.config.110.json`).
+ * Precedence: `--config` / env (handled earlier) → `--110` / `--200` / `-200` → `CWS_DEFAULT_PORTABLE_PROFILE`
+ * → platform (`win32` → 110, else → 200).
+ */
+const resolvePortableProfileConfigPath = (args: string[]): string => {
+    const configFolder = path.join(MODULE_DIR, "..", "..", "config");
+    const p110 = path.join(configFolder, "portable.config.110.json");
+    const p200 = path.join(configFolder, "portable.config.json");
+
+    if (argvHasFlag(args, "--110", "--profile-110")) {
+        return fs.existsSync(p110) ? p110 : "";
+    }
+    if (argvHasFlag(args, "--200", "-200", "--profile-200")) {
+        return fs.existsSync(p200) ? p200 : "";
+    }
+
+    const pe = String(process.env.CWS_DEFAULT_PORTABLE_PROFILE || "")
+        .trim()
+        .toLowerCase();
+    if (pe === "110" && fs.existsSync(p110)) return p110;
+    if (pe === "200" && fs.existsSync(p200)) return p200;
+
+    if (process.platform === "win32" && fs.existsSync(p110)) return p110;
+    if (process.platform !== "win32" && fs.existsSync(p200)) return p200;
+
+    return "";
+};
+
 const normalizeEnvValue = (value: unknown): string => {
     if (Array.isArray(value)) return value.map((item) => String(item ?? "").trim()).filter(Boolean).join(",");
     if (typeof value === "boolean" || typeof value === "number") return String(value);
@@ -59,6 +96,7 @@ const resolvePortableConfigPath = (args: string[], override?: string): string =>
         resolveArgValue(process.env.CWS_PORTABLE_CONFIG_PATH) ||
         resolveArgValue(process.env.ENDPOINT_CONFIG_JSON_PATH) ||
         resolveArgValue(process.env.PORTABLE_CONFIG_PATH);
+    const profilePick = !resolveArgValue(explicit) ? resolvePortableProfileConfigPath(args) : "";
     const cwdConfigCandidate = path.resolve(process.cwd(), "config", "portable.config.json");
     const cwdCandidate = path.resolve(process.cwd(), "portable.config.json");
     /** Nearest ancestor with `portable.config.json` (cwsp root for TS; bundle dir for `cwsp.mjs`). */
@@ -87,7 +125,7 @@ const resolvePortableConfigPath = (args: string[], override?: string): string =>
           : fs.existsSync(legacyCandidate)
             ? legacyCandidate
             : cwdCandidate;
-    const candidate = explicit || defaultCandidate;
+    const candidate = resolveArgValue(explicit) || profilePick || defaultCandidate;
     if (!candidate) return "";
     return resolvePortableTextValuePath(candidate, process.cwd());
 };

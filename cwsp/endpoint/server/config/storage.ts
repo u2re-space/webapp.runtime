@@ -15,6 +15,7 @@ import { parsePortableBoolean, parsePortableInteger, resolvePortablePayload, saf
 import { pickEnvBoolLegacy, pickEnvListLegacy, pickEnvNumberLegacy, pickEnvStringLegacy } from "@utils/env.ts";
 
 import { DEFAULT_SETTINGS, createSettingsStore, mergeSettings } from "./settings.ts";
+import { loadMergedClientsPolicySource } from "../utils/utils.ts";
 
 export type ServerV2ConfigSnapshot = Record<string, any>;
 
@@ -244,7 +245,7 @@ const inferBridgeIdentityFromEndpointIds = (policies: Record<string, unknown>): 
     for (const [rawId, rawPolicy] of Object.entries(policies)) {
         const canonicalId = resolveAliasId(policies, rawId);
         const policy = asRecord(typeof rawPolicy === "string" ? policies[canonicalId] : rawPolicy);
-        const origins = splitList(policy.origins);
+        const origins = splitList(policy.origins ?? policy.allowedOrigins ?? policy.Origins);
         if (!origins.length) continue;
         for (const origin of origins) {
             const host = normalizeHost(origin);
@@ -436,7 +437,9 @@ const resolveEndpointIds = (): Record<string, unknown> => {
     if (Object.keys(explicit).length) return explicit;
     const fromEndpointIdsModule = resolvePortableModuleRecord("endpointIDs");
     if (Object.keys(fromEndpointIdsModule).length) return fromEndpointIdsModule;
-    return asRecord(PORTABLE_CLIENTS);
+    const portableClients = asRecord(PORTABLE_CLIENTS);
+    if (Object.keys(portableClients).length) return portableClients;
+    return asRecord(loadMergedClientsPolicySource());
 };
 
 const buildSnapshot = (): ServerV2ConfigSnapshot => {

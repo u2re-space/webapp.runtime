@@ -97,6 +97,12 @@ export async function stageCwspServerRuntime(pkgRoot, destDir, options = {}) {
         await cp(src, dest, { recursive: true, dereference: true, force: true });
     }
 
+    const pkgConfigV2 = join(pkgRoot, "config-v2");
+    const destConfigV2 = join(destDir, "config", "config-v2");
+    if (existsSync(pkgConfigV2)) {
+        await cp(pkgConfigV2, destConfigV2, { recursive: true, dereference: true, force: true });
+    }
+
     // If config/ exists, ensure ecosystem PM2 files are also available there.
     // This keeps deploy/distribute layout consistent while avoiding config/config nesting.
     const stagedConfigDir = join(destDir, "config");

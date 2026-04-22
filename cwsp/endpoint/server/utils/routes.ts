@@ -7,10 +7,8 @@ import config from "../config/config.ts";
 import { matchesEndpointControlToken } from "../../shared/control-access-token.ts";
 import { parseWireTargetList, wireTargetNodeIds } from "../../shared/wire-target-id.ts";
 import { pickEnvBoolLegacy } from "./env.ts";
-import { CONFIG_DIR } from "./paths.ts";
 import { normalizeEndpointPolicies, resolveEndpointIdPolicyStrict } from "@utils/endpoint-policy.ts";
-import { readFileSync } from "node:fs";
-import path from "node:path";
+import { loadMergedClientsPolicySource } from "./utils.ts";
 import { normalizeIpForMatch } from "./ip-match.ts";
 
 function setUtf8Plain(reply: any) {
@@ -125,9 +123,7 @@ const summarizeClipboardText = (text: string): { len: number; preview: string } 
 const normalizeClipboardId = (value: any): string => String(value || "").trim().toLowerCase();
 const rawClientsPolicyFallback = (() => {
     try {
-        const clientsPath = path.resolve(CONFIG_DIR, "clients.json");
-        const text = readFileSync(clientsPath, "utf8");
-        const parsed = JSON.parse(text);
+        const parsed = loadMergedClientsPolicySource();
         return parsed && typeof parsed === "object" ? (parsed as Record<string, any>) : {};
     } catch {
         return {} as Record<string, any>;

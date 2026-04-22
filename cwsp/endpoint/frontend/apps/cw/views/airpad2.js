@@ -220,8 +220,22 @@ var AIRPAD_CANDIDATE_PARALLEL = 3;
 var AIRPAD_VERBOSE_QUERY_KEY = "CWS_AIRPAD_VERBOSE_QUERY";
 /** Coordinator ask/act wait — was 12s, tighter for snappier UI. */
 var AIRPAD_COORDINATOR_TIMEOUT_MS = 8e3;
-var AIRPAD_CONNECTION_TYPE = "exchanger-initiator";
-var AIRPAD_ARCHETYPE = "server-v2";
+var getBundledAirpadHandshakeConnectionType = () => {
+	try {
+		const cfg = globalThis.AIRPAD_CONFIG;
+		if (cfg && typeof cfg.connectionType === "string" && cfg.connectionType.trim()) return cfg.connectionType.trim();
+		if (typeof globalThis.CWS_CONNECTION_TYPE === "string" && globalThis.CWS_CONNECTION_TYPE.trim()) return globalThis.CWS_CONNECTION_TYPE.trim();
+	} catch {}
+	return "exchanger-initiator";
+};
+var getBundledAirpadHandshakeArchetype = () => {
+	try {
+		const cfg = globalThis.AIRPAD_CONFIG;
+		if (cfg && typeof cfg.archetype === "string" && cfg.archetype.trim()) return cfg.archetype.trim();
+		if (typeof globalThis.CWS_ARCHETYPE === "string" && globalThis.CWS_ARCHETYPE.trim()) return globalThis.CWS_ARCHETYPE.trim();
+	} catch {}
+	return "server-v2";
+};
 /**
 * Chrome/Edge MV3: content-script XHR (Engine.IO polling) to LAN often fails with
 * `xhr poll error` / `unsafeHeaders` / `net::ERR_FAILED` while `wss:` still works.
@@ -1195,8 +1209,8 @@ function connectWS() {
 			queryParams.peerInstanceId = peerInstanceId;
 			queryParams.deviceInstanceId = peerInstanceId;
 		}
-		queryParams.connectionType = AIRPAD_CONNECTION_TYPE;
-		queryParams.archetype = AIRPAD_ARCHETYPE;
+		queryParams.connectionType = getBundledAirpadHandshakeConnectionType();
+		queryParams.archetype = getBundledAirpadHandshakeArchetype();
 		queryParams[CWSP_ROUTE_QUERY.via] = !isSameAsTargetHost() ? "tunnel" : candidate.source || "unknown";
 		queryParams[CWSP_ROUTE_QUERY.localEndpoint] = isSameAsTargetHost() ? "1" : "0";
 		if (resolvedRouteTarget) {
