@@ -7,8 +7,8 @@
  */
 const fs = require("node:fs");
 const path = require("node:path");
-const ROOT_DIR = path.resolve(__dirname, "..");
-const distDirCandidates = [path.join(ROOT_DIR, "../dist/portable"), path.join(ROOT_DIR, "dist/portable")];
+const ROOT_DIR = path.resolve(__dirname, ".");
+const distDirCandidates = [path.join(ROOT_DIR, "./dist/portable"), path.join(ROOT_DIR, "dist/portable")];
 const distDir = distDirCandidates.find((candidate) => fs.existsSync(candidate)) || distDirCandidates[0];
 
 /**

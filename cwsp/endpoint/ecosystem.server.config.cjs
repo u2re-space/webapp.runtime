@@ -1,1 +1,1 @@
-config/ecosystem.server.config.cjs
+ecosystem/ecosystem.server.config.cjs

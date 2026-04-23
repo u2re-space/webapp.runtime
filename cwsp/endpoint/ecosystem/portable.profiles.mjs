@@ -4,14 +4,6 @@
  * in this directory; profile merges are optional (empty `PORTABLE_CONFIG_PROFILES`).
  */
 export const PORTABLE_CORE_PAYLOAD = {};
-
 export const PORTABLE_ENDPOINT_PAYLOAD = {};
-
-export const PORTABLE_MODULES_BY_SCOPE = {
-    rootLike: {
-        clients: "./clients.json",
-        network: "./network.json"
-    }
-};
-
+export const PORTABLE_MODULES_BY_SCOPE = {};
 export const PORTABLE_CONFIG_PROFILES = {};

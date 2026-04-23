@@ -35,11 +35,11 @@
             ]
         },
         "outDir": "./dist/",
-        "target": "ES2025",
+        "target": "ESNext",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
         "lib": [
-            "ES2025",
+            "ESNext",
             "DOM"
         ],
         "esModuleInterop": true,

@@ -1,1 +1,1 @@
-config/ecosystem.portable.config.cjs
+ecosystem/ecosystem.portable.config.cjs
