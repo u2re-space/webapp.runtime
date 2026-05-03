@@ -1,6 +1,6 @@
 /**
  * Server-side recognizeByInstructions — OpenAI-compatible chat completions.
- * Replaces the old @rs-core/service/AI-ops/RecognizeData import for Fastify/CWSP.
+ * Replaces the old core/service/AI-ops/RecognizeData import for Fastify/CWSP.
  */
 
 export type RecognizeByInstructionsOptions = {
