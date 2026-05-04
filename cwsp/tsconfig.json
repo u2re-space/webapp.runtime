@@ -1,0 +1,71 @@
+{
+    "include": [
+        "**/*.ts",
+        "**/*.js"
+    ],
+    "exclude": [
+        "./node_modules/**/*",
+        "./dist/**/*",
+        "./portable/**/*"
+    ],
+    "compilerOptions": {
+        "baseUrl": "./",
+        "ignoreDeprecations": "6.0",
+        "paths": {
+            "@protocol/*": [
+                "./endpoint/server/protocol/*"
+            ],
+            "@admin/*": [
+                "./endpoint/server/admin/*"
+            ],
+            "@config/*": [
+                "./endpoint/server/config/*"
+            ],
+            "@server-v2/*": [
+                "./endpoint/server/*"
+            ],
+            "@server/*": [
+                "./endpoint/server/*"
+            ],
+            "@inputs/*": [
+                "./endpoint/server/inputs/*"
+            ],
+            "@utils/*": [
+                "./endpoint/server/utils/*"
+            ]
+        },
+        "outDir": "./dist/",
+        "target": "ESNext",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "lib": [
+            "ESNext",
+            "DOM"
+        ],
+        "esModuleInterop": true,
+        "allowImportingTsExtensions": true,
+        "allowArbitraryExtensions": true,
+        "allowSyntheticDefaultImports": true,
+        "allowUmdGlobalAccess": true,
+        "allowUnreachableCode": true,
+        "allowUnusedLabels": true,
+        "skipLibCheck": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "noImplicitThis": false,
+        "forceConsistentCasingInFileNames": true,
+        "allowJs": true,
+        "declaration": false,
+        "inlineSources": true,
+        "inlineSourceMap": true,
+        "sourceMap": false,
+        "experimentalDecorators": true,
+        "types": [
+            "node"
+        ],
+        "noEmit": true,
+        "noEmitOnError": true,
+        "noEmitHelpers": true
+    },
+    "compileOnSave": false
+}
