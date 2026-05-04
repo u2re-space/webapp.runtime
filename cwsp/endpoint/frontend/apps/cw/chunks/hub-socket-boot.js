@@ -1,8 +1,8 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
 import { i as shouldDeferCrxHubSocketBootstrap, n as loadSettings } from "./Settings.js";
 import { r as isCapacitorCwsNativeShell } from "../vendor/@capacitor_core.js";
-import { C as isMaintainHubSocketConnectionEnabled, i as applyAirpadRuntimeFromAppSettings, v as getRemoteHost, w as isPreferNativeWebsocketEnabled } from "../views/airpad.js";
-//#region src/shared/transport/hub-socket-boot.ts
+import { C as isMaintainHubSocketConnectionEnabled, i as applyAirpadRuntimeFromAppSettings, v as getRemoteHost, w as isPreferNativeWebsocketEnabled } from "./config.js";
+//#region ../../modules/projects/subsystem/src/boot/hub-socket-boot.ts
 var hub_socket_boot_exports = /* @__PURE__ */ __exportAll({
 	applyHubSocketFromSettings: () => applyHubSocketFromSettings,
 	bootHubSocketFromStoredSettings: () => bootHubSocketFromStoredSettings,
@@ -35,7 +35,7 @@ function installAirpadHubLifecycleRecovery() {
 	const recoverAfterVisibility = () => {
 		if (!shouldRunHubRecovery()) return;
 		(async () => {
-			const { connectWS, getWS, initWebSocket, isWSConnected, reconnectTransportAfterLifecycleResume } = await import("../views/airpad2.js").then((n) => n.d);
+			const { connectWS, getWS, initWebSocket, isWSConnected, reconnectTransportAfterLifecycleResume } = await import("./websocket.js").then((n) => n.d);
 			initWebSocket(null);
 			const live = Boolean(getWS()?.connected);
 			if (lastDocumentHiddenAt > 0 && Date.now() - lastDocumentHiddenAt >= PWA_STALE_BACKGROUND_MS && (live || isWSConnected())) {
@@ -48,7 +48,7 @@ function installAirpadHubLifecycleRecovery() {
 	const recoverAfterNetworkOrRestore = (reason) => {
 		if (!shouldRunHubRecovery()) return;
 		(async () => {
-			const { initWebSocket, reconnectTransportAfterLifecycleResume } = await import("../views/airpad2.js").then((n) => n.d);
+			const { initWebSocket, reconnectTransportAfterLifecycleResume } = await import("./websocket.js").then((n) => n.d);
 			initWebSocket(null);
 			reconnectTransportAfterLifecycleResume(reason);
 		})();
@@ -79,7 +79,7 @@ async function applyHubSocketFromSettings(settings) {
 	if (isCapacitorCwsNativeShell() && isPreferNativeWebsocketEnabled()) return;
 	if (!isMaintainHubSocketConnectionEnabled()) return;
 	if (!getRemoteHost().trim()) return;
-	const { initWebSocket, connectWS } = await import("../views/airpad2.js").then((n) => n.d);
+	const { initWebSocket, connectWS } = await import("./websocket.js").then((n) => n.d);
 	initWebSocket(null);
 	connectWS();
 }

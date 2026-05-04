@@ -1,9 +1,263 @@
 import { r as __exportAll } from "../chunks/rolldown-runtime.js";
-import { t as CORE_ENTITY_EXTRACTION_INSTRUCTION } from "../chunks/core.js";
-import { t as JSOX } from "./jsox.js";
+import { I as JSOX } from "./jsox.js";
 import { n as loadSettings } from "../chunks/Settings.js";
 import { t as canParseURL } from "../chunks/Runtime.js";
+import { t as CORE_ENTITY_EXTRACTION_INSTRUCTION } from "../chunks/core.js";
 import { n as extractJSONFromAIResponse, t as STRICT_JSON_INSTRUCTIONS } from "../chunks/AIResponseParser.js";
+//#region src/shared/service/model/GPT-Config.ts
+var typesForKind = {
+	"math": "input_text",
+	"url": "input_image",
+	"text": "input_text",
+	"input_text": "input_text",
+	"output_text": "input_text",
+	"image_url": "input_image",
+	"image": "input_image",
+	"input_image": "input_image",
+	"input_url": "input_image",
+	"json": "input_text",
+	"markdown": "input_text",
+	"code": "input_text",
+	"entity": "input_text",
+	"structured": "input_text",
+	"unknown": "input_text",
+	"svg": "input_text",
+	"xml": "input_text"
+};
+var getDataKindByMIMEType = (mime) => {
+	if (!mime) return "input_text";
+	const lower = mime.toLowerCase();
+	if (lower.includes("image")) return "input_image";
+	if (lower.includes("json")) return "json";
+	if (lower.includes("javascript") || lower.includes("typescript")) return "code";
+	if (lower.includes("markdown") || lower.includes("md")) return "markdown";
+	if (lower.includes("url")) return "input_url";
+	if (lower.includes("text/html")) return "markdown";
+	if (lower.includes("text/plain")) return "input_text";
+	return "input_text";
+};
+var detectDataKindFromContent = (content) => {
+	if (!content || typeof content !== "string") return "input_text";
+	const trimmed = content.trim();
+	if (trimmed.startsWith("{") && trimmed.endsWith("}") || trimmed.startsWith("[") && trimmed.endsWith("]")) try {
+		JSON.parse(trimmed);
+		return "json";
+	} catch {}
+	if (canParseURL(trimmed)) return "url";
+	if (trimmed.includes("<svg") && trimmed.includes("</svg>")) return "xml";
+	if (trimmed.startsWith("data:image/") && trimmed.includes(";base64,") && !trimmed.includes("\n") && trimmed.length < 1e5) try {
+		const url = new URL(trimmed);
+		if (url.protocol === "data:" && url.pathname.startsWith("image/")) return "input_image";
+	} catch {}
+	if (/\$\$[\s\S]+\$\$|\$[^$]+\$|\\begin\{equation\}/.test(trimmed)) return "math";
+	if (/```[\s\S]+```|^(function|const|let|var|class|import|export)\s/m.test(trimmed)) return "code";
+	if (/^#{1,6}\s|^\*\*|^-\s|\[.+\]\(.+\)|^>\s/m.test(trimmed)) return "markdown";
+	return "input_text";
+};
+var actionWithDataType = (data) => {
+	const context = data?.context;
+	const kindType = typesForKind?.[data?.dataKind || "input_text"];
+	const contextPrompt = buildContextPrompt(context);
+	switch (kindType) {
+		case "input_image": return `${contextPrompt}
+
+Recognize data from image, also preferred to orient by fonts in image.
+
+After recognition, do not include or remember image itself.
+
+---
+
+In (\`recognized_data\` key), can be written phone numbers, emails, URLs, dates, times, codes, etc. Additional formatting rules:
+
+In recognized from image data (what you seen in image), do:
+- If textual content, format as Markdown string (multiline).
+- If phone number, format as as correct phone number (in normalized format).
+  - Also, if phone numbers (for example starts with +7, format as 8), replace to correct regional code.
+  - Remove brackets, parentheses, spaces or other symbols from phone number.
+  - Trim spaces from phone number.
+- If email, format as as correct email (in normalized format), and trim spaces from email.
+- If URL, format as as correct URL (in normalized format), and unicode codes to human readable, and trim spaces from URL.
+- If date, format as as correct date (in normalized format).
+- If time, format as as correct time (in normalized format).
+- If math (expression, equation, formula), format as $KaTeX$
+- If table (or looks alike table), format as | table |
+- If image, format as [$image$]($image$)
+- If code, format as \`\`\`$code$\`\`\` (multiline) or \`$code$\` (single-line)
+- If JSON, format as correct JSON string, and trim spaces from JSON string.
+- If other, format as $text$.
+- If seen alike list, format as list (in markdown format).
+
+---
+
+Some additional actions:
+- Collect some special data tags and keywords (if has any).
+- Also, can you provide in markdown pre-formatted free-form analyzed or recognized verbose data (in \`verbose_data\` key).
+
+---
+
+CRITICAL OUTPUT FORMAT: Return ONLY valid JSON. No markdown code blocks, no explanations, no prose.
+Your response must start with { or [ and end with } or ].
+
+Expected output structure:
+{
+    "keywords_and_tags": ["string array"],
+    "recognized_data": ["any array"],
+    "verbose_data": "markdown string",
+    "using_ready": true,
+    "confidence": 0.95,
+    "suggested_type": "document_type"
+}
+`;
+		case "input_text": return `${contextPrompt}
+
+Analyze text and extract specific or special data from it, also normalize data by those rules...
+
+---
+
+In (\`recognized_data\` key), can be written phone numbers, emails, URLs, dates, times, codes, etc. Additional formatting rules:
+
+Normalize phone numbers, emails, URLs, dates, times, codes, etc for best efforts and by those rules.
+- If phone number, format as as correct phone number (in normalized format).
+  - If phone numbers (for example starts with +7, format as 8), replace to correct regional code.
+  - Trim spaces from phone numbers, emails, URLs, dates, times, codes, etc.
+  - Remove brackets, parentheses, spaces or other symbols from phone numbers.
+- If email, format as as correct email (in normalized format), and trim spaces from email.
+- If URL, format as as correct URL (in normalized format), and unicode codes to human readable, and trim spaces from URL.
+- If date, format as as correct date (in normalized format).
+- If time, format as as correct time (in normalized format).
+- If math, format as $KaTeX$
+- If table, format as | table |
+- If image, format as [$image$]($image$)
+- If code, format as \`\`\`$code$\`\`\` (multiline) or \`$code$\` (single-line)
+- If JSON, format as correct JSON string, and trim spaces from JSON string.
+- If other, format as $text$.
+- If seen alike list, format as list (in markdown format).
+
+---
+
+Some additional actions:
+- Collect some special data tags and keywords (if has any).
+- Also, can you provide in markdown pre-formatted free-form analyzed or recognized verbose data (in \`verbose_data\` key).
+- Detect entity type if applicable (task, event, person, place, service, item, etc.)
+
+---
+
+CRITICAL OUTPUT FORMAT: Return ONLY valid JSON. No markdown code blocks, no explanations, no prose.
+Your response must start with { or [ and end with } or ].
+
+Expected output structure:
+{
+    "keywords_and_tags": ["string array"],
+    "recognized_data": ["any array"],
+    "verbose_data": "markdown string",
+    "using_ready": true,
+    "confidence": 0.95,
+    "suggested_type": "entity_type",
+    "suggested_modifications": []
+}
+`;
+	}
+	return contextPrompt || "";
+};
+var buildContextPrompt = (context) => {
+	if (!context) return "";
+	const parts = [];
+	if (context.operation) parts.push(`Operation: ${{
+		create: "Create new data entries based on provided information.",
+		modify: "Modify existing data with provided changes while preserving structure.",
+		merge: "Intelligently merge new data with existing data, avoiding duplicates.",
+		analyze: "Analyze and extract structured information from the data.",
+		extract: "Extract specific data points matching the criteria."
+	}[context.operation] || context.operation}`);
+	if (context.entityType) parts.push(`Target entity type: ${context.entityType}`);
+	if (context.existingData) parts.push(`Existing data context provided - consider for merge/update operations.`);
+	if (context.filters?.length) {
+		const filterDesc = context.filters.map((f) => `${f.field} ${f.operator} ${JSON.stringify(f.value)}`).join(", ");
+		parts.push(`Apply filters: ${filterDesc}`);
+	}
+	if (context.searchTerms?.length) parts.push(`Search terms: ${context.searchTerms.join(", ")}`);
+	if (context.priority) parts.push(`Priority level: ${context.priority}`);
+	return parts.length ? `Context:\n${parts.join("\n")}\n\n---\n` : "";
+};
+var buildModificationPrompt = (instructions) => {
+	if (!instructions?.length) return "";
+	const parts = instructions.map((inst, i) => {
+		const condStr = inst.conditions?.length ? ` when ${inst.conditions.map((c) => `${c.field} ${c.operator} ${JSON.stringify(c.value)}`).join(" AND ")}` : "";
+		switch (inst.action) {
+			case "update": return `${i + 1}. UPDATE field "${inst.target}" to ${JSON.stringify(inst.value)}${condStr}`;
+			case "delete": return `${i + 1}. DELETE field "${inst.target}"${condStr}`;
+			case "merge": return `${i + 1}. MERGE into "${inst.target}" with ${JSON.stringify(inst.value)}${condStr}`;
+			case "append": return `${i + 1}. APPEND ${JSON.stringify(inst.value)} to "${inst.target}"${condStr}`;
+			case "replace": return `${i + 1}. REPLACE "${inst.target}" with ${JSON.stringify(inst.value)}${condStr}`;
+			case "transform": return `${i + 1}. TRANSFORM "${inst.target}" using: ${inst.transformFn}${condStr}`;
+			default: return "";
+		}
+	}).filter(Boolean);
+	return parts.length ? `\nModification instructions:\n${parts.join("\n")}\n` : "";
+};
+var DATA_MODIFICATION_PROMPT = `
+You are a data modification assistant. Your task is to modify existing data based on the provided instructions.
+
+Rules for modification:
+1. Preserve the original data structure unless explicitly asked to change it.
+2. Apply modifications in order, one by one.
+3. Validate data types match the schema.
+4. Return the complete modified entity, not just the changes.
+5. If a modification cannot be applied, include it in the "errors" array with explanation.
+
+CRITICAL: Output ONLY valid JSON. No markdown code blocks, no explanations, no prose.
+Your response must start with { and end with }.
+
+Expected output structure:
+{
+    "modified_entity": { /* complete modified entity */ },
+    "changes_made": [ /* list of applied changes */ ],
+    "errors": [ /* list of failed modifications with reasons */ ],
+    "warnings": [ /* non-critical issues */ ]
+}
+`;
+var DATA_SELECTION_PROMPT = `
+You are a data selection and filtering assistant. Your task is to find and select data matching the criteria.
+
+Selection rules:
+1. Apply all filters in order (AND logic by default).
+2. Rank results by relevance to search terms.
+3. Include confidence scores for fuzzy matches.
+4. Group similar results to avoid duplicates.
+
+CRITICAL: Output ONLY valid JSON. No markdown code blocks, no explanations, no prose.
+Your response must start with { and end with }.
+
+Expected output structure:
+{
+    "selected_items": [ /* items matching criteria */ ],
+    "total_matches": number,
+    "filter_stats": { /* breakdown by filter */ },
+    "suggestions": [ /* related items that might be relevant */ ]
+}
+`;
+var ENTITY_MERGE_PROMPT = `
+You are an entity merging assistant. Your task is to intelligently merge multiple entities or data sources.
+
+Merge rules:
+1. Prefer newer/more complete data when conflicts arise.
+2. Combine arrays without duplicates.
+3. Merge nested objects recursively.
+4. Preserve IDs and relationships.
+5. Track the source of each merged field.
+
+CRITICAL: Output ONLY valid JSON. No markdown code blocks, no explanations, no prose.
+Your response must start with { and end with }.
+
+Expected output structure:
+{
+    "merged_entity": { /* result of merge */ },
+    "conflicts_resolved": [ /* list of conflicts and how they were resolved */ ],
+    "sources_used": [ /* which source contributed what */ ],
+    "merge_confidence": number
+}
+`;
+//#endregion
 //#region ../../node_modules/@toon-format/toon/dist/index.mjs
 var LIST_ITEM_MARKER = "-";
 var LIST_ITEM_PREFIX = "- ";
@@ -568,260 +822,6 @@ function resolveOptions(options) {
 		replacer: options?.replacer
 	};
 }
-//#endregion
-//#region src/shared/service/model/GPT-Config.ts
-var typesForKind = {
-	"math": "input_text",
-	"url": "input_image",
-	"text": "input_text",
-	"input_text": "input_text",
-	"output_text": "input_text",
-	"image_url": "input_image",
-	"image": "input_image",
-	"input_image": "input_image",
-	"input_url": "input_image",
-	"json": "input_text",
-	"markdown": "input_text",
-	"code": "input_text",
-	"entity": "input_text",
-	"structured": "input_text",
-	"unknown": "input_text",
-	"svg": "input_text",
-	"xml": "input_text"
-};
-var getDataKindByMIMEType = (mime) => {
-	if (!mime) return "input_text";
-	const lower = mime.toLowerCase();
-	if (lower.includes("image")) return "input_image";
-	if (lower.includes("json")) return "json";
-	if (lower.includes("javascript") || lower.includes("typescript")) return "code";
-	if (lower.includes("markdown") || lower.includes("md")) return "markdown";
-	if (lower.includes("url")) return "input_url";
-	if (lower.includes("text/html")) return "markdown";
-	if (lower.includes("text/plain")) return "input_text";
-	return "input_text";
-};
-var detectDataKindFromContent = (content) => {
-	if (!content || typeof content !== "string") return "input_text";
-	const trimmed = content.trim();
-	if (trimmed.startsWith("{") && trimmed.endsWith("}") || trimmed.startsWith("[") && trimmed.endsWith("]")) try {
-		JSON.parse(trimmed);
-		return "json";
-	} catch {}
-	if (canParseURL(trimmed)) return "url";
-	if (trimmed.includes("<svg") && trimmed.includes("</svg>")) return "xml";
-	if (trimmed.startsWith("data:image/") && trimmed.includes(";base64,") && !trimmed.includes("\n") && trimmed.length < 1e5) try {
-		const url = new URL(trimmed);
-		if (url.protocol === "data:" && url.pathname.startsWith("image/")) return "input_image";
-	} catch {}
-	if (/\$\$[\s\S]+\$\$|\$[^$]+\$|\\begin\{equation\}/.test(trimmed)) return "math";
-	if (/```[\s\S]+```|^(function|const|let|var|class|import|export)\s/m.test(trimmed)) return "code";
-	if (/^#{1,6}\s|^\*\*|^-\s|\[.+\]\(.+\)|^>\s/m.test(trimmed)) return "markdown";
-	return "input_text";
-};
-var actionWithDataType = (data) => {
-	const context = data?.context;
-	const kindType = typesForKind?.[data?.dataKind || "input_text"];
-	const contextPrompt = buildContextPrompt(context);
-	switch (kindType) {
-		case "input_image": return `${contextPrompt}
-
-Recognize data from image, also preferred to orient by fonts in image.
-
-After recognition, do not include or remember image itself.
-
----
-
-In (\`recognized_data\` key), can be written phone numbers, emails, URLs, dates, times, codes, etc. Additional formatting rules:
-
-In recognized from image data (what you seen in image), do:
-- If textual content, format as Markdown string (multiline).
-- If phone number, format as as correct phone number (in normalized format).
-  - Also, if phone numbers (for example starts with +7, format as 8), replace to correct regional code.
-  - Remove brackets, parentheses, spaces or other symbols from phone number.
-  - Trim spaces from phone number.
-- If email, format as as correct email (in normalized format), and trim spaces from email.
-- If URL, format as as correct URL (in normalized format), and unicode codes to human readable, and trim spaces from URL.
-- If date, format as as correct date (in normalized format).
-- If time, format as as correct time (in normalized format).
-- If math (expression, equation, formula), format as $KaTeX$
-- If table (or looks alike table), format as | table |
-- If image, format as [$image$]($image$)
-- If code, format as \`\`\`$code$\`\`\` (multiline) or \`$code$\` (single-line)
-- If JSON, format as correct JSON string, and trim spaces from JSON string.
-- If other, format as $text$.
-- If seen alike list, format as list (in markdown format).
-
----
-
-Some additional actions:
-- Collect some special data tags and keywords (if has any).
-- Also, can you provide in markdown pre-formatted free-form analyzed or recognized verbose data (in \`verbose_data\` key).
-
----
-
-CRITICAL OUTPUT FORMAT: Return ONLY valid JSON. No markdown code blocks, no explanations, no prose.
-Your response must start with { or [ and end with } or ].
-
-Expected output structure:
-{
-    "keywords_and_tags": ["string array"],
-    "recognized_data": ["any array"],
-    "verbose_data": "markdown string",
-    "using_ready": true,
-    "confidence": 0.95,
-    "suggested_type": "document_type"
-}
-`;
-		case "input_text": return `${contextPrompt}
-
-Analyze text and extract specific or special data from it, also normalize data by those rules...
-
----
-
-In (\`recognized_data\` key), can be written phone numbers, emails, URLs, dates, times, codes, etc. Additional formatting rules:
-
-Normalize phone numbers, emails, URLs, dates, times, codes, etc for best efforts and by those rules.
-- If phone number, format as as correct phone number (in normalized format).
-  - If phone numbers (for example starts with +7, format as 8), replace to correct regional code.
-  - Trim spaces from phone numbers, emails, URLs, dates, times, codes, etc.
-  - Remove brackets, parentheses, spaces or other symbols from phone numbers.
-- If email, format as as correct email (in normalized format), and trim spaces from email.
-- If URL, format as as correct URL (in normalized format), and unicode codes to human readable, and trim spaces from URL.
-- If date, format as as correct date (in normalized format).
-- If time, format as as correct time (in normalized format).
-- If math, format as $KaTeX$
-- If table, format as | table |
-- If image, format as [$image$]($image$)
-- If code, format as \`\`\`$code$\`\`\` (multiline) or \`$code$\` (single-line)
-- If JSON, format as correct JSON string, and trim spaces from JSON string.
-- If other, format as $text$.
-- If seen alike list, format as list (in markdown format).
-
----
-
-Some additional actions:
-- Collect some special data tags and keywords (if has any).
-- Also, can you provide in markdown pre-formatted free-form analyzed or recognized verbose data (in \`verbose_data\` key).
-- Detect entity type if applicable (task, event, person, place, service, item, etc.)
-
----
-
-CRITICAL OUTPUT FORMAT: Return ONLY valid JSON. No markdown code blocks, no explanations, no prose.
-Your response must start with { or [ and end with } or ].
-
-Expected output structure:
-{
-    "keywords_and_tags": ["string array"],
-    "recognized_data": ["any array"],
-    "verbose_data": "markdown string",
-    "using_ready": true,
-    "confidence": 0.95,
-    "suggested_type": "entity_type",
-    "suggested_modifications": []
-}
-`;
-	}
-	return contextPrompt || "";
-};
-var buildContextPrompt = (context) => {
-	if (!context) return "";
-	const parts = [];
-	if (context.operation) parts.push(`Operation: ${{
-		create: "Create new data entries based on provided information.",
-		modify: "Modify existing data with provided changes while preserving structure.",
-		merge: "Intelligently merge new data with existing data, avoiding duplicates.",
-		analyze: "Analyze and extract structured information from the data.",
-		extract: "Extract specific data points matching the criteria."
-	}[context.operation] || context.operation}`);
-	if (context.entityType) parts.push(`Target entity type: ${context.entityType}`);
-	if (context.existingData) parts.push(`Existing data context provided - consider for merge/update operations.`);
-	if (context.filters?.length) {
-		const filterDesc = context.filters.map((f) => `${f.field} ${f.operator} ${JSON.stringify(f.value)}`).join(", ");
-		parts.push(`Apply filters: ${filterDesc}`);
-	}
-	if (context.searchTerms?.length) parts.push(`Search terms: ${context.searchTerms.join(", ")}`);
-	if (context.priority) parts.push(`Priority level: ${context.priority}`);
-	return parts.length ? `Context:\n${parts.join("\n")}\n\n---\n` : "";
-};
-var buildModificationPrompt = (instructions) => {
-	if (!instructions?.length) return "";
-	const parts = instructions.map((inst, i) => {
-		const condStr = inst.conditions?.length ? ` when ${inst.conditions.map((c) => `${c.field} ${c.operator} ${JSON.stringify(c.value)}`).join(" AND ")}` : "";
-		switch (inst.action) {
-			case "update": return `${i + 1}. UPDATE field "${inst.target}" to ${JSON.stringify(inst.value)}${condStr}`;
-			case "delete": return `${i + 1}. DELETE field "${inst.target}"${condStr}`;
-			case "merge": return `${i + 1}. MERGE into "${inst.target}" with ${JSON.stringify(inst.value)}${condStr}`;
-			case "append": return `${i + 1}. APPEND ${JSON.stringify(inst.value)} to "${inst.target}"${condStr}`;
-			case "replace": return `${i + 1}. REPLACE "${inst.target}" with ${JSON.stringify(inst.value)}${condStr}`;
-			case "transform": return `${i + 1}. TRANSFORM "${inst.target}" using: ${inst.transformFn}${condStr}`;
-			default: return "";
-		}
-	}).filter(Boolean);
-	return parts.length ? `\nModification instructions:\n${parts.join("\n")}\n` : "";
-};
-var DATA_MODIFICATION_PROMPT = `
-You are a data modification assistant. Your task is to modify existing data based on the provided instructions.
-
-Rules for modification:
-1. Preserve the original data structure unless explicitly asked to change it.
-2. Apply modifications in order, one by one.
-3. Validate data types match the schema.
-4. Return the complete modified entity, not just the changes.
-5. If a modification cannot be applied, include it in the "errors" array with explanation.
-
-CRITICAL: Output ONLY valid JSON. No markdown code blocks, no explanations, no prose.
-Your response must start with { and end with }.
-
-Expected output structure:
-{
-    "modified_entity": { /* complete modified entity */ },
-    "changes_made": [ /* list of applied changes */ ],
-    "errors": [ /* list of failed modifications with reasons */ ],
-    "warnings": [ /* non-critical issues */ ]
-}
-`;
-var DATA_SELECTION_PROMPT = `
-You are a data selection and filtering assistant. Your task is to find and select data matching the criteria.
-
-Selection rules:
-1. Apply all filters in order (AND logic by default).
-2. Rank results by relevance to search terms.
-3. Include confidence scores for fuzzy matches.
-4. Group similar results to avoid duplicates.
-
-CRITICAL: Output ONLY valid JSON. No markdown code blocks, no explanations, no prose.
-Your response must start with { and end with }.
-
-Expected output structure:
-{
-    "selected_items": [ /* items matching criteria */ ],
-    "total_matches": number,
-    "filter_stats": { /* breakdown by filter */ },
-    "suggestions": [ /* related items that might be relevant */ ]
-}
-`;
-var ENTITY_MERGE_PROMPT = `
-You are an entity merging assistant. Your task is to intelligently merge multiple entities or data sources.
-
-Merge rules:
-1. Prefer newer/more complete data when conflicts arise.
-2. Combine arrays without duplicates.
-3. Merge nested objects recursively.
-4. Preserve IDs and relationships.
-5. Track the source of each merged field.
-
-CRITICAL: Output ONLY valid JSON. No markdown code blocks, no explanations, no prose.
-Your response must start with { and end with }.
-
-Expected output structure:
-{
-    "merged_entity": { /* result of merge */ },
-    "conflicts_resolved": [ /* list of conflicts and how they were resolved */ ],
-    "sources_used": [ /* which source contributed what */ ],
-    "merge_confidence": number
-}
-`;
 //#endregion
 //#region src/shared/service/model/GPT-Responses.ts
 var hasFile = () => typeof globalThis.File !== "undefined";

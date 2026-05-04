@@ -1,6 +1,6 @@
-import { t as g } from "../vendor/marked.js";
-import { t as src_default } from "../vendor/katex.js";
 import { t as renderMathInElement } from "../vendor/katex2.js";
+import { t as g } from "../vendor/marked.js";
+import { t as src_default } from "../vendor/marked-katex-extension.js";
 //#region ../../node_modules/docx/dist/index.mjs
 var __defProp = Object.defineProperty;
 var __defProps = Object.defineProperties;
@@ -18108,7 +18108,7 @@ new ImageReplacer();
 new Uint8Array([255, 254]);
 new Uint8Array([254, 255]);
 //#endregion
-//#region src/shared/document/docx/constants.ts
+//#region src/shared/other/document/docx/constants.ts
 var ORDERED_LIST_REF = "cw-ordered-list";
 var COLORS = {
 	text: "1A1A1A",
@@ -18149,7 +18149,7 @@ var GOST_LAYOUT = {
 	}
 };
 //#endregion
-//#region src/shared/document/docx/download.ts
+//#region src/shared/other/document/docx/download.ts
 function safeFilename(name) {
 	return ((name || "").trim() || "document").replace(/[\\/:*?"<>|\u0000-\u001F]+/g, "-").slice(0, 180);
 }
@@ -18166,7 +18166,7 @@ function downloadBlob(blob, filename) {
 	setTimeout(() => URL.revokeObjectURL(url), 250);
 }
 //#endregion
-//#region src/shared/document/docx/image.ts
+//#region src/shared/other/document/docx/image.ts
 function tryDecodeUriComponent(input) {
 	try {
 		return decodeURIComponent(input);
@@ -18393,7 +18393,7 @@ async function imageRunFromSrc(src, alt) {
 	});
 }
 //#endregion
-//#region src/shared/document/docx/markdown.ts
+//#region src/shared/other/document/docx/markdown.ts
 var MATH_DELIMITER_PATTERN = /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|(?<!\$)\$[^$\n]+\$|\\\([\s\S]*?\\\)/;
 var FENCED_CODE_PATTERN = /(^|\n)(`{3,}|~{3,})[^\n]*\n[\s\S]*?\n\2(?=\n|$)/g;
 var INLINE_CODE_PATTERN = /`[^`\n]+`/g;
@@ -18505,7 +18505,7 @@ function htmlToBody(html) {
 	return new DOMParser().parseFromString(html ?? "", "text/html").body;
 }
 //#endregion
-//#region src/shared/document/docx/rasterize.ts
+//#region src/shared/other/document/docx/rasterize.ts
 var OPERATOR_REMAP$1 = {
 	"−": "-",
 	"–": "-",
@@ -18777,7 +18777,7 @@ function extractMatrixDisplayModel(mathEl) {
 	};
 }
 //#endregion
-//#region src/shared/document/docx/math.ts
+//#region src/shared/other/document/docx/math.ts
 function normalizeMathText(s) {
 	return (s ?? "").replace(/\s+/g, " ").trim();
 }
@@ -19123,7 +19123,7 @@ async function convertDisplayMathMatrixParagraph(pEl) {
 	return null;
 }
 //#endregion
-//#region src/shared/document/DocxExport.ts
+//#region src/shared/other/document/DocxExport.ts
 function textRun(text, style) {
 	return new TextRun({
 		text,

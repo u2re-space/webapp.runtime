@@ -1,14 +1,12 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
-import { g as loadAsAdopted } from "../fest/dom.js";
-import { a as initializeRegistries, c as startImplicitViewMessagingBridge, i as defaultTheme, o as lightTheme, r as darkTheme, t as ShellRegistry, u as serviceChannels } from "./registry.js";
-import { f as isEnabledView, p as pickEnabledView } from "./views.js";
-import { r as LS_BOOT_SHELL_LAST_ACTIVE, t as applyTheme } from "./Theme.js";
+import { p as loadAsAdopted } from "../fest/dom.js";
+import { _ as pickEnabledView, c as ShellRegistry, d as defaultTheme, f as initializeRegistries, g as isEnabledView, p as lightTheme, r as LS_BOOT_SHELL_LAST_ACTIVE, t as applyTheme, u as darkTheme, v as startImplicitViewMessagingBridge, y as serviceChannels } from "./Theme.js";
 import { n as DEFAULT_SETTINGS } from "./SettingsTypes.js";
 import { n as loadSettings } from "./Settings.js";
-import { t as loadVeelaVariant } from "../fest/veela.js";
+import { n as core_default, t as scss_default } from "../fest/veela.js";
 import { n as initCwsNativeBridge } from "../vendor/@capacitor_core.js";
 import { t as applyHubSocketFromSettings } from "./hub-socket-boot.js";
-//#region src/shared/routing/layer-manager.ts
+//#region src/shared/routing/core/layer-manager.ts
 /**
 * Unified layer hierarchy - ORDER MATTERS!
 *
@@ -457,6 +455,32 @@ function initializeLayers() {
 	console.log(`[LayerManager] Initialized ${layerNames.length} layers`);
 }
 //#endregion
+//#region ../../modules/projects/subsystem/src/boot/veela-variant-runtime.ts
+/**
+* Veela stylesheet loader for CrossWord (no `fest/fl-ui` runtime SCSS dependency).
+*
+* Uses the canonical forwarded stack in `veela.css/src/scss/index.scss` (core + curated basic surface).
+* `advanced` / `beercss` currently share that stack until a standalone advanced bundle exists with stable `@use` paths.
+*/
+var loadedVariant = null;
+/**
+* Loads Veela stylesheet slices for the coarse variant presets used by BootLoader.
+*/
+async function loadVeelaVariant(variant) {
+	if (loadedVariant === variant) return;
+	console.log("[Veela] Loading variant:", variant);
+	const apply = async (text) => {
+		if (typeof text === "string" && text.length) await loadAsAdopted(text);
+	};
+	if (variant === "core") {
+		await apply(core_default);
+		loadedVariant = variant;
+		return;
+	}
+	await apply(scss_default);
+	loadedVariant = variant;
+}
+//#endregion
 //#region src/shared/styles.ts
 /**
 * CrossWord Styles Module
@@ -554,7 +578,7 @@ async function loadStyleSystem(styleId) {
 	console.log(`[Styles] Style system ${config.name} loaded`);
 }
 //#endregion
-//#region src/frontend/boot/ts/BootLoader.ts
+//#region ../../modules/projects/subsystem/src/boot/BootLoader.ts
 /**
 * Boot Loader - Shell/Style Initialization System
 * 
@@ -575,7 +599,9 @@ async function loadStyleSystem(styleId) {
 var BootLoader_exports = /* @__PURE__ */ __exportAll({
 	BootLoader: () => BootLoader,
 	bootBase: () => bootBase,
+	bootContent: () => bootContent,
 	bootEnvironment: () => bootEnvironment,
+	bootImmersive: () => bootImmersive,
 	bootLoader: () => bootLoader,
 	bootMinimal: () => bootMinimal,
 	bootTabbed: () => bootTabbed,
@@ -979,5 +1005,43 @@ async function bootBase(container, view = "viewer") {
 		rememberChoice: false
 	});
 }
+async function bootContent(container, view = "home") {
+	const channels = [
+		"workcenter",
+		"settings",
+		"viewer",
+		"explorer",
+		"history",
+		"editor",
+		"airpad",
+		"home"
+	].filter((channelId) => isEnabledView(channelId));
+	const defaultView = pickEnabledView(view, "home");
+	const channelPriorityId = channels.find((c) => c === defaultView) ?? channels[0];
+	return bootLoader.boot(container, {
+		styleSystem: "vl-basic",
+		shell: "content",
+		defaultView,
+		channels,
+		channelPriorityId,
+		rememberChoice: true
+	});
+}
+/**
+* Immersive (chromeless): extension side panels / fullscreen single-view contexts.
+*/
+async function bootImmersive(container, view = "viewer") {
+	const defaultView = pickEnabledView(view, "viewer");
+	const channels = isEnabledView(defaultView) ? [defaultView] : ["viewer"];
+	const channelPriorityId = channels[0];
+	return bootLoader.boot(container, {
+		styleSystem: "vl-basic",
+		shell: "immersive",
+		defaultView,
+		channels,
+		channelPriorityId,
+		rememberChoice: true
+	});
+}
 //#endregion
-export { bootTabbed as a, bootMinimal as i, bootBase as n, bootWindow as o, bootEnvironment as r, initializeLayers as s, BootLoader_exports as t };
+export { bootImmersive as a, bootWindow as c, bootEnvironment as i, initializeLayers as l, bootBase as n, bootMinimal as o, bootContent as r, bootTabbed as s, BootLoader_exports as t };

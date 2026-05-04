@@ -1,34 +1,4 @@
-//#region src/shared/routing/views.ts
-var VIEW_ENABLED_VIEWER = "viewer";
-var VIEW_ENABLED_EDITOR = "editor";
-var VIEW_ENABLED_WORKCENTER = "workcenter";
-var VIEW_ENABLED_EXPLORER = "explorer";
-var VIEW_ENABLED_AIRPAD = "airpad";
-var VIEW_ENABLED_SETTINGS = "settings";
-var VIEW_ENABLED_HISTORY = "history";
-var VIEW_ENABLED_HOME = "home";
-var VIEW_ENABLED_PRINT = "print";
-var DEFAULT_VIEW_ID = "viewer";
-var VIEW_FLAGS = {
-	viewer: VIEW_ENABLED_VIEWER,
-	editor: VIEW_ENABLED_EDITOR,
-	workcenter: VIEW_ENABLED_WORKCENTER,
-	explorer: VIEW_ENABLED_EXPLORER,
-	airpad: VIEW_ENABLED_AIRPAD,
-	settings: VIEW_ENABLED_SETTINGS,
-	history: VIEW_ENABLED_HISTORY,
-	home: VIEW_ENABLED_HOME,
-	print: VIEW_ENABLED_PRINT
-};
-var ENABLED_VIEW_IDS = Object.entries(VIEW_FLAGS).filter(([, enabled]) => Boolean(enabled)).map(([viewId]) => viewId);
-var isEnabledView = (viewId) => {
-	return Boolean(VIEW_FLAGS[viewId]);
-};
-var pickEnabledView = (preferred = DEFAULT_VIEW_ID, fallback = DEFAULT_VIEW_ID) => {
-	if (isEnabledView(preferred)) return preferred;
-	if (isEnabledView(fallback)) return fallback;
-	if (ENABLED_VIEW_IDS.length > 0) return ENABLED_VIEW_IDS[0];
-	return "viewer";
-};
+//#region ../../modules/projects/subsystem/src/boot/views.scss?inline
+var views_default = "@layer layer.view.common, layer.view.viewer;@layer layer.view.common{:where([data-cw-view-host=true]){block-size:100%;display:block;inline-size:100%;min-block-size:0;min-inline-size:0}}@layer layer.view.viewer{.cw-view-viewer-shell,.view-viewer{background:var(--view-bg,var(--color-surface,light-dark(#f4f6fa,#060d17)));block-size:100%;color:var(--view-fg,var(--color-on-surface,light-dark(#1a1a1a,#e5e7eb)));display:grid;grid-template-rows:[toolbar-row] max-content [content-row] minmax(0,1fr);inline-size:100%;min-block-size:0;min-inline-size:0}.view-viewer__toolbar{align-items:center;background:var(--view-toolbar-bg,light-dark(color-mix(in oklab,var(--color-surface-container,#e2e8f0) 88%,transparent),color-mix(in oklab,var(--color-surface-container,#0f1a2b) 88%,transparent)));border-block-end:1px solid var(--view-border,color-mix(in oklab,var(--color-outline-variant,light-dark(#94a3b8,#334155)) 70%,transparent));box-sizing:border-box;display:flex;gap:.5rem;grid-row:toolbar-row;justify-content:space-between;min-inline-size:100%;padding:.4rem .55rem}.view-viewer__toolbar-left,.view-viewer__toolbar-right{align-items:center;display:inline-flex;gap:.4rem;min-inline-size:0}.view-viewer__toolbar-center{align-items:center;display:flex;flex:1 1 auto;justify-content:center;min-inline-size:0;padding-inline:.35rem;pointer-events:none}.view-viewer__toolbar-title{color:color-mix(in oklab,var(--color-on-surface,light-dark(#334155,#e5e7eb)) 88%,transparent);display:block;font-size:.8125rem;font-weight:500;line-height:1.25;max-inline-size:100%;overflow:hidden;text-align:center;text-overflow:ellipsis;white-space:nowrap}.view-viewer__toolbar-title:empty{display:none}.view-viewer__toolbar-group{align-items:center;display:inline-flex;gap:.25rem;min-inline-size:0}.view-viewer__btn{align-items:center;background:color-mix(in oklab,var(--color-surface-container-high,light-dark(#e2e8f0,#1f2937)) 62%,transparent);border:1px solid color-mix(in oklab,var(--color-outline-variant,light-dark(#cbd5e1,#334155)) 70%,transparent);border-radius:.48rem;color:color-mix(in oklab,var(--color-on-surface,light-dark(#334155,#e5e7eb)) 82%,transparent);cursor:pointer;display:inline-flex;font:inherit;font-size:.78rem;gap:.3rem;line-height:1;padding:.28rem .45rem;white-space:nowrap}.view-viewer__btn:hover{background:color-mix(in oklab,var(--color-surface-container-high,light-dark(#cbd5e1,#334155)) 82%,transparent);color:var(--color-on-surface,light-dark(#0f172a,#f8fafc))}.view-viewer__toolbar-icon{block-size:1rem;inline-size:1rem}.view-viewer__content{grid-row:content-row;min-block-size:0;min-inline-size:0;overflow:auto;padding:0;position:relative}}";
 //#endregion
-export { VIEW_ENABLED_EXPLORER as a, VIEW_ENABLED_PRINT as c, VIEW_ENABLED_WORKCENTER as d, isEnabledView as f, VIEW_ENABLED_EDITOR as i, VIEW_ENABLED_SETTINGS as l, ENABLED_VIEW_IDS as n, VIEW_ENABLED_HISTORY as o, pickEnabledView as p, VIEW_ENABLED_AIRPAD as r, VIEW_ENABLED_HOME as s, DEFAULT_VIEW_ID as t, VIEW_ENABLED_VIEWER as u };
+export { views_default as t };

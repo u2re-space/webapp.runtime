@@ -1,5 +1,5 @@
-import { t as JSOX } from "../vendor/jsox.js";
-//#region src/shared/document/AIResponseParser.ts
+import { I as JSOX } from "../vendor/jsox.js";
+//#region src/shared/other/document/AIResponseParser.ts
 /**
 * Robust AI Response Parser
 *

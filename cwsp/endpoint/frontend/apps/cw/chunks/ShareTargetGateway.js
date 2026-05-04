@@ -1,5 +1,5 @@
 import { r as API_ENDPOINTS } from "./UniformInterop.js";
-//#region src/shared/channel/ShareTargetGateway.ts
+//#region ../../modules/projects/subsystem/src/routing/channel/ShareTargetGateway.ts
 /**
 * Helpers for moving share-target payloads between the service worker, Cache
 * Storage, and the foreground app.

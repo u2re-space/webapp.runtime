@@ -1,5 +1,5 @@
-import { C as deepOperateAndClone, I as isCanJustReturn, L as isCanTransfer, O as UUIDv4, R as isNotComplexArray, S as Promised, V as isPrimitive } from "./object.js";
-//#region shared/fest/uniform/newer/next/types/Interface.ts
+import { A as isCanJustReturn, F as isPrimitive, M as isNotComplexArray, S as UUIDv4, _ as deepOperateAndClone, g as Promised, j as isCanTransfer } from "./object.js";
+//#region ../../modules/projects/uniform.ts/src/newer/next/types/Interface.ts
 var WReflectAction = /* @__PURE__ */ function(WReflectAction) {
 	WReflectAction["GET"] = "get";
 	WReflectAction["SET"] = "set";
@@ -22,7 +22,7 @@ var WReflectAction = /* @__PURE__ */ function(WReflectAction) {
 	return WReflectAction;
 }({});
 //#endregion
-//#region shared/fest/uniform/newer/core/TransportCore.ts
+//#region ../../modules/projects/uniform.ts/src/newer/core/TransportCore.ts
 var TRANSPORT_TYPE_ALIASES = {
 	"ws": "websocket",
 	"socket": "websocket",
@@ -50,11 +50,11 @@ function detectTransportType$1(transport) {
 	return "internal";
 }
 //#endregion
-//#region shared/fest/uniform/newer/next/observable/Observable.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/observable/Observable.ts
 var BaseSubscription = class {
+	_closed = false;
 	constructor(_unsubscribe) {
 		this._unsubscribe = _unsubscribe;
-		this._closed = false;
 	}
 	get closed() {
 		return this._closed;
@@ -118,9 +118,11 @@ var Observable = class {
 * Subject - Observable that can be pushed to
 */
 var ChannelSubject = class {
+	_subs = /* @__PURE__ */ new Set();
+	_buffer = [];
+	_maxBuffer;
+	_replay;
 	constructor(options = {}) {
-		this._subs = /* @__PURE__ */ new Set();
-		this._buffer = [];
 		this._maxBuffer = options.bufferSize ?? 0;
 		this._replay = options.replayOnSubscribe ?? false;
 	}
@@ -173,7 +175,7 @@ var filter = (pred) => (src) => new Observable((sub) => {
 	return () => s.unsubscribe();
 });
 //#endregion
-//#region shared/fest/uniform/newer/next/proxy/Invoker.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/Invoker.ts
 function detectContextType() {
 	if (typeof globalThis.Deno !== "undefined") return "deno";
 	if (typeof globalThis.process !== "undefined" && globalThis.process?.versions?.node) return "node";
@@ -226,7 +228,7 @@ var DefaultReflect = {
 	preventExtensions: (target) => Reflect.preventExtensions(target)
 };
 //#endregion
-//#region shared/fest/uniform/newer/next/proxy/Proxy.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/Proxy.ts
 /**
 * Proxy - Unified Remote Proxy Creation
 *
@@ -246,9 +248,10 @@ var PROXY_INTERNALS = Symbol.for("uniform.proxy.internals");
 * Handles all Reflect operations and forwards them to the invoker.
 */
 var RemoteProxyHandler = class {
+	_config;
+	_childCache = /* @__PURE__ */ new Map();
 	constructor(_invoker, config) {
 		this._invoker = _invoker;
-		this._childCache = /* @__PURE__ */ new Map();
 		this._config = {
 			channel: config.channel,
 			basePath: config.basePath ?? [],
@@ -388,7 +391,7 @@ function wrapDescriptor(descriptor, invoker, targetChannel) {
 /** @deprecated Use wrapDescriptor */
 var makeRequestProxy = wrapDescriptor;
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/internal/ConnectionModel.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/internal/ConnectionModel.ts
 function createConnectionKey(params) {
 	return [
 		params.localChannel,
@@ -413,10 +416,10 @@ function queryConnections(connections, query = {}) {
 	}).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 var ConnectionRegistry = class {
+	_connections = /* @__PURE__ */ new Map();
 	constructor(_createId, _emitEvent) {
 		this._createId = _createId;
 		this._emitEvent = _emitEvent;
-		this._connections = /* @__PURE__ */ new Map();
 	}
 	register(params) {
 		const key = createConnectionKey(params);
@@ -500,7 +503,7 @@ var ConnectionRegistry = class {
 	}
 };
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/UnifiedChannel.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/UnifiedChannel.ts
 /**
 * Unified Channel System
 *
@@ -528,6 +531,21 @@ var ConnectionRegistry = class {
 * - Multi-transport support (Worker, Port, Broadcast, WebSocket, Chrome)
 */
 var UnifiedChannel = class {
+	_name;
+	_contextType;
+	_config;
+	_transports = /* @__PURE__ */ new Map();
+	_defaultTransport = null;
+	_connectionEvents = new ChannelSubject({ bufferSize: 200 });
+	_connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._connectionEvents.next(event));
+	_pending = /* @__PURE__ */ new Map();
+	_subscriptions = [];
+	_inbound = new ChannelSubject({ bufferSize: 100 });
+	_outbound = new ChannelSubject({ bufferSize: 100 });
+	_invocations = new ChannelSubject({ bufferSize: 100 });
+	_responses = new ChannelSubject({ bufferSize: 100 });
+	_exposed = /* @__PURE__ */ new Map();
+	_proxyCache = /* @__PURE__ */ new WeakMap();
 	__getPrivate(key) {
 		return this[key];
 	}
@@ -535,18 +553,6 @@ var UnifiedChannel = class {
 		this[key] = value;
 	}
 	constructor(config) {
-		this._transports = /* @__PURE__ */ new Map();
-		this._defaultTransport = null;
-		this._connectionEvents = new ChannelSubject({ bufferSize: 200 });
-		this._connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._connectionEvents.next(event));
-		this._pending = /* @__PURE__ */ new Map();
-		this._subscriptions = [];
-		this._inbound = new ChannelSubject({ bufferSize: 100 });
-		this._outbound = new ChannelSubject({ bufferSize: 100 });
-		this._invocations = new ChannelSubject({ bufferSize: 100 });
-		this._responses = new ChannelSubject({ bufferSize: 100 });
-		this._exposed = /* @__PURE__ */ new Map();
-		this._proxyCache = /* @__PURE__ */ new WeakMap();
 		const cfg = typeof config === "string" ? { name: config } : config;
 		this._name = cfg.name;
 		this._contextType = cfg.autoDetect !== false ? detectContextType() : "unknown";
@@ -1272,7 +1278,7 @@ function getWorkerChannel() {
 	return WORKER_CHANNEL;
 }
 //#endregion
-//#region shared/fest/uniform/newer/core/Alias.ts
+//#region ../../modules/projects/uniform.ts/src/newer/core/Alias.ts
 var TS = {
 	rjb: "rejectBy",
 	rvb: "resolveBy",
@@ -1299,7 +1305,7 @@ var TS = {
 	typeof RTCDataChannel != TS.udf ? RTCDataChannel : null
 ].filter((E) => E != null);
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/Channels.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/Channels.ts
 var SELF_CHANNEL = {
 	name: "unknown",
 	instance: null
@@ -1308,6 +1314,7 @@ var CHANNEL_MAP = /* @__PURE__ */ new Map();
 var isReflectAction$1 = (action) => [...Object.values(WReflectAction)].includes(action);
 /** @deprecated Use UnifiedChannel.remote() instead */
 var RemoteChannelHelper$1 = class {
+	_channel;
 	constructor(channelName, options = {}) {
 		this.channelName = channelName;
 		this.options = options;
@@ -1329,10 +1336,11 @@ var RemoteChannelHelper$1 = class {
 };
 /** @deprecated Use UnifiedChannel instead */
 var ChannelHandler$1 = class {
+	_unified;
+	broadcasts = {};
 	constructor(channel, options = {}) {
 		this.channel = channel;
 		this.options = options;
-		this.broadcasts = {};
 		this._unified = createUnifiedChannel({
 			name: channel,
 			autoListen: false
@@ -1393,7 +1401,7 @@ var createOrUseExistingChannel = (channel, options = {}, broadcast = typeof self
 	return $host?.createRemoteChannel?.(channel, options, broadcast) ?? $host;
 };
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/DataBase.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/DataBase.ts
 var handMap = /* @__PURE__ */ new WeakMap();
 var wrapMap = /* @__PURE__ */ new WeakMap();
 var descMap = /* @__PURE__ */ new WeakMap();
@@ -1488,7 +1496,7 @@ var hasNoPath = (data) => {
 	return (registeredInPath?.get?.(data) ?? $desc?.path) == null;
 };
 //#endregion
-//#region shared/fest/uniform/newer/core/RequestHandler.ts
+//#region ../../modules/projects/uniform.ts/src/newer/core/RequestHandler.ts
 /**
 * Request Handler Core - Unified Reflect Action Handling
 *
@@ -1688,34 +1696,35 @@ async function handleRequest(request, reqId, channelName, options) {
 	return buildResponse(reqId, action, channelName, sender, newPath, result, toTransfer);
 }
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/Connection.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/Connection.ts
 /**
 * Channel Connection - Connection abstraction layer
 *
 * Provides connection pooling, state management, and message routing.
 */
 var ChannelConnection = class {
+	_id = UUIDv4();
+	_state = "disconnected";
+	_inbound = new ChannelSubject({ bufferSize: 1e3 });
+	_outbound = new ChannelSubject({ bufferSize: 1e3 });
+	_stateChanges = new ChannelSubject();
+	_connectedPeers = /* @__PURE__ */ new Map();
+	_subs = [];
+	_stats = {
+		messagesSent: 0,
+		messagesReceived: 0,
+		bytesTransferred: 0,
+		latencyMs: 0,
+		uptime: 0,
+		reconnectCount: 0
+	};
+	_startTime = 0;
+	_pending = /* @__PURE__ */ new Map();
+	_buffer = [];
+	_opts;
 	constructor(_name, _transportType = "internal", options = {}) {
 		this._name = _name;
 		this._transportType = _transportType;
-		this._id = UUIDv4();
-		this._state = "disconnected";
-		this._inbound = new ChannelSubject({ bufferSize: 1e3 });
-		this._outbound = new ChannelSubject({ bufferSize: 1e3 });
-		this._stateChanges = new ChannelSubject();
-		this._connectedPeers = /* @__PURE__ */ new Map();
-		this._subs = [];
-		this._stats = {
-			messagesSent: 0,
-			messagesReceived: 0,
-			bytesTransferred: 0,
-			latencyMs: 0,
-			uptime: 0,
-			reconnectCount: 0
-		};
-		this._startTime = 0;
-		this._pending = /* @__PURE__ */ new Map();
-		this._buffer = [];
 		this._opts = {
 			timeout: 3e4,
 			autoReconnect: true,
@@ -1884,12 +1893,8 @@ var ChannelConnection = class {
 	}
 };
 var ConnectionPool = class ConnectionPool {
-	constructor() {
-		this._connections = /* @__PURE__ */ new Map();
-	}
-	static {
-		this._instance = null;
-	}
+	_connections = /* @__PURE__ */ new Map();
+	static _instance = null;
 	static getInstance() {
 		if (!ConnectionPool._instance) ConnectionPool._instance = new ConnectionPool();
 		return ConnectionPool._instance;
@@ -1922,7 +1927,7 @@ var ConnectionPool = class ConnectionPool {
 var getConnectionPool = () => ConnectionPool.getInstance();
 var getConnection = (name, transportType, options) => getConnectionPool().getOrCreate(name, transportType, options);
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/Storage.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/Storage.ts
 /**
 * IndexedDB Integration for Channel System
 *
@@ -1946,12 +1951,13 @@ var STORES = {
 * IndexedDB manager for channel storage
 */
 var ChannelStorage = class {
+	_db = null;
+	_isOpen = false;
+	_openPromise = null;
+	_channelName;
+	_messageUpdates = new ChannelSubject();
+	_exchangeUpdates = new ChannelSubject();
 	constructor(channelName) {
-		this._db = null;
-		this._isOpen = false;
-		this._openPromise = null;
-		this._messageUpdates = new ChannelSubject();
-		this._exchangeUpdates = new ChannelSubject();
 		this._channelName = channelName;
 	}
 	/**
@@ -2502,11 +2508,11 @@ var ChannelStorage = class {
 * Helper class for batch operations with rollback support
 */
 var ChannelTransaction = class {
+	_operations = [];
+	_isCommitted = false;
+	_isRolledBack = false;
 	constructor(_storage) {
 		this._storage = _storage;
-		this._operations = [];
-		this._isCommitted = false;
-		this._isRolledBack = false;
 	}
 	/**
 	* Add put operation
@@ -2590,7 +2596,7 @@ function getChannelStorage(channelName) {
 	return _storageInstances.get(channelName);
 }
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/ChannelContext.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/ChannelContext.ts
 /**
 * Channel Context - Multi-Channel Support
 *
@@ -2607,6 +2613,8 @@ function getChannelStorage(channelName) {
 */
 var workerCode = new URL("data:video/mp2t;base64,LyoqCiAqIFdvcmtlciBFbnRyeSBQb2ludCAtIE11bHRpLUNoYW5uZWwgU3VwcG9ydAogKgogKiBUaGlzIHdvcmtlciBjb250ZXh0IHN1cHBvcnRzOgogKiAtIE11bHRpcGxlIGNoYW5uZWwgY3JlYXRpb24vaW5pdGlhbGl6YXRpb24KICogLSBPYnNlcnZpbmcgbmV3IGluY29taW5nIGNoYW5uZWwgY29ubmVjdGlvbnMKICogLSBEeW5hbWljIGNoYW5uZWwgYWRkaXRpb24gYWZ0ZXIgaW5pdGlhbGl6YXRpb24KICogLSBDb25uZWN0aW9uIGZyb20gcmVtb3RlL2hvc3QgY29udGV4dHMKICovCgppbXBvcnQgeyBVVUlEdjQgfSBmcm9tICJmZXN0L2NvcmUiOwppbXBvcnQgewogICAgQ2hhbm5lbENvbnRleHQsCiAgICBjcmVhdGVDaGFubmVsQ29udGV4dCwKICAgIHR5cGUgQ2hhbm5lbEVuZHBvaW50LAogICAgdHlwZSBDaGFubmVsQ29udGV4dE9wdGlvbnMsCiAgICB0eXBlIFF1ZXJ5Q29ubmVjdGlvbnNPcHRpb25zLAogICAgdHlwZSBDb250ZXh0Q29ubmVjdGlvbkluZm8KfSBmcm9tICIuLi9jaGFubmVsL0NoYW5uZWxDb250ZXh0IjsKaW1wb3J0IHsgQ2hhbm5lbFN1YmplY3QsIHR5cGUgU3Vic2NyaXB0aW9uIH0gZnJvbSAiLi4vb2JzZXJ2YWJsZS9PYnNlcnZhYmxlIjsKCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KLy8gVFlQRVMKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKLyoqIEluY29taW5nIGNvbm5lY3Rpb24gZXZlbnQgKi8KZXhwb3J0IGludGVyZmFjZSBJbmNvbWluZ0Nvbm5lY3Rpb24gewogICAgLyoqIENvbm5lY3Rpb24gSUQgKi8KICAgIGlkOiBzdHJpbmc7CiAgICAvKiogQ2hhbm5lbCBuYW1lICovCiAgICBjaGFubmVsOiBzdHJpbmc7CiAgICAvKiogU2VuZGVyIGNvbnRleHQgbmFtZSAqLwogICAgc2VuZGVyOiBzdHJpbmc7CiAgICAvKiogQ29ubmVjdGlvbiB0eXBlICovCiAgICB0eXBlOiAiY2hhbm5lbCIgfCAicG9ydCIgfCAiYnJvYWRjYXN0IiB8ICJzb2NrZXQiOwogICAgLyoqIE1lc3NhZ2VQb3J0IGlmIHByb3ZpZGVkICovCiAgICBwb3J0PzogTWVzc2FnZVBvcnQ7CiAgICAvKiogVGltZXN0YW1wICovCiAgICB0aW1lc3RhbXA6IG51bWJlcjsKICAgIC8qKiBDb25uZWN0aW9uIG9wdGlvbnMgKi8KICAgIG9wdGlvbnM/OiBhbnk7Cn0KCi8qKiBDaGFubmVsIGNyZWF0ZWQgZXZlbnQgKi8KZXhwb3J0IGludGVyZmFjZSBDaGFubmVsQ3JlYXRlZEV2ZW50IHsKICAgIC8qKiBDaGFubmVsIG5hbWUgKi8KICAgIGNoYW5uZWw6IHN0cmluZzsKICAgIC8qKiBFbmRwb2ludCByZWZlcmVuY2UgKi8KICAgIGVuZHBvaW50OiBDaGFubmVsRW5kcG9pbnQ7CiAgICAvKiogUmVtb3RlIHNlbmRlciAqLwogICAgc2VuZGVyOiBzdHJpbmc7CiAgICAvKiogVGltZXN0YW1wICovCiAgICB0aW1lc3RhbXA6IG51bWJlcjsKfQoKLyoqIFdvcmtlciBjb250ZXh0IGNvbmZpZ3VyYXRpb24gKi8KZXhwb3J0IGludGVyZmFjZSBXb3JrZXJDb250ZXh0Q29uZmlnIGV4dGVuZHMgQ2hhbm5lbENvbnRleHRPcHRpb25zIHsKICAgIC8qKiBXb3JrZXIgbmFtZS9pZGVudGlmaWVyICovCiAgICB3b3JrZXJOYW1lPzogc3RyaW5nOwogICAgLyoqIEF1dG8tYWNjZXB0IGluY29taW5nIGNoYW5uZWxzICovCiAgICBhdXRvQWNjZXB0Q2hhbm5lbHM/OiBib29sZWFuOwogICAgLyoqIENoYW5uZWwgd2hpdGVsaXN0IChpZiBzZXQsIG9ubHkgdGhlc2UgY2hhbm5lbHMgYXJlIGFjY2VwdGVkKSAqLwogICAgYWxsb3dlZENoYW5uZWxzPzogc3RyaW5nW107CiAgICAvKiogTWF4aW11bSBjb25jdXJyZW50IGNoYW5uZWxzICovCiAgICBtYXhDaGFubmVscz86IG51bWJlcjsKfQoKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBXT1JLRVIgQ09OVEVYVAovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgovKioKICogV29ya2VyQ29udGV4dCAtIE1hbmFnZXMgY2hhbm5lbHMgd2l0aGluIGEgV29ya2VyCiAqCiAqIFN1cHBvcnRzIG9ic2VydmluZyBuZXcgaW5jb21pbmcgY29ubmVjdGlvbnMgZnJvbSBob3N0L3JlbW90ZSBjb250ZXh0cy4KICovCmV4cG9ydCBjbGFzcyBXb3JrZXJDb250ZXh0IHsKICAgIHByaXZhdGUgX2NvbnRleHQ6IENoYW5uZWxDb250ZXh0OwogICAgcHJpdmF0ZSBfY29uZmlnOiBSZXF1aXJlZDxXb3JrZXJDb250ZXh0Q29uZmlnPjsKICAgIHByaXZhdGUgX3N1YnNjcmlwdGlvbnM6IFN1YnNjcmlwdGlvbltdID0gW107CgogICAgLy8gT2JzZXJ2YWJsZSBzdHJlYW1zIGZvciBpbmNvbWluZyBjb25uZWN0aW9ucwogICAgcHJpdmF0ZSBfaW5jb21pbmdDb25uZWN0aW9ucyA9IG5ldyBDaGFubmVsU3ViamVjdDxJbmNvbWluZ0Nvbm5lY3Rpb24+KHsgYnVmZmVyU2l6ZTogMTAwIH0pOwogICAgcHJpdmF0ZSBfY2hhbm5lbENyZWF0ZWQgPSBuZXcgQ2hhbm5lbFN1YmplY3Q8Q2hhbm5lbENyZWF0ZWRFdmVudD4oeyBidWZmZXJTaXplOiAxMDAgfSk7CiAgICBwcml2YXRlIF9jaGFubmVsQ2xvc2VkID0gbmV3IENoYW5uZWxTdWJqZWN0PHsgY2hhbm5lbDogc3RyaW5nOyB0aW1lc3RhbXA6IG51bWJlciB9PigpOwoKICAgIGNvbnN0cnVjdG9yKGNvbmZpZzogV29ya2VyQ29udGV4dENvbmZpZyA9IHt9KSB7CiAgICAgICAgdGhpcy5fY29uZmlnID0gewogICAgICAgICAgICBuYW1lOiBjb25maWcubmFtZSA/PyAid29ya2VyIiwKICAgICAgICAgICAgd29ya2VyTmFtZTogY29uZmlnLndvcmtlck5hbWUgPz8gYHdvcmtlci0ke1VVSUR2NCgpLnNsaWNlKDAsIDgpfWAsCiAgICAgICAgICAgIGF1dG9BY2NlcHRDaGFubmVsczogY29uZmlnLmF1dG9BY2NlcHRDaGFubmVscyA/PyB0cnVlLAogICAgICAgICAgICBhbGxvd2VkQ2hhbm5lbHM6IGNvbmZpZy5hbGxvd2VkQ2hhbm5lbHMgPz8gW10sCiAgICAgICAgICAgIG1heENoYW5uZWxzOiBjb25maWcubWF4Q2hhbm5lbHMgPz8gMTAwLAogICAgICAgICAgICBhdXRvQ29ubmVjdDogY29uZmlnLmF1dG9Db25uZWN0ID8/IHRydWUsCiAgICAgICAgICAgIHVzZUdsb2JhbFNlbGY6IHRydWUsCiAgICAgICAgICAgIGRlZmF1bHRPcHRpb25zOiBjb25maWcuZGVmYXVsdE9wdGlvbnMgPz8ge30sCiAgICAgICAgICAgIGlzb2xhdGVkU3RvcmFnZTogY29uZmlnLmlzb2xhdGVkU3RvcmFnZSA/PyBmYWxzZSwKICAgICAgICAgICAgLi4uY29uZmlnCiAgICAgICAgfTsKCiAgICAgICAgdGhpcy5fY29udGV4dCA9IGNyZWF0ZUNoYW5uZWxDb250ZXh0KHsKICAgICAgICAgICAgbmFtZTogdGhpcy5fY29uZmlnLm5hbWUsCiAgICAgICAgICAgIHVzZUdsb2JhbFNlbGY6IHRydWUsCiAgICAgICAgICAgIGRlZmF1bHRPcHRpb25zOiBjb25maWcuZGVmYXVsdE9wdGlvbnMKICAgICAgICB9KTsKCiAgICAgICAgdGhpcy5fc2V0dXBNZXNzYWdlTGlzdGVuZXIoKTsKICAgIH0KCiAgICAvLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KICAgIC8vIElOQ09NSU5HIENPTk5FQ1RJT04gT0JTRVJWQUJMRVMKICAgIC8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKICAgIC8qKgogICAgICogT2JzZXJ2YWJsZTogTmV3IGluY29taW5nIGNvbm5lY3Rpb24gcmVxdWVzdHMKICAgICAqLwogICAgZ2V0IG9uQ29ubmVjdGlvbigpIHsKICAgICAgICByZXR1cm4gdGhpcy5faW5jb21pbmdDb25uZWN0aW9uczsKICAgIH0KCiAgICAvKioKICAgICAqIE9ic2VydmFibGU6IENoYW5uZWwgY3JlYXRlZCBldmVudHMKICAgICAqLwogICAgZ2V0IG9uQ2hhbm5lbENyZWF0ZWQoKSB7CiAgICAgICAgcmV0dXJuIHRoaXMuX2NoYW5uZWxDcmVhdGVkOwogICAgfQoKICAgIC8qKgogICAgICogT2JzZXJ2YWJsZTogQ2hhbm5lbCBjbG9zZWQgZXZlbnRzCiAgICAgKi8KICAgIGdldCBvbkNoYW5uZWxDbG9zZWQoKSB7CiAgICAgICAgcmV0dXJuIHRoaXMuX2NoYW5uZWxDbG9zZWQ7CiAgICB9CgogICAgLyoqCiAgICAgKiBTdWJzY3JpYmUgdG8gaW5jb21pbmcgY29ubmVjdGlvbnMKICAgICAqLwogICAgc3Vic2NyaWJlQ29ubmVjdGlvbnMoCiAgICAgICAgaGFuZGxlcjogKGNvbm46IEluY29taW5nQ29ubmVjdGlvbikgPT4gdm9pZAogICAgKTogU3Vic2NyaXB0aW9uIHsKICAgICAgICByZXR1cm4gdGhpcy5faW5jb21pbmdDb25uZWN0aW9ucy5zdWJzY3JpYmUoaGFuZGxlcik7CiAgICB9CgogICAgLyoqCiAgICAgKiBTdWJzY3JpYmUgdG8gY2hhbm5lbCBjcmVhdGlvbgogICAgICovCiAgICBzdWJzY3JpYmVDaGFubmVsQ3JlYXRlZCgKICAgICAgICBoYW5kbGVyOiAoZXZlbnQ6IENoYW5uZWxDcmVhdGVkRXZlbnQpID0+IHZvaWQKICAgICk6IFN1YnNjcmlwdGlvbiB7CiAgICAgICAgcmV0dXJuIHRoaXMuX2NoYW5uZWxDcmVhdGVkLnN1YnNjcmliZShoYW5kbGVyKTsKICAgIH0KCiAgICAvLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KICAgIC8vIENIQU5ORUwgTUFOQUdFTUVOVAogICAgLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgogICAgLyoqCiAgICAgKiBBY2NlcHQgYW4gaW5jb21pbmcgY29ubmVjdGlvbiBhbmQgY3JlYXRlIHRoZSBjaGFubmVsCiAgICAgKi8KICAgIGFjY2VwdENvbm5lY3Rpb24oY29ubmVjdGlvbjogSW5jb21pbmdDb25uZWN0aW9uKTogQ2hhbm5lbEVuZHBvaW50IHwgbnVsbCB7CiAgICAgICAgaWYgKCF0aGlzLl9jYW5BY2NlcHRDaGFubmVsKGNvbm5lY3Rpb24uY2hhbm5lbCkpIHsKICAgICAgICAgICAgcmV0dXJuIG51bGw7CiAgICAgICAgfQoKICAgICAgICBjb25zdCBlbmRwb2ludCA9IHRoaXMuX2NvbnRleHQuY3JlYXRlQ2hhbm5lbChjb25uZWN0aW9uLmNoYW5uZWwsIGNvbm5lY3Rpb24ub3B0aW9ucyk7CgogICAgICAgIC8vIFNldHVwIHJlbW90ZSBjb25uZWN0aW9uCiAgICAgICAgaWYgKGNvbm5lY3Rpb24ucG9ydCkgewogICAgICAgICAgICBjb25uZWN0aW9uLnBvcnQuc3RhcnQ/LigpOwogICAgICAgICAgICBlbmRwb2ludC5oYW5kbGVyLmNyZWF0ZVJlbW90ZUNoYW5uZWwoCiAgICAgICAgICAgICAgICBjb25uZWN0aW9uLnNlbmRlciwKICAgICAgICAgICAgICAgIGNvbm5lY3Rpb24ub3B0aW9ucywKICAgICAgICAgICAgICAgIGNvbm5lY3Rpb24ucG9ydAogICAgICAgICAgICApOwogICAgICAgIH0KCiAgICAgICAgdGhpcy5fY2hhbm5lbENyZWF0ZWQubmV4dCh7CiAgICAgICAgICAgIGNoYW5uZWw6IGNvbm5lY3Rpb24uY2hhbm5lbCwKICAgICAgICAgICAgZW5kcG9pbnQsCiAgICAgICAgICAgIHNlbmRlcjogY29ubmVjdGlvbi5zZW5kZXIsCiAgICAgICAgICAgIHRpbWVzdGFtcDogRGF0ZS5ub3coKQogICAgICAgIH0pOwoKICAgICAgICAvLyBOb3RpZnkgc2VuZGVyCiAgICAgICAgdGhpcy5fcG9zdENoYW5uZWxDcmVhdGVkKGNvbm5lY3Rpb24uY2hhbm5lbCwgY29ubmVjdGlvbi5zZW5kZXIsIGNvbm5lY3Rpb24uaWQpOwoKICAgICAgICByZXR1cm4gZW5kcG9pbnQ7CiAgICB9CgogICAgLyoqCiAgICAgKiBDcmVhdGUgYSBuZXcgY2hhbm5lbCBpbiB0aGlzIHdvcmtlciBjb250ZXh0CiAgICAgKi8KICAgIGNyZWF0ZUNoYW5uZWwobmFtZTogc3RyaW5nLCBvcHRpb25zPzogYW55KTogQ2hhbm5lbEVuZHBvaW50IHsKICAgICAgICByZXR1cm4gdGhpcy5fY29udGV4dC5jcmVhdGVDaGFubmVsKG5hbWUsIG9wdGlvbnMpOwogICAgfQoKICAgIC8qKgogICAgICogR2V0IGFuIGV4aXN0aW5nIGNoYW5uZWwKICAgICAqLwogICAgZ2V0Q2hhbm5lbChuYW1lOiBzdHJpbmcpOiBDaGFubmVsRW5kcG9pbnQgfCB1bmRlZmluZWQgewogICAgICAgIHJldHVybiB0aGlzLl9jb250ZXh0LmdldENoYW5uZWwobmFtZSk7CiAgICB9CgogICAgLyoqCiAgICAgKiBDaGVjayBpZiBjaGFubmVsIGV4aXN0cwogICAgICovCiAgICBoYXNDaGFubmVsKG5hbWU6IHN0cmluZyk6IGJvb2xlYW4gewogICAgICAgIHJldHVybiB0aGlzLl9jb250ZXh0Lmhhc0NoYW5uZWwobmFtZSk7CiAgICB9CgogICAgLyoqCiAgICAgKiBHZXQgYWxsIGNoYW5uZWwgbmFtZXMKICAgICAqLwogICAgZ2V0Q2hhbm5lbE5hbWVzKCk6IHN0cmluZ1tdIHsKICAgICAgICByZXR1cm4gdGhpcy5fY29udGV4dC5nZXRDaGFubmVsTmFtZXMoKTsKICAgIH0KCiAgICAvKioKICAgICAqIFF1ZXJ5IGN1cnJlbnRseSB0cmFja2VkIGNoYW5uZWwgY29ubmVjdGlvbnMgaW4gdGhpcyB3b3JrZXIuCiAgICAgKi8KICAgIHF1ZXJ5Q29ubmVjdGlvbnMocXVlcnk6IFF1ZXJ5Q29ubmVjdGlvbnNPcHRpb25zID0ge30pOiBDb250ZXh0Q29ubmVjdGlvbkluZm9bXSB7CiAgICAgICAgcmV0dXJuIHRoaXMuX2NvbnRleHQucXVlcnlDb25uZWN0aW9ucyhxdWVyeSk7CiAgICB9CgogICAgLyoqCiAgICAgKiBOb3RpZnkgYWN0aXZlIGNvbm5lY3Rpb25zICh1c2VmdWwgZm9yIHdvcmtlcjwtPmhvc3Qgc3luYykuCiAgICAgKi8KICAgIG5vdGlmeUNvbm5lY3Rpb25zKHBheWxvYWQ6IGFueSA9IHt9LCBxdWVyeTogUXVlcnlDb25uZWN0aW9uc09wdGlvbnMgPSB7fSk6IG51bWJlciB7CiAgICAgICAgcmV0dXJuIHRoaXMuX2NvbnRleHQubm90aWZ5Q29ubmVjdGlvbnMocGF5bG9hZCwgcXVlcnkpOwogICAgfQoKICAgIC8qKgogICAgICogQ2xvc2UgYSBzcGVjaWZpYyBjaGFubmVsCiAgICAgKi8KICAgIGNsb3NlQ2hhbm5lbChuYW1lOiBzdHJpbmcpOiBib29sZWFuIHsKICAgICAgICBjb25zdCBjbG9zZWQgPSB0aGlzLl9jb250ZXh0LmNsb3NlQ2hhbm5lbChuYW1lKTsKICAgICAgICBpZiAoY2xvc2VkKSB7CiAgICAgICAgICAgIHRoaXMuX2NoYW5uZWxDbG9zZWQubmV4dCh7IGNoYW5uZWw6IG5hbWUsIHRpbWVzdGFtcDogRGF0ZS5ub3coKSB9KTsKICAgICAgICB9CiAgICAgICAgcmV0dXJuIGNsb3NlZDsKICAgIH0KCiAgICAvKioKICAgICAqIEdldCB0aGUgdW5kZXJseWluZyBjb250ZXh0CiAgICAgKi8KICAgIGdldCBjb250ZXh0KCk6IENoYW5uZWxDb250ZXh0IHsKICAgICAgICByZXR1cm4gdGhpcy5fY29udGV4dDsKICAgIH0KCiAgICAvKioKICAgICAqIEdldCB3b3JrZXIgY29uZmlndXJhdGlvbgogICAgICovCiAgICBnZXQgY29uZmlnKCk6IFJlYWRvbmx5PFJlcXVpcmVkPFdvcmtlckNvbnRleHRDb25maWc+PiB7CiAgICAgICAgcmV0dXJuIHRoaXMuX2NvbmZpZzsKICAgIH0KCiAgICAvLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KICAgIC8vIFBSSVZBVEUgTUVUSE9EUwogICAgLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgogICAgcHJpdmF0ZSBfc2V0dXBNZXNzYWdlTGlzdGVuZXIoKTogdm9pZCB7CiAgICAgICAgYWRkRXZlbnRMaXN0ZW5lcigibWVzc2FnZSIsICgoZXZlbnQ6IE1lc3NhZ2VFdmVudCkgPT4gewogICAgICAgICAgICB0aGlzLl9oYW5kbGVJbmNvbWluZ01lc3NhZ2UoZXZlbnQpOwogICAgICAgIH0pIGFzIEV2ZW50TGlzdGVuZXIpOwogICAgfQoKICAgIHByaXZhdGUgX2hhbmRsZUluY29taW5nTWVzc2FnZShldmVudDogTWVzc2FnZUV2ZW50KTogdm9pZCB7CiAgICAgICAgY29uc3QgZGF0YSA9IGV2ZW50LmRhdGE7CiAgICAgICAgaWYgKCFkYXRhIHx8IHR5cGVvZiBkYXRhICE9PSAib2JqZWN0IikgcmV0dXJuOwoKICAgICAgICBzd2l0Y2ggKGRhdGEudHlwZSkgewogICAgICAgICAgICBjYXNlICJjcmVhdGVDaGFubmVsIjoKICAgICAgICAgICAgICAgIHRoaXMuX2hhbmRsZUNyZWF0ZUNoYW5uZWwoZGF0YSk7CiAgICAgICAgICAgICAgICBicmVhazsKCiAgICAgICAgICAgIGNhc2UgImNvbm5lY3RDaGFubmVsIjoKICAgICAgICAgICAgICAgIHRoaXMuX2hhbmRsZUNvbm5lY3RDaGFubmVsKGRhdGEpOwogICAgICAgICAgICAgICAgYnJlYWs7CgogICAgICAgICAgICBjYXNlICJhZGRQb3J0IjoKICAgICAgICAgICAgICAgIHRoaXMuX2hhbmRsZUFkZFBvcnQoZGF0YSk7CiAgICAgICAgICAgICAgICBicmVhazsKCiAgICAgICAgICAgIGNhc2UgImxpc3RDaGFubmVscyI6CiAgICAgICAgICAgICAgICB0aGlzLl9oYW5kbGVMaXN0Q2hhbm5lbHMoZGF0YSk7CiAgICAgICAgICAgICAgICBicmVhazsKCiAgICAgICAgICAgIGNhc2UgImNsb3NlQ2hhbm5lbCI6CiAgICAgICAgICAgICAgICB0aGlzLl9oYW5kbGVDbG9zZUNoYW5uZWwoZGF0YSk7CiAgICAgICAgICAgICAgICBicmVhazsKCiAgICAgICAgICAgIGNhc2UgInBpbmciOgogICAgICAgICAgICAgICAgcG9zdE1lc3NhZ2UoeyB0eXBlOiAicG9uZyIsIGlkOiBkYXRhLmlkLCB0aW1lc3RhbXA6IERhdGUubm93KCkgfSk7CiAgICAgICAgICAgICAgICBicmVhazsKCiAgICAgICAgICAgIGRlZmF1bHQ6CiAgICAgICAgICAgICAgICAvLyBQYXNzIHRvIGV4aXN0aW5nIGhhbmRsZXIgb3IgbG9nCiAgICAgICAgICAgICAgICBpZiAoZGF0YS5jaGFubmVsICYmIHRoaXMuX2NvbnRleHQuaGFzQ2hhbm5lbChkYXRhLmNoYW5uZWwpKSB7CiAgICAgICAgICAgICAgICAgICAgLy8gUm91dGUgdG8gc3BlY2lmaWMgY2hhbm5lbAogICAgICAgICAgICAgICAgICAgIGNvbnN0IGVuZHBvaW50ID0gdGhpcy5fY29udGV4dC5nZXRDaGFubmVsKGRhdGEuY2hhbm5lbCk7CiAgICAgICAgICAgICAgICAgICAgKGVuZHBvaW50Py5oYW5kbGVyIGFzIGFueSk/LmhhbmRsZUFuZFJlc3BvbnNlPy4oZGF0YS5wYXlsb2FkLCBkYXRhLnJlcUlkKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICB9CiAgICB9CgogICAgcHJpdmF0ZSBfaGFuZGxlQ3JlYXRlQ2hhbm5lbChkYXRhOiBhbnkpOiB2b2lkIHsKICAgICAgICBjb25zdCBjb25uZWN0aW9uOiBJbmNvbWluZ0Nvbm5lY3Rpb24gPSB7CiAgICAgICAgICAgIGlkOiBkYXRhLnJlcUlkID8/IFVVSUR2NCgpLAogICAgICAgICAgICBjaGFubmVsOiBkYXRhLmNoYW5uZWwsCiAgICAgICAgICAgIHNlbmRlcjogZGF0YS5zZW5kZXIgPz8gInVua25vd24iLAogICAgICAgICAgICB0eXBlOiAiY2hhbm5lbCIsCiAgICAgICAgICAgIHBvcnQ6IGRhdGEubWVzc2FnZVBvcnQsCiAgICAgICAgICAgIHRpbWVzdGFtcDogRGF0ZS5ub3coKSwKICAgICAgICAgICAgb3B0aW9uczogZGF0YS5vcHRpb25zCiAgICAgICAgfTsKCiAgICAgICAgLy8gRW1pdCB0byBvYnNlcnZlcnMKICAgICAgICB0aGlzLl9pbmNvbWluZ0Nvbm5lY3Rpb25zLm5leHQoY29ubmVjdGlvbik7CgogICAgICAgIC8vIEF1dG8tYWNjZXB0IGlmIGNvbmZpZ3VyZWQKICAgICAgICBpZiAodGhpcy5fY29uZmlnLmF1dG9BY2NlcHRDaGFubmVscykgewogICAgICAgICAgICB0aGlzLmFjY2VwdENvbm5lY3Rpb24oY29ubmVjdGlvbik7CiAgICAgICAgfQogICAgfQoKICAgIHByaXZhdGUgX2hhbmRsZUNvbm5lY3RDaGFubmVsKGRhdGE6IGFueSk6IHZvaWQgewogICAgICAgIGNvbnN0IGNvbm5lY3Rpb246IEluY29taW5nQ29ubmVjdGlvbiA9IHsKICAgICAgICAgICAgaWQ6IGRhdGEucmVxSWQgPz8gVVVJRHY0KCksCiAgICAgICAgICAgIGNoYW5uZWw6IGRhdGEuY2hhbm5lbCwKICAgICAgICAgICAgc2VuZGVyOiBkYXRhLnNlbmRlciA/PyAidW5rbm93biIsCiAgICAgICAgICAgIHR5cGU6IGRhdGEucG9ydFR5cGUgPz8gImNoYW5uZWwiLAogICAgICAgICAgICBwb3J0OiBkYXRhLnBvcnQsCiAgICAgICAgICAgIHRpbWVzdGFtcDogRGF0ZS5ub3coKSwKICAgICAgICAgICAgb3B0aW9uczogZGF0YS5vcHRpb25zCiAgICAgICAgfTsKCiAgICAgICAgdGhpcy5faW5jb21pbmdDb25uZWN0aW9ucy5uZXh0KGNvbm5lY3Rpb24pOwoKICAgICAgICBpZiAodGhpcy5fY29uZmlnLmF1dG9BY2NlcHRDaGFubmVscyAmJiB0aGlzLl9jYW5BY2NlcHRDaGFubmVsKGRhdGEuY2hhbm5lbCkpIHsKICAgICAgICAgICAgLy8gQ29ubmVjdCB0byBleGlzdGluZyBjaGFubmVsIG9yIGNyZWF0ZSBuZXcKICAgICAgICAgICAgY29uc3QgZW5kcG9pbnQgPSB0aGlzLl9jb250ZXh0LmdldE9yQ3JlYXRlQ2hhbm5lbChkYXRhLmNoYW5uZWwsIGRhdGEub3B0aW9ucyk7CgogICAgICAgICAgICBpZiAoZGF0YS5wb3J0KSB7CiAgICAgICAgICAgICAgICBkYXRhLnBvcnQuc3RhcnQ/LigpOwogICAgICAgICAgICAgICAgZW5kcG9pbnQuaGFuZGxlci5jcmVhdGVSZW1vdGVDaGFubmVsKGRhdGEuc2VuZGVyLCBkYXRhLm9wdGlvbnMsIGRhdGEucG9ydCk7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIHBvc3RNZXNzYWdlKHsKICAgICAgICAgICAgICAgIHR5cGU6ICJjaGFubmVsQ29ubmVjdGVkIiwKICAgICAgICAgICAgICAgIGNoYW5uZWw6IGRhdGEuY2hhbm5lbCwKICAgICAgICAgICAgICAgIHJlcUlkOiBkYXRhLnJlcUlkCiAgICAgICAgICAgIH0pOwogICAgICAgIH0KICAgIH0KCiAgICBwcml2YXRlIF9oYW5kbGVBZGRQb3J0KGRhdGE6IGFueSk6IHZvaWQgewogICAgICAgIGlmICghZGF0YS5wb3J0IHx8ICFkYXRhLmNoYW5uZWwpIHJldHVybjsKCiAgICAgICAgY29uc3QgY29ubmVjdGlvbjogSW5jb21pbmdDb25uZWN0aW9uID0gewogICAgICAgICAgICBpZDogZGF0YS5yZXFJZCA/PyBVVUlEdjQoKSwKICAgICAgICAgICAgY2hhbm5lbDogZGF0YS5jaGFubmVsLAogICAgICAgICAgICBzZW5kZXI6IGRhdGEuc2VuZGVyID8/ICJ1bmtub3duIiwKICAgICAgICAgICAgdHlwZTogInBvcnQiLAogICAgICAgICAgICBwb3J0OiBkYXRhLnBvcnQsCiAgICAgICAgICAgIHRpbWVzdGFtcDogRGF0ZS5ub3coKSwKICAgICAgICAgICAgb3B0aW9uczogZGF0YS5vcHRpb25zCiAgICAgICAgfTsKCiAgICAgICAgdGhpcy5faW5jb21pbmdDb25uZWN0aW9ucy5uZXh0KGNvbm5lY3Rpb24pOwoKICAgICAgICBpZiAodGhpcy5fY29uZmlnLmF1dG9BY2NlcHRDaGFubmVscykgewogICAgICAgICAgICB0aGlzLmFjY2VwdENvbm5lY3Rpb24oY29ubmVjdGlvbik7CiAgICAgICAgfQogICAgfQoKICAgIHByaXZhdGUgX2hhbmRsZUxpc3RDaGFubmVscyhkYXRhOiBhbnkpOiB2b2lkIHsKICAgICAgICBwb3N0TWVzc2FnZSh7CiAgICAgICAgICAgIHR5cGU6ICJjaGFubmVsTGlzdCIsCiAgICAgICAgICAgIGNoYW5uZWxzOiB0aGlzLmdldENoYW5uZWxOYW1lcygpLAogICAgICAgICAgICByZXFJZDogZGF0YS5yZXFJZAogICAgICAgIH0pOwogICAgfQoKICAgIHByaXZhdGUgX2hhbmRsZUNsb3NlQ2hhbm5lbChkYXRhOiBhbnkpOiB2b2lkIHsKICAgICAgICBpZiAoZGF0YS5jaGFubmVsKSB7CiAgICAgICAgICAgIHRoaXMuY2xvc2VDaGFubmVsKGRhdGEuY2hhbm5lbCk7CiAgICAgICAgICAgIHBvc3RNZXNzYWdlKHsKICAgICAgICAgICAgICAgIHR5cGU6ICJjaGFubmVsQ2xvc2VkIiwKICAgICAgICAgICAgICAgIGNoYW5uZWw6IGRhdGEuY2hhbm5lbCwKICAgICAgICAgICAgICAgIHJlcUlkOiBkYXRhLnJlcUlkCiAgICAgICAgICAgIH0pOwogICAgICAgIH0KICAgIH0KCiAgICBwcml2YXRlIF9jYW5BY2NlcHRDaGFubmVsKGNoYW5uZWw6IHN0cmluZyk6IGJvb2xlYW4gewogICAgICAgIC8vIENoZWNrIG1heCBjaGFubmVscwogICAgICAgIGlmICh0aGlzLl9jb250ZXh0LnNpemUgPj0gdGhpcy5fY29uZmlnLm1heENoYW5uZWxzKSB7CiAgICAgICAgICAgIHJldHVybiBmYWxzZTsKICAgICAgICB9CgogICAgICAgIC8vIENoZWNrIHdoaXRlbGlzdAogICAgICAgIGlmICh0aGlzLl9jb25maWcuYWxsb3dlZENoYW5uZWxzLmxlbmd0aCA+IDApIHsKICAgICAgICAgICAgcmV0dXJuIHRoaXMuX2NvbmZpZy5hbGxvd2VkQ2hhbm5lbHMuaW5jbHVkZXMoY2hhbm5lbCk7CiAgICAgICAgfQoKICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIF9wb3N0Q2hhbm5lbENyZWF0ZWQoY2hhbm5lbDogc3RyaW5nLCBzZW5kZXI6IHN0cmluZywgcmVxSWQ/OiBzdHJpbmcpOiB2b2lkIHsKICAgICAgICBwb3N0TWVzc2FnZSh7CiAgICAgICAgICAgIHR5cGU6ICJjaGFubmVsQ3JlYXRlZCIsCiAgICAgICAgICAgIGNoYW5uZWwsCiAgICAgICAgICAgIHNlbmRlciwKICAgICAgICAgICAgcmVxSWQsCiAgICAgICAgICAgIHRpbWVzdGFtcDogRGF0ZS5ub3coKQogICAgICAgIH0pOwogICAgfQoKICAgIC8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQogICAgLy8gTElGRUNZQ0xFCiAgICAvLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCiAgICBjbG9zZSgpOiB2b2lkIHsKICAgICAgICB0aGlzLl9zdWJzY3JpcHRpb25zLmZvckVhY2gocyA9PiBzLnVuc3Vic2NyaWJlKCkpOwogICAgICAgIHRoaXMuX3N1YnNjcmlwdGlvbnMgPSBbXTsKICAgICAgICB0aGlzLl9pbmNvbWluZ0Nvbm5lY3Rpb25zLmNvbXBsZXRlKCk7CiAgICAgICAgdGhpcy5fY2hhbm5lbENyZWF0ZWQuY29tcGxldGUoKTsKICAgICAgICB0aGlzLl9jaGFubmVsQ2xvc2VkLmNvbXBsZXRlKCk7CiAgICAgICAgdGhpcy5fY29udGV4dC5jbG9zZSgpOwogICAgfQp9CgovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIEdMT0JBTCBXT1JLRVIgQ09OVEVYVCAoU2luZ2xldG9uKQovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpsZXQgV09SS0VSX0NPTlRFWFQ6IFdvcmtlckNvbnRleHQgfCBudWxsID0gbnVsbDsKCi8qKgogKiBHZXQgb3IgY3JlYXRlIHRoZSB3b3JrZXIgY29udGV4dCBzaW5nbGV0b24KICovCmV4cG9ydCBmdW5jdGlvbiBnZXRXb3JrZXJDb250ZXh0KGNvbmZpZz86IFdvcmtlckNvbnRleHRDb25maWcpOiBXb3JrZXJDb250ZXh0IHsKICAgIGlmICghV09SS0VSX0NPTlRFWFQpIHsKICAgICAgICBXT1JLRVJfQ09OVEVYVCA9IG5ldyBXb3JrZXJDb250ZXh0KGNvbmZpZyk7CiAgICB9CiAgICByZXR1cm4gV09SS0VSX0NPTlRFWFQ7Cn0KCi8qKgogKiBJbml0aWFsaXplIHdvcmtlciBjb250ZXh0IHdpdGggY29uZmlnCiAqLwpleHBvcnQgZnVuY3Rpb24gaW5pdFdvcmtlckNvbnRleHQoY29uZmlnPzogV29ya2VyQ29udGV4dENvbmZpZyk6IFdvcmtlckNvbnRleHQgewogICAgV09SS0VSX0NPTlRFWFQ/LmNsb3NlKCk7CiAgICBXT1JLRVJfQ09OVEVYVCA9IG5ldyBXb3JrZXJDb250ZXh0KGNvbmZpZyk7CiAgICByZXR1cm4gV09SS0VSX0NPTlRFWFQ7Cn0KCi8qKgogKiBTdWJzY3JpYmUgdG8gaW5jb21pbmcgY29ubmVjdGlvbnMgaW4gdGhlIGdsb2JhbCB3b3JrZXIgY29udGV4dAogKi8KZXhwb3J0IGZ1bmN0aW9uIG9uV29ya2VyQ29ubmVjdGlvbigKICAgIGhhbmRsZXI6IChjb25uOiBJbmNvbWluZ0Nvbm5lY3Rpb24pID0+IHZvaWQKKTogU3Vic2NyaXB0aW9uIHsKICAgIHJldHVybiBnZXRXb3JrZXJDb250ZXh0KCkuc3Vic2NyaWJlQ29ubmVjdGlvbnMoaGFuZGxlcik7Cn0KCi8qKgogKiBTdWJzY3JpYmUgdG8gY2hhbm5lbCBjcmVhdGlvbiBpbiB0aGUgZ2xvYmFsIHdvcmtlciBjb250ZXh0CiAqLwpleHBvcnQgZnVuY3Rpb24gb25Xb3JrZXJDaGFubmVsQ3JlYXRlZCgKICAgIGhhbmRsZXI6IChldmVudDogQ2hhbm5lbENyZWF0ZWRFdmVudCkgPT4gdm9pZAopOiBTdWJzY3JpcHRpb24gewogICAgcmV0dXJuIGdldFdvcmtlckNvbnRleHQoKS5zdWJzY3JpYmVDaGFubmVsQ3JlYXRlZChoYW5kbGVyKTsKfQoKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBJTlZPS0VSIElOVEVHUkFUSU9OCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCmltcG9ydCB7CiAgICBSZXNwb25kZXIsCiAgICBCaWRpcmVjdGlvbmFsSW52b2tlciwKICAgIGNyZWF0ZVJlc3BvbmRlciwKICAgIGNyZWF0ZUludm9rZXIsCiAgICBkZXRlY3RDb250ZXh0VHlwZSwKICAgIGRldGVjdFRyYW5zcG9ydFR5cGUsCiAgICB0eXBlIENvbnRleHRUeXBlLAogICAgdHlwZSBJbmNvbWluZ0ludm9jYXRpb24KfSBmcm9tICIuLi9wcm94eS9JbnZva2VyIjsKCmxldCBXT1JLRVJfUkVTUE9OREVSOiBSZXNwb25kZXIgfCBudWxsID0gbnVsbDsKbGV0IFdPUktFUl9JTlZPS0VSOiBCaWRpcmVjdGlvbmFsSW52b2tlciB8IG51bGwgPSBudWxsOwoKLyoqCiAqIEdldCB0aGUgd29ya2VyJ3MgUmVzcG9uZGVyIChmb3IgaGFuZGxpbmcgaW5jb21pbmcgaW52b2NhdGlvbnMpCiAqLwpleHBvcnQgZnVuY3Rpb24gZ2V0V29ya2VyUmVzcG9uZGVyKGNoYW5uZWw/OiBzdHJpbmcpOiBSZXNwb25kZXIgewogICAgaWYgKCFXT1JLRVJfUkVTUE9OREVSKSB7CiAgICAgICAgV09SS0VSX1JFU1BPTkRFUiA9IGNyZWF0ZVJlc3BvbmRlcihjaGFubmVsID8/ICJ3b3JrZXIiKTsKICAgICAgICBXT1JLRVJfUkVTUE9OREVSLmxpc3RlbihzZWxmKTsKICAgIH0KICAgIHJldHVybiBXT1JLRVJfUkVTUE9OREVSOwp9CgovKioKICogR2V0IHRoZSB3b3JrZXIncyBiaWRpcmVjdGlvbmFsIEludm9rZXIKICovCmV4cG9ydCBmdW5jdGlvbiBnZXRXb3JrZXJJbnZva2VyKGNoYW5uZWw/OiBzdHJpbmcpOiBCaWRpcmVjdGlvbmFsSW52b2tlciB7CiAgICBpZiAoIVdPUktFUl9JTlZPS0VSKSB7CiAgICAgICAgV09SS0VSX0lOVk9LRVIgPSBjcmVhdGVJbnZva2VyKGNoYW5uZWwgPz8gIndvcmtlciIpOwogICAgICAgIFdPUktFUl9JTlZPS0VSLmNvbm5lY3Qoc2VsZik7CiAgICB9CiAgICByZXR1cm4gV09SS0VSX0lOVk9LRVI7Cn0KCi8qKgogKiBFeHBvc2UgYW4gb2JqZWN0IGZvciByZW1vdGUgaW52b2NhdGlvbiBmcm9tIHRoZSB3b3JrZXIKICovCmV4cG9ydCBmdW5jdGlvbiBleHBvc2VGcm9tV29ya2VyKG5hbWU6IHN0cmluZywgb2JqOiBhbnkpOiB2b2lkIHsKICAgIGdldFdvcmtlclJlc3BvbmRlcigpLmV4cG9zZShuYW1lLCBvYmopOwp9CgovKioKICogU3Vic2NyaWJlIHRvIGluY29taW5nIGludm9jYXRpb25zIGluIHRoZSB3b3JrZXIKICovCmV4cG9ydCBmdW5jdGlvbiBvbldvcmtlckludm9jYXRpb24oCiAgICBoYW5kbGVyOiAoaW52OiBJbmNvbWluZ0ludm9jYXRpb24pID0+IHZvaWQKKTogU3Vic2NyaXB0aW9uIHsKICAgIHJldHVybiBnZXRXb3JrZXJSZXNwb25kZXIoKS5zdWJzY3JpYmVJbnZvY2F0aW9ucyhoYW5kbGVyKTsKfQoKLyoqCiAqIENyZWF0ZSBhIHByb3h5IHRvIGludm9rZSBtZXRob2RzIG9uIHRoZSBob3N0IGZyb20gdGhlIHdvcmtlcgogKi8KZXhwb3J0IGZ1bmN0aW9uIGNyZWF0ZUhvc3RQcm94eTxUID0gYW55Pihob3N0Q2hhbm5lbDogc3RyaW5nID0gImhvc3QiLCBiYXNlUGF0aDogc3RyaW5nW10gPSBbXSk6IFQgewogICAgcmV0dXJuIGdldFdvcmtlckludm9rZXIoKS5jcmVhdGVQcm94eTxUPihob3N0Q2hhbm5lbCwgYmFzZVBhdGgpOwp9CgovKioKICogSW1wb3J0IGEgbW9kdWxlIGluIHRoZSBob3N0IGNvbnRleHQgZnJvbSB0aGUgd29ya2VyCiAqLwpleHBvcnQgZnVuY3Rpb24gaW1wb3J0SW5Ib3N0PFQgPSBhbnk+KHVybDogc3RyaW5nLCBob3N0Q2hhbm5lbDogc3RyaW5nID0gImhvc3QiKTogUHJvbWlzZTxUPiB7CiAgICByZXR1cm4gZ2V0V29ya2VySW52b2tlcigpLmltcG9ydE1vZHVsZTxUPihob3N0Q2hhbm5lbCwgdXJsKTsKfQoKLy8gUmUtZXhwb3J0IGRldGVjdGlvbiB1dGlsaXRpZXMKZXhwb3J0IHsgZGV0ZWN0Q29udGV4dFR5cGUsIGRldGVjdFRyYW5zcG9ydFR5cGUgfTsKZXhwb3J0IHR5cGUgeyBDb250ZXh0VHlwZSwgSW5jb21pbmdJbnZvY2F0aW9uIH07CgovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIEFVVE8tSU5JVElBTElaRSAoQ29tcGF0aWJsZSB3aXRoIGxlZ2FjeSB1c2FnZSkKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKLy8gSW5pdGlhbGl6ZSB0aGUgd29ya2VyIGNvbnRleHQKY29uc3QgY3R4ID0gZ2V0V29ya2VyQ29udGV4dCh7IG5hbWU6ICJ3b3JrZXIiIH0pOwoKLy8gRXhwb3J0IGZvciBkaXJlY3QgYWNjZXNzCmV4cG9ydCB7IGN0eCBhcyB3b3JrZXJDb250ZXh0IH07Cg==", "" + import.meta.url);
 var RemoteChannelHelper = class {
+	_connection;
+	_storage;
 	constructor(_channel, _context, _options = {}) {
 		this._channel = _channel;
 		this._context = _context;
@@ -2651,6 +2659,8 @@ var RemoteChannelHelper = class {
 	}
 };
 var ChannelHandler = class {
+	_connection;
+	_unified;
 	get _forResolves() {
 		return this._unified.__getPrivate("_pending");
 	}
@@ -2750,19 +2760,20 @@ var ChannelHandler = class {
 * - Global self/globalThis as default target
 */
 var ChannelContext = class {
+	_id = UUIDv4();
+	_hostName;
+	_host = null;
+	_endpoints = /* @__PURE__ */ new Map();
+	_unifiedByChannel = /* @__PURE__ */ new Map();
+	_unifiedConnectionSubs = /* @__PURE__ */ new Map();
+	_remoteChannels = /* @__PURE__ */ new Map();
+	_deferredChannels = /* @__PURE__ */ new Map();
+	_connectionEvents = new ChannelSubject({ bufferSize: 200 });
+	_connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._emitConnectionEvent(event));
+	_closed = false;
+	_globalSelf = null;
 	constructor(_options = {}) {
 		this._options = _options;
-		this._id = UUIDv4();
-		this._host = null;
-		this._endpoints = /* @__PURE__ */ new Map();
-		this._unifiedByChannel = /* @__PURE__ */ new Map();
-		this._unifiedConnectionSubs = /* @__PURE__ */ new Map();
-		this._remoteChannels = /* @__PURE__ */ new Map();
-		this._deferredChannels = /* @__PURE__ */ new Map();
-		this._connectionEvents = new ChannelSubject({ bufferSize: 200 });
-		this._connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._emitConnectionEvent(event));
-		this._closed = false;
-		this._globalSelf = null;
 		this._hostName = _options.name ?? `ctx-${this._id.slice(0, 8)}`;
 		if (_options.useGlobalSelf !== false) this._globalSelf = typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : null;
 	}
@@ -3375,7 +3386,7 @@ function createChannelContext(options = {}) {
 	return ctx;
 }
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/Worker.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/Worker.ts
 /**
 * Worker Entry Point - Multi-Channel Support
 *
@@ -3391,11 +3402,13 @@ function createChannelContext(options = {}) {
 * Supports observing new incoming connections from host/remote contexts.
 */
 var WorkerContext = class {
+	_context;
+	_config;
+	_subscriptions = [];
+	_incomingConnections = new ChannelSubject({ bufferSize: 100 });
+	_channelCreated = new ChannelSubject({ bufferSize: 100 });
+	_channelClosed = new ChannelSubject();
 	constructor(config = {}) {
-		this._subscriptions = [];
-		this._incomingConnections = new ChannelSubject({ bufferSize: 100 });
-		this._channelCreated = new ChannelSubject({ bufferSize: 100 });
-		this._channelClosed = new ChannelSubject();
 		this._config = {
 			name: config.name ?? "worker",
 			workerName: config.workerName ?? `worker-${UUIDv4().slice(0, 8)}`,
@@ -3657,94 +3670,8 @@ function getWorkerContext(config) {
 	return WORKER_CONTEXT;
 }
 getWorkerContext({ name: "worker" });
-(class AtomicsRingBuffer {
-	static {
-		this.META_SIZE = 16;
-	}
-	static {
-		this.WRITE_IDX = 0;
-	}
-	static {
-		this.READ_IDX = 4;
-	}
-	static {
-		this.OVERFLOW = 8;
-	}
-	constructor(bufferOrConfig = {}) {
-		if (bufferOrConfig instanceof SharedArrayBuffer) {
-			this._buffer = bufferOrConfig;
-			this._slotCount = 64;
-			this._slotSize = (this._buffer.byteLength - AtomicsRingBuffer.META_SIZE) / this._slotCount;
-		} else {
-			this._slotSize = bufferOrConfig.slotSize ?? 1024;
-			this._slotCount = bufferOrConfig.slotCount ?? 64;
-			this._slotCount = 1 << Math.ceil(Math.log2(this._slotCount));
-			const totalSize = AtomicsRingBuffer.META_SIZE + this._slotSize * this._slotCount;
-			this._buffer = new SharedArrayBuffer(totalSize);
-		}
-		this._meta = new Int32Array(this._buffer, 0, AtomicsRingBuffer.META_SIZE / 4);
-		this._data = new Uint8Array(this._buffer, AtomicsRingBuffer.META_SIZE);
-		this._mask = this._slotCount - 1;
-	}
-	/**
-	* Write message to ring buffer (non-blocking)
-	*/
-	write(data) {
-		if (data.byteLength > this._slotSize - 4) return false;
-		const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-		const readIdx = Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX);
-		if ((writeIdx + 1 & this._mask) === (readIdx & this._mask)) {
-			Atomics.add(this._meta, AtomicsRingBuffer.OVERFLOW, 1);
-			return false;
-		}
-		const slot = (writeIdx & this._mask) * this._slotSize;
-		new DataView(this._buffer, AtomicsRingBuffer.META_SIZE + slot).setUint32(0, data.byteLength, true);
-		this._data.set(data, slot + 4);
-		Atomics.store(this._meta, AtomicsRingBuffer.WRITE_IDX, writeIdx + 1);
-		Atomics.notify(this._meta, AtomicsRingBuffer.WRITE_IDX);
-		return true;
-	}
-	/**
-	* Read message from ring buffer (non-blocking)
-	*/
-	read() {
-		const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-		const readIdx = Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX);
-		if (readIdx === writeIdx) return null;
-		const slot = (readIdx & this._mask) * this._slotSize;
-		const size = new DataView(this._buffer, AtomicsRingBuffer.META_SIZE + slot).getUint32(0, true);
-		if (size === 0 || size > this._slotSize - 4) return null;
-		const data = new Uint8Array(size);
-		data.set(this._data.subarray(slot + 4, slot + 4 + size));
-		Atomics.store(this._meta, AtomicsRingBuffer.READ_IDX, readIdx + 1);
-		return data;
-	}
-	/**
-	* Wait for data to be available
-	*/
-	async waitRead(timeout) {
-		const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-		if (Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX) < writeIdx) return this.read();
-		if ("waitAsync" in Atomics) {
-			if (await Atomics.waitAsync(this._meta, AtomicsRingBuffer.WRITE_IDX, writeIdx, timeout ?? 1e3).value === "ok") return this.read();
-		} else {
-			await new Promise((r) => setTimeout(r, Math.min(timeout ?? 1e3, 100)));
-			return this.read();
-		}
-		return null;
-	}
-	get buffer() {
-		return this._buffer;
-	}
-	get available() {
-		return Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX) - Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX) & this._mask;
-	}
-	get overflow() {
-		return Atomics.load(this._meta, AtomicsRingBuffer.OVERFLOW);
-	}
-});
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/PortTransport.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/PortTransport.ts
 /**
 * MessagePort/MessageChannel Enhanced Transport
 *
@@ -3756,16 +3683,17 @@ getWorkerContext({ name: "worker" });
 * - Request/response with timeout
 */
 var PortTransport = class {
+	_port;
+	_subs = /* @__PURE__ */ new Set();
+	_pending = /* @__PURE__ */ new Map();
+	_listening = false;
+	_cleanup = null;
+	_portId = UUIDv4();
+	_state = new ChannelSubject();
+	_keepAliveTimer = null;
 	constructor(port, _channelName, _config = {}) {
 		this._channelName = _channelName;
 		this._config = _config;
-		this._subs = /* @__PURE__ */ new Set();
-		this._pending = /* @__PURE__ */ new Map();
-		this._listening = false;
-		this._cleanup = null;
-		this._portId = UUIDv4();
-		this._state = new ChannelSubject();
-		this._keepAliveTimer = null;
 		this._port = port;
 		this._setupPort();
 		if (_config.autoStart !== false) this.start();
@@ -3915,13 +3843,13 @@ function createChannelPair(channelName, config) {
 * Connect to window/iframe via MessageChannel
 */
 var WindowPortConnector = class {
+	_transport = null;
+	_state = new ChannelSubject();
+	_handshakeComplete = false;
 	constructor(_target, _channelName, _config = {}) {
 		this._target = _target;
 		this._channelName = _channelName;
 		this._config = _config;
-		this._transport = null;
-		this._state = new ChannelSubject();
-		this._handshakeComplete = false;
 	}
 	/**
 	* Initiate connection to target window
@@ -3990,19 +3918,20 @@ var WindowPortConnector = class {
 };
 WindowPortConnector.listen;
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/Queued.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/Queued.ts
 /**
 * Queued worker channel that buffers requests until the channel is available
 */
 var QueuedWorkerChannel = class {
+	underlyingChannel = null;
+	isConnected = false;
+	requestQueue = [];
+	connectionPromise = null;
+	connectionResolver = null;
+	context;
 	constructor(config, onChannelReady) {
 		this.config = config;
 		this.onChannelReady = onChannelReady;
-		this.underlyingChannel = null;
-		this.isConnected = false;
-		this.requestQueue = [];
-		this.connectionPromise = null;
-		this.connectionResolver = null;
 		this.context = config.context ?? "unknown";
 	}
 	/**
@@ -4072,12 +4001,15 @@ var QueuedWorkerChannel = class {
 	}
 };
 var OptimizedWorkerChannel = class {
+	channel = null;
+	isChannelReady = false;
+	pendingRequests = /* @__PURE__ */ new Map();
+	messageQueue = [];
+	queuedRequests = [];
+	batchTimer;
+	options;
+	onChannelReady;
 	constructor(channel = null, options = {}, onChannelReady) {
-		this.channel = null;
-		this.isChannelReady = false;
-		this.pendingRequests = /* @__PURE__ */ new Map();
-		this.messageQueue = [];
-		this.queuedRequests = [];
 		this.channel = channel;
 		this.isChannelReady = !!channel;
 		this.onChannelReady = onChannelReady;
@@ -4230,11 +4162,12 @@ var OptimizedWorkerChannel = class {
 	}
 };
 //#endregion
-//#region shared/fest/uniform/newer/messaging/MessageQueue.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/MessageQueue.ts
 var MessageQueue = class MessageQueue {
+	db = null;
+	dbPromise = null;
+	options;
 	constructor(options = {}) {
-		this.db = null;
-		this.dbPromise = null;
 		this.options = {
 			dbName: options.dbName ?? "UniformMessageQueue",
 			storeName: options.storeName ?? "messages",
@@ -4499,7 +4432,7 @@ function getMessageQueue(options) {
 	return instances.get(key);
 }
 //#endregion
-//#region shared/fest/uniform/newer/next/utils/Env.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/utils/Env.ts
 var isServiceWorkerContext = () => {
 	try {
 		const SWGS = globalThis?.ServiceWorkerGlobalScope;
@@ -4538,7 +4471,7 @@ var supportsDedicatedWorkers = () => {
 	}
 };
 //#endregion
-//#region shared/fest/uniform/newer/next/utils/Utils.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/utils/Utils.ts
 /**
 * Create a service worker channel (for when running in service worker context)
 */
@@ -4603,7 +4536,7 @@ var createQueuedOptimizedWorkerChannel = (config, options, onChannelReady) => {
 	return optimizedChannel;
 };
 //#endregion
-//#region shared/fest/uniform/newer/messaging/Protocol.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/Protocol.ts
 var PURPOSES = new Set([
 	"invoke",
 	"mail",
@@ -4708,8 +4641,9 @@ var isProtocolEnvelope = (value) => {
 };
 var normalizeProtocolEnvelope = (value) => isProtocolEnvelope(value) ? createProtocolEnvelope(value) : createProtocolEnvelope(value);
 var ProtocolReplayGuard = class {
+	seen = /* @__PURE__ */ new Map();
+	windowMs;
 	constructor(windowMs = 300) {
-		this.seen = /* @__PURE__ */ new Map();
 		this.windowMs = Math.max(10, windowMs);
 	}
 	accept(envelope) {
@@ -4726,8 +4660,11 @@ var ProtocolReplayGuard = class {
 	}
 };
 //#endregion
-//#region shared/fest/uniform/newer/messaging/UnifiedMessaging.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/UnifiedMessaging.ts
 var PendingMessageStore = class {
+	storageKey;
+	maxMessages;
+	defaultTTLMs;
 	constructor(options) {
 		this.storageKey = options?.storageKey ?? "uniform-messaging-pending";
 		this.maxMessages = options?.maxMessages ?? 200;
@@ -4792,17 +4729,21 @@ var PendingMessageStore = class {
 	}
 };
 var UnifiedMessagingManager = class {
+	handlers = /* @__PURE__ */ new Map();
+	channels = /* @__PURE__ */ new Map();
+	workerChannels = /* @__PURE__ */ new Map();
+	viewChannels = /* @__PURE__ */ new Map();
+	pipelines = /* @__PURE__ */ new Map();
+	messageQueue;
+	pendingStore;
+	initializedViews = /* @__PURE__ */ new Set();
+	viewReadyPromises = /* @__PURE__ */ new Map();
+	executionContext;
+	channelMappings;
+	componentRegistry = /* @__PURE__ */ new Map();
+	replayGuard = new ProtocolReplayGuard(300);
+	localChannelId = "";
 	constructor(config = {}) {
-		this.handlers = /* @__PURE__ */ new Map();
-		this.channels = /* @__PURE__ */ new Map();
-		this.workerChannels = /* @__PURE__ */ new Map();
-		this.viewChannels = /* @__PURE__ */ new Map();
-		this.pipelines = /* @__PURE__ */ new Map();
-		this.initializedViews = /* @__PURE__ */ new Set();
-		this.viewReadyPromises = /* @__PURE__ */ new Map();
-		this.componentRegistry = /* @__PURE__ */ new Map();
-		this.replayGuard = new ProtocolReplayGuard(300);
-		this.localChannelId = "";
 		this.executionContext = detectExecutionContext();
 		this.localChannelId = `${this.executionContext}:${Math.random().toString(36).slice(2, 10)}`;
 		this.channelMappings = config.channelMappings ?? {};
@@ -5167,17 +5108,20 @@ function getUnifiedMessaging(config) {
 	return defaultInstance;
 }
 //#endregion
-//#region shared/fest/uniform/newer/messaging/ServiceChannelManager.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/ServiceChannelManager.ts
 /**
 * Service Channel Manager
 * Manages BroadcastChannel-based service channels for views and components
 * Part of fest/uniform - configurable without app-specific dependencies
 */
 var ServiceChannelManager = class {
+	channels = /* @__PURE__ */ new Map();
+	readyPromises = /* @__PURE__ */ new Map();
+	messageHandlers = /* @__PURE__ */ new Map();
+	channelConfigs;
+	executionContext;
+	logPrefix;
 	constructor(config = {}) {
-		this.channels = /* @__PURE__ */ new Map();
-		this.readyPromises = /* @__PURE__ */ new Map();
-		this.messageHandlers = /* @__PURE__ */ new Map();
 		this.channelConfigs = config.channels ?? {};
 		this.logPrefix = config.logPrefix ?? "[ServiceChannels]";
 		this.executionContext = detectExecutionContext();

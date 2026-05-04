@@ -1,21 +1,12 @@
-import { g as loadAsAdopted } from "../fest/dom.js";
+import { p as loadAsAdopted } from "../fest/dom.js";
 import { i as BROADCAST_CHANNELS, u as getBroadcastChannelForDestination } from "./UniformInterop.js";
 import { a as initializeComponent, f as unifiedMessaging, i as hasPendingMessages, n as createMessageWithOverrides, o as processInitialContent, r as enqueuePendingMessage, s as registerComponent } from "./UnifiedMessaging.js";
 import { i as fetchSwCachedEntries } from "./ShareTargetGateway.js";
-import { S as getSpeechPrompt, n as getCachedComponent, q as H, r as createFileHandler } from "../com/app.js";
+import { C as getSpeechPrompt, P as H, S as createTemplateManager, n as getCachedComponent, r as createFileHandler } from "../vendor/jsox.js";
 import { n as loadSettings } from "./Settings.js";
+import { t as views_default } from "./views.js";
 import { a as ensureStyleSheet, c as clearAllCache, n as debugIconSystem, o as reinitializeRegistry, r as testIconRacing, t as clearIconCaches } from "../fest/icon.js";
-import { t as views_default } from "./views2.js";
-//#region src/shared/modules/TemplateManager.ts
-/**
-* Legacy shell service placeholder — `channel-unknown` keeps `state.services.templateManager`.
-* Extend here when template routing is wired back into CrossWord.
-*/
-function createTemplateManager() {
-	return {};
-}
-//#endregion
-//#region src/shared/routing/channel-unknown.ts
+//#region src/shared/routing/core/channel-unknown.ts
 var CHANNELS = {
 	SHARE_TARGET: BROADCAST_CHANNELS.SHARE_TARGET,
 	TOAST: BROADCAST_CHANNELS.TOAST,
@@ -781,7 +772,7 @@ var mountShellApp = (mountElement, options = {}) => {
     </div>`;
 		content.append(loadingElement);
 		try {
-			const editor = (await getCachedComponent("markdown-editor", () => import("../views/editor.js"), { componentName: "MarkdownEditor" })).component.createMarkdownEditor({
+			const editor = (await getCachedComponent("markdown-editor", () => import("./MarkdownEditor.js"), { componentName: "MarkdownEditor" })).component.createMarkdownEditor({
 				initialContent: state.markdown || "",
 				onContentChange: (content) => {
 					state.markdown = content;
@@ -895,10 +886,10 @@ var mountShellApp = (mountElement, options = {}) => {
     </div>`;
 		content.append(loadingElement);
 		try {
-			const historyManager = (await getCachedComponent("history-manager", () => import("../com/app7.js"), { componentName: "HistoryManager" })).component.createHistoryManager();
+			const historyManager = (await getCachedComponent("history-manager", () => import("../vendor/jsox.js").then((n) => n.T), { componentName: "HistoryManager" })).component.createHistoryManager();
 			if (state.history.length === 0) state.history = historyManager.getAllEntries();
 			const historyElement = historyManager.createHistoryView((entry) => {
-				if (state.view === "workcenter") getCachedComponent("workcenter", () => import("../views/workcenter3.js").then((m) => m.WorkCenterManager), { componentName: "WorkCenter" }).then(() => {
+				if (state.view === "workcenter") getCachedComponent("workcenter", () => import("./WorkCenter.js").then((m) => m.WorkCenterManager), { componentName: "WorkCenter" }).then(() => {
 					if (state.managers.workCenter.instance) state.managers.workCenter.instance.getState().currentPrompt = entry.prompt;
 				});
 			});
@@ -1183,7 +1174,7 @@ var mountShellApp = (mountElement, options = {}) => {
 			const renderer = {
 				"settings": async () => {
 					content.innerHTML = "<div class=\"component-loading\"><div class=\"loading-spinner\"></div><span>Loading Settings...</span></div>";
-					const settingsEl = (await loadComponent("settings", () => import("../views/settings.js"), { componentName: "Settings" })).component.createSettingsView({
+					const settingsEl = (await loadComponent("settings", () => import("./src8.js"), { componentName: "Settings" })).component.createSettingsView({
 						isExtension: isLikelyExtension(),
 						onTheme: (t) => applyTheme(root, t)
 					});
@@ -1201,7 +1192,7 @@ var mountShellApp = (mountElement, options = {}) => {
 				},
 				"file-explorer": async () => {
 					content.innerHTML = "<div class=\"component-loading\"><div class=\"loading-spinner\"></div><span>Loading File Explorer...</span></div>";
-					await loadComponent("file-explorer", () => import("../views/explorer.js"), { componentName: "FileManager" });
+					await loadComponent("file-explorer", () => import("./src5.js"), { componentName: "FileManager" });
 					const explorerEl = document.createElement("ui-file-manager");
 					explorerEl.addEventListener("open-item", async (e) => {
 						const { item } = e.detail;
@@ -1383,7 +1374,7 @@ var mountShellApp = (mountElement, options = {}) => {
 			}
 			if (state.view === "workcenter") {
 				content.innerHTML = "<div class=\"component-loading\"><div class=\"loading-spinner\"></div><span>Loading Work Center...</span></div>";
-				getCachedComponent("workcenter", () => import("../views/workcenter3.js").then((m) => m.WorkCenterManager), { componentName: "WorkCenter" }).then(async (workCenterModule) => {
+				getCachedComponent("workcenter", () => import("./WorkCenter.js").then((m) => m.WorkCenterManager), { componentName: "WorkCenter" }).then(async (workCenterModule) => {
 					if (!state.managers.workCenter.instance) state.managers.workCenter.instance = new workCenterModule.component({
 						state,
 						history: state.history,

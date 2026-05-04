@@ -1,10 +1,10 @@
 import { c as ensureServiceWorkerRegistered, i as initReceivers, n as ensureAppCss, o as setupLaunchQueueConsumer, r as handleShareTarget, t as checkPendingShareData } from "./chunks/sw-handling.js";
-import { g as loadAsAdopted } from "./fest/dom.js";
-import { p as pickEnabledView } from "./chunks/views.js";
-import { s as initializeLayers } from "./chunks/BootLoader.js";
-import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, t as ensureAppLayers } from "./com/app3.js";
-import { t as views_default } from "./chunks/views2.js";
-//#region src/shared/pwa/pwa-handling.ts
+import { p as loadAsAdopted } from "./fest/dom.js";
+import { _ as pickEnabledView } from "./chunks/Theme.js";
+import { l as initializeLayers } from "./chunks/BootLoader.js";
+import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, t as ensureAppLayers } from "./shells/boot-index.js";
+import { t as views_default } from "./chunks/views.js";
+//#region src/shared/routing/pwa/pwa-handling.ts
 var IS_DEV = Boolean(false);
 var AUTO_RELOAD_COOLDOWN_MS = 120 * 1e3;
 var RELOAD_GUARD_KEY = "cw:pwa:last-auto-reload-at";
@@ -589,8 +589,8 @@ async function index(mountElement) {
 			console.warn("[Index] Pre-boot share/launch queue failed:", e);
 		}
 		const prePath = getNormalizedPathname();
-		if (!prePath || prePath === "viewer" || prePath === "share-target" || prePath === "share_target") import("./views/viewer.js").then((m) => m.warmViewerMarkdownEngine?.()).catch(() => {});
-		if (prePath === "airpad") import("./views/airpad3.js").then((n) => n.t).catch(() => {});
+		if (!prePath || prePath === "viewer" || prePath === "share-target" || prePath === "share_target") import("./chunks/src9.js").then((m) => m.warmViewerMarkdownEngine?.()).catch(() => {});
+		if (prePath === "airpad") import("./views/airpad.js").catch(() => {});
 		withTimeout(pwaPromise, "initPWA", 5e3, null, { warnOnTimeout: false }).then(() => {
 			console.log("[Index] PWA initialization complete");
 		}).catch((error) => {
@@ -609,7 +609,7 @@ async function index(mountElement) {
 		} catch {}
 		const preferredShell = queryShell || (explicitRequestedView === "print" ? "base" : getSavedShellPreference() ?? "minimal");
 		const requestedView = explicitRequestedView || (preferredShell === "base" || preferredShell === "minimal" ? pickEnabledView("viewer", "home") : pickEnabledView("home", "home"));
-		const allowPathRoutedShell = preferredShell === "base" || preferredShell === "minimal";
+		const allowPathRoutedShell = preferredShell === "base" || preferredShell === "minimal" || preferredShell === "immersive";
 		const useDesktopLayers = preferredShell === "window" || preferredShell === "environment" || preferredShell === "tabbed";
 		const layers = ensureAppLayers(mountElement, {
 			enableOrientLayer: useDesktopLayers,

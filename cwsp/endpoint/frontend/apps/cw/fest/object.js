@@ -1,226 +1,4 @@
-//#region shared/fest/core/runtime/dom-globals-polyfill.ts
-/**
-* Chrome MV3 service workers (and some workers) do not expose DOM interface
-* constructors on `globalThis`. Shared app bundles that include custom elements
-* and `fest/dom` still load in the SW, so `class X extends HTMLElement` and
-* `instanceof HTMLElement` would otherwise throw ReferenceError during evaluation.
-*
-* Browser / extension pages already have these globals; this is a no-op there.
-*/
-function installDomConstructorPolyfills() {
-	const g = globalThis;
-	if (typeof g.HTMLElement === "function") return;
-	const stub = class {};
-	const ensure = (name) => {
-		if (typeof g[name] !== "function") g[name] = stub;
-	};
-	ensure("EventTarget");
-	ensure("Node");
-	ensure("Element");
-	ensure("HTMLElement");
-	ensure("SVGElement");
-	ensure("Text");
-	ensure("Comment");
-	ensure("DocumentFragment");
-	ensure("ShadowRoot");
-	ensure("HTMLDocument");
-	ensure("Document");
-	ensure("HTMLBodyElement");
-	ensure("HTMLHeadElement");
-	ensure("HTMLCanvasElement");
-	ensure("HTMLInputElement");
-	ensure("HTMLLinkElement");
-	ensure("HTMLStyleElement");
-	ensure("HTMLPreElement");
-	ensure("HTMLDivElement");
-	ensure("CSSStyleRule");
-	ensure("CSSLayerBlockRule");
-}
-//#endregion
-//#region shared/fest/core/utils/PromiseTry.ts
-if (typeof Promise !== "undefined" && typeof Promise.try !== "function") Promise.try = function(callbackOrValue, ...args) {
-	try {
-		if (typeof callbackOrValue === "function") return Promise.resolve(callbackOrValue(...args));
-		return Promise.resolve(callbackOrValue);
-	} catch (error) {
-		return Promise.reject(error);
-	}
-};
-//#endregion
-//#region shared/fest/core/utils/ChannelUtils.ts
-/**
-* Channel utilities for managing communication channels
-*/
-/**
-* Channel registry for managing multiple channels
-*/
-var ChannelRegistry = class {
-	constructor() {
-		this.channels = /* @__PURE__ */ new Map();
-		this.listeners = /* @__PURE__ */ new Map();
-	}
-	/**
-	* Register a channel
-	*/
-	register(name, channel) {
-		this.channels.set(name, channel);
-		const listeners = this.listeners.get(name);
-		if (listeners) for (const listener of listeners) try {
-			listener(channel);
-		} catch (error) {
-			console.error(`[ChannelRegistry] Listener error for ${name}:`, error);
-		}
-		return channel;
-	}
-	/**
-	* Get a registered channel
-	*/
-	get(name) {
-		return this.channels.get(name);
-	}
-	/**
-	* Check if a channel is registered
-	*/
-	has(name) {
-		return this.channels.has(name);
-	}
-	/**
-	* Unregister a channel
-	*/
-	unregister(name) {
-		const existed = this.channels.delete(name);
-		if (existed) {
-			const listeners = this.listeners.get(name);
-			if (listeners) for (const listener of listeners) try {
-				listener(null);
-			} catch (error) {
-				console.error(`[ChannelRegistry] Unregister listener error for ${name}:`, error);
-			}
-		}
-		return existed;
-	}
-	/**
-	* Listen for channel registration/unregistration
-	*/
-	onChannelChange(name, listener) {
-		if (!this.listeners.has(name)) this.listeners.set(name, /* @__PURE__ */ new Set());
-		const listeners = this.listeners.get(name);
-		listeners.add(listener);
-		if (this.channels.has(name)) try {
-			listener(this.channels.get(name));
-		} catch (error) {
-			console.error(`[ChannelRegistry] Initial listener error for ${name}:`, error);
-		}
-		return () => {
-			listeners.delete(listener);
-			if (listeners.size === 0) this.listeners.delete(name);
-		};
-	}
-	/**
-	* Get all registered channel names
-	*/
-	getChannelNames() {
-		return Array.from(this.channels.keys());
-	}
-	/**
-	* Clear all channels and listeners
-	*/
-	clear() {
-		this.channels.clear();
-		this.listeners.clear();
-	}
-};
-new ChannelRegistry();
-/**
-* Channel health monitoring
-*/
-var ChannelHealthMonitor = class {
-	constructor() {
-		this.healthChecks = /* @__PURE__ */ new Map();
-		this.intervals = /* @__PURE__ */ new Map();
-		this.healthStatus = /* @__PURE__ */ new Map();
-	}
-	/**
-	* Register a health check for a channel
-	*/
-	registerHealthCheck(channelName, healthCheck, intervalMs = 3e4) {
-		this.healthChecks.set(channelName, healthCheck);
-		const existingInterval = this.intervals.get(channelName);
-		if (existingInterval) clearInterval(existingInterval);
-		const interval = setInterval(async () => {
-			try {
-				const isHealthy = await healthCheck();
-				this.healthStatus.set(channelName, isHealthy);
-				if (!isHealthy) console.warn(`[ChannelHealth] Channel '${channelName}' is unhealthy`);
-			} catch (error) {
-				console.error(`[ChannelHealth] Health check failed for '${channelName}':`, error);
-				this.healthStatus.set(channelName, false);
-			}
-		}, intervalMs);
-		this.intervals.set(channelName, interval);
-		healthCheck().then((isHealthy) => {
-			this.healthStatus.set(channelName, isHealthy);
-		}).catch(() => {
-			this.healthStatus.set(channelName, false);
-		});
-	}
-	/**
-	* Get health status of a channel
-	*/
-	isHealthy(channelName) {
-		return this.healthStatus.get(channelName) ?? false;
-	}
-	/**
-	* Get all health statuses
-	*/
-	getAllHealthStatuses() {
-		const result = {};
-		for (const [name, status] of this.healthStatus) result[name] = status;
-		return result;
-	}
-	/**
-	* Stop monitoring a channel
-	*/
-	stopMonitoring(channelName) {
-		const interval = this.intervals.get(channelName);
-		if (interval) {
-			clearInterval(interval);
-			this.intervals.delete(channelName);
-		}
-		this.healthChecks.delete(channelName);
-		this.healthStatus.delete(channelName);
-	}
-	/**
-	* Stop all monitoring
-	*/
-	stopAllMonitoring() {
-		for (const interval of this.intervals.values()) clearInterval(interval);
-		this.intervals.clear();
-		this.healthChecks.clear();
-		this.healthStatus.clear();
-	}
-};
-new ChannelHealthMonitor();
-//#endregion
-//#region shared/fest/core/utils/Upsert.ts
-WeakMap.prototype.getOrInsert ??= function(key, defaultValue) {
-	if (!this.has(key)) this.set(key, defaultValue);
-	return this.get(key);
-};
-WeakMap.prototype.getOrInsertComputed ??= function(key, callbackFunction) {
-	if (!this.has(key)) this.set(key, callbackFunction(key));
-	return this.get(key);
-};
-Map.prototype.getOrInsert ??= function(key, defaultValue) {
-	if (!this.has(key)) this.set(key, defaultValue);
-	return this.get(key);
-};
-Map.prototype.getOrInsertComputed ??= function(key, callbackFunction) {
-	if (!this.has(key)) this.set(key, callbackFunction(key));
-	return this.get(key);
-};
-//#endregion
-//#region shared/fest/core/utils/Primitive.ts
+//#region ../../modules/projects/core.ts/src/utils/Primitive.ts
 var $fxy = Symbol.for("@fix");
 var isObservable$1 = (observable) => {
 	return Array.isArray(observable) || observable instanceof Set || observable instanceof Map;
@@ -404,7 +182,7 @@ var defaultByType = (a) => {
 	}
 };
 //#endregion
-//#region shared/fest/core/utils/Object.ts
+//#region ../../modules/projects/core.ts/src/utils/Object.ts
 var isIterable = (obj) => typeof obj?.[Symbol.iterator] == "function";
 var isKeyType = (prop) => [
 	"symbol",
@@ -531,7 +309,7 @@ var deepOperateAndClone = (obj, operation, $prev) => {
 	return operation(obj, $prev?.[1] ?? "", $prev?.[0] ?? null);
 };
 //#endregion
-//#region shared/fest/core/utils/Promised.ts
+//#region ../../modules/projects/core.ts/src/utils/Promised.ts
 var resolvedMap = /* @__PURE__ */ new WeakMap(), handledMap = /* @__PURE__ */ new WeakMap();
 var actWith = (promiseOrPlain, cb) => {
 	if (promiseOrPlain instanceof Promise || typeof promiseOrPlain?.then == "function") {
@@ -667,149 +445,7 @@ function Promised(promise, resolve, reject) {
 	return handledMap?.getOrInsertComputed?.(promise, () => new Proxy(fixFx(promise), new PromiseHandler(resolve, reject)));
 }
 //#endregion
-//#region shared/fest/core/utils/Convert.ts
-/**
-* Orientation-space transforms for grids and drag vectors.
-* Used by `GridItemUtils` / `resolveLocalPointToGridCell` and `fest/dom` launcher hit-testing.
-*
-* Convert position from client space to orientation space.
-* @param pos_in_cs - Position in client space [x, y]
-* @param size_in_cs - Size in client space [width, height]
-* @param or_i - Orientation index (0=normal, 1=90° swapped, 2=180°, 3=270° swapped)
-* @returns Position in orientation space [x, y]
-*/
-var cvt_cs_to_os = (pos_in_cs, size_in_cs, or_i = 0) => {
-	const size_in_os = [...size_in_cs];
-	const pos_in_swap = [...pos_in_cs];
-	if (or_i % 2) {
-		pos_in_swap.reverse();
-		size_in_os.reverse();
-	}
-	return [(or_i == 0 || or_i == 3 ? pos_in_swap[0] : size_in_os[0] - pos_in_swap[0]) || 0, (or_i == 0 || or_i == 1 ? pos_in_swap[1] : size_in_os[1] - pos_in_swap[1]) || 0];
-};
-//#endregion
-//#region shared/fest/core/utils/GridItemUtils.ts
-/** Canonical `[columns, rows]` for launcher / speed-dial style grids. */
-var normalizeGridLayout = (layout, fallback = [4, 8]) => {
-	if (Array.isArray(layout) && layout.length >= 2) return [Math.max(1, Math.floor(Number(layout[0]) || fallback[0])), Math.max(1, Math.floor(Number(layout[1]) || fallback[1]))];
-	if (layout && typeof layout === "object") {
-		const o = layout;
-		return [Math.max(1, Math.floor(Number(o.columns) || fallback[0])), Math.max(1, Math.floor(Number(o.rows) || fallback[1]))];
-	}
-	return [fallback[0], fallback[1]];
-};
-/** Clamp cell indices to grid bounds (inclusive). */
-var clampGridCellTuple = (cell, layout) => {
-	const [cols, rows] = normalizeGridLayout(layout);
-	return [Math.max(0, Math.min(cols - 1, Math.floor(Number(cell[0]) || 0))), Math.max(0, Math.min(rows - 1, Math.floor(Number(cell[1]) || 0)))];
-};
-/**
-* Point in grid **local** CSS pixels (origin top-left of grid content box), orientation index from `orientOf(grid)`.
-* Used by launcher hit-testing; DOM wrappers live in `fest/dom`.
-*/
-var resolveLocalPointToGridCell = (localPx, size, layout, orient, options) => {
-	const L = normalizeGridLayout(layout);
-	const w = Math.max(1, size[0] || 1);
-	const h = Math.max(1, size[1] || 1);
-	const osCoord = cvt_cs_to_os(localPx, [w, h], orient);
-	const normalizedArgs = {
-		item: options?.redirect?.item ?? { id: "" },
-		list: options?.redirect?.list ?? [],
-		items: options?.redirect?.items ?? /* @__PURE__ */ new Map(),
-		layout: L,
-		size: [w, h]
-	};
-	const projected = convertOrientPxToCX(osCoord, normalizedArgs, orient);
-	return clampGridCellTuple(redirectCell((options?.mode ?? "floor") === "round" ? [Math.round(projected[0]), Math.round(projected[1])] : [Math.floor(projected[0]), Math.floor(projected[1])], normalizedArgs), L);
-};
-/** Normalize grid item collections for algorithms that expect an array (Orient desktop uses `Map`, SpeedDial uses arrays). */
-var gridItemsAsArray = (items) => {
-	if (items == null) return [];
-	if (Array.isArray(items)) return items;
-	if (items instanceof Map) return Array.from(items.values());
-	if (items instanceof Set) return Array.from(items);
-	if (typeof items[Symbol.iterator] === "function") return Array.from(items);
-	return [];
-};
-/**
-* Find a non-busy cell near the preferred cell in a grid layout.
-* If the preferred cell is busy, searches nearby cells to find an available one.
-* @param $preCell - Preferred cell coordinates [column, row]
-* @param gridArgs - Grid arguments containing items, layout, and size information
-* @returns Cell coordinates [column, row] that are not busy
-*/
-var redirectCell = ($preCell, gridArgs) => {
-	const layout = normalizeGridLayout(gridArgs?.layout ?? [4, 8]);
-	const normalizedArgs = {
-		...gridArgs,
-		layout
-	};
-	const icons = gridItemsAsArray(normalizedArgs?.items);
-	const item = normalizedArgs?.item || {};
-	const checkBusy = (cell) => {
-		return icons.filter((e) => !(e == item || e?.id == item?.id)).some((one) => (one?.cell?.[0] || 0) == (cell[0] || 0) && (one?.cell?.[1] || 0) == (cell[1] || 0));
-	};
-	const preCell = [...$preCell];
-	if (!checkBusy(preCell)) return [...preCell];
-	const columns = layout[0] || 4;
-	const rows = layout[1] || 8;
-	const suitable = ([
-		[preCell[0] + 1, preCell[1]],
-		[preCell[0] - 1, preCell[1]],
-		[preCell[0], preCell[1] + 1],
-		[preCell[0], preCell[1] - 1]
-	].filter((v) => {
-		return v[0] >= 0 && v[0] < columns && v[1] >= 0 && v[1] < rows;
-	}) || []).find((v) => !checkBusy(v));
-	if (suitable) return [...suitable];
-	let exceed = 0, busy = true, comp = [...preCell];
-	while (busy && exceed++ < columns * rows) {
-		if (!(busy = checkBusy(comp))) return [...comp];
-		comp[0]++;
-		if (comp[0] >= columns) {
-			comp[0] = 0;
-			comp[1]++;
-			if (comp[1] >= rows) comp[1] = 0;
-		}
-	}
-	return [...preCell];
-};
-var convertOrientPxToCX = ($orientPx, gridArgs, orient = 0) => {
-	const boxInPx = [...gridArgs.size];
-	const orientPx = [...$orientPx];
-	const layout = normalizeGridLayout(gridArgs.layout ?? [4, 8]);
-	if (orient % 2) boxInPx.reverse();
-	const gridPxToCX = [layout[0] / boxInPx[0], layout[1] / boxInPx[1]];
-	return [orientPx[0] * gridPxToCX[0], orientPx[1] * gridPxToCX[1]];
-};
-//#endregion
-//#region shared/fest/core/utils/UserPath.ts
-var normalizeSlashes = (input) => {
-	const value = String(input ?? "").trim();
-	if (!value) return "/";
-	return (value.startsWith("/") ? value : `/${value}`).replace(/\/+/g, "/");
-};
-var isUserScopePath = (input) => {
-	const normalized = normalizeSlashes(input);
-	return normalized === "/user" || normalized.startsWith("/user/");
-};
-var stripUserScopePrefix = (input) => {
-	const normalized = normalizeSlashes(input);
-	if (normalized === "/user") return "/";
-	if (normalized.startsWith("/user/")) return normalized.slice(5) || "/";
-	return normalized;
-};
-var userPathCandidates = (input) => {
-	const normalized = normalizeSlashes(input);
-	const stripped = stripUserScopePrefix(normalized);
-	if (isUserScopePath(normalized)) return Array.from(new Set([stripped, normalized]));
-	return [stripped];
-};
-//#endregion
-//#region shared/fest/core/index.ts
-installDomConstructorPolyfills();
-//#endregion
-//#region shared/fest/object/wrap/Symbol.ts
+//#region ../../modules/projects/object.ts/src/wrap/Symbol.ts
 /**
 * Shared symbol registry for the `object.ts` reactive runtime.
 *
@@ -833,7 +469,7 @@ var $affected = Symbol.for("@subscribe");
 var $isNotEqual = Symbol.for("@isNotEqual");
 var $realProp = Symbol.for("@realProp");
 //#endregion
-//#region shared/fest/object/wrap/Utils.ts
+//#region ../../modules/projects/object.ts/src/wrap/Utils.ts
 /**
 * Shared type and utility layer for `object.ts`.
 *
@@ -907,7 +543,7 @@ function addToCallChain(obj, methodKey, callback) {
 	};
 }
 //#endregion
-//#region shared/fest/object/wrap/AssignObject.ts
+//#region ../../modules/projects/object.ts/src/wrap/AssignObject.ts
 /**
 * Proxy helper that forces property writes through `objectAssign`.
 *
@@ -946,7 +582,7 @@ var makeObjectAssignable = (obj) => {
 	return px;
 };
 //#endregion
-//#region shared/fest/object/core/Subscript.ts
+//#region ../../modules/projects/object.ts/src/core/Subscript.ts
 /**
 * Listener registry and proxy wrapper backbone for `object.ts`.
 *
@@ -1048,6 +684,7 @@ var normalizeAffectedOptions = (options = ["*"]) => {
 };
 /** Central subscription registry with batched dispatch and Observable interoperability helpers. */
 var Subscript = class {
+	compatible;
 	#source;
 	#listeners;
 	#flags = /* @__PURE__ */ new WeakSet();
@@ -1238,7 +875,7 @@ var Subscript = class {
 	}
 };
 //#endregion
-//#region shared/fest/object/core/Specific.ts
+//#region ../../modules/projects/object.ts/src/core/Specific.ts
 /**
 * Concrete proxy handlers for arrays, objects, maps, and sets.
 *
@@ -1528,6 +1165,7 @@ var triggerWhenLengthChange = (self, target, oldLen, newLen) => {
 };
 /** Proxy handler for observable arrays, including index writes and mutation methods. */
 var ObserveArrayHandler = class {
+	[$triggerLock];
 	constructor() {}
 	has(target, name) {
 		return Reflect.has(target, name);
@@ -1637,6 +1275,7 @@ var ObserveArrayHandler = class {
 };
 /** Proxy handler for observable objects and ref-like `{ value }` containers. */
 var ObserveObjectHandler = class {
+	[$triggerLock];
 	constructor() {}
 	get(target, name, ctx) {
 		if ([
@@ -1784,6 +1423,7 @@ var ObserveObjectHandler = class {
 };
 /** Proxy handler for observable maps, mapping native map operations to trigger events. */
 var ObserveMapHandler = class {
+	[$triggerLock];
 	constructor() {}
 	get(target, name, ctx) {
 		if ([
@@ -1879,9 +1519,8 @@ var ObserveMapHandler = class {
 };
 /** Proxy handler for observable sets, emitting membership changes as reactive events. */
 var ObserveSetHandler = class {
-	constructor() {
-		this[$triggerLock] = false;
-	}
+	[$triggerLock] = false;
+	constructor() {}
 	get(target, name, ctx) {
 		if ([
 			$extractKey$,
@@ -1994,7 +1633,7 @@ var observeSet = (set) => {
 	return $isObservable(set) ? set : wrapWith(set, new ObserveSetHandler());
 };
 //#endregion
-//#region shared/fest/object/core/Primitives.ts
+//#region ../../modules/projects/object.ts/src/core/Primitives.ts
 /**
 * Reactive primitive/ref helpers plus the main `observe()` entrypoint.
 *
@@ -2207,7 +1846,7 @@ var recoverReactive = (target) => {
 	return isObservable(target) ? observe(target) : null;
 };
 //#endregion
-//#region shared/fest/object/core/Mainline.ts
+//#region ../../modules/projects/object.ts/src/core/Mainline.ts
 /**
 * Subscription and derivation pipeline for `object.ts`.
 *
@@ -2437,7 +2076,7 @@ function unaffected(tg, cb) {
 	});
 }
 //#endregion
-//#region shared/fest/object/core/Assigned.ts
+//#region ../../modules/projects/object.ts/src/core/Assigned.ts
 /**
 * Higher-level composition helpers built on top of the primitive observer layer.
 *
@@ -2461,4 +2100,4 @@ var observableBySet = (set) => {
 	return obs;
 };
 //#endregion
-export { canBeInteger as A, isObservable$1 as B, deepOperateAndClone as C, $set as D, $getValue as E, isArrayOrIterable as F, kebabToCamel as G, isVal as H, isCanJustReturn as I, tryStringAsNumber as J, normalizePrimitive as K, isCanTransfer as L, getValue as M, handleListeners as N, UUIDv4 as O, hasValue as P, isNotComplexArray as R, Promised as S, $avoidTrigger as T, isValueRef as U, isPrimitive as V, isValueUnit as W, stripUserScopePrefix as _, numberRef as a, redirectCell as b, ref as c, addToCallChain as d, safe as f, isUserScopePath as g, $triggerControl as h, booleanRef as i, deref$1 as j, camelToKebab as k, stringRef as l, $affected as m, affected as n, observe as o, unwrap as p, toRef as q, iterated as r, propRef as s, DoubleWeakMap as t, makeObjectAssignable as u, userPathCandidates as v, isNotEqual as w, resolveLocalPointToGridCell as x, normalizeGridLayout as y, isObject as z };
+export { isCanJustReturn as A, normalizePrimitive as B, camelToKebab as C, handleListeners as D, getValue as E, isPrimitive as F, tryStringAsNumber as H, isVal as I, isValueRef as L, isNotComplexArray as M, isObject as N, hasValue as O, isObservable$1 as P, isValueUnit as R, UUIDv4 as S, deref$1 as T, toRef as V, deepOperateAndClone as _, numberRef as a, $getValue as b, ref as c, addToCallChain as d, safe as f, Promised as g, $triggerControl as h, booleanRef as i, isCanTransfer as j, isArrayOrIterable as k, stringRef as l, $affected as m, affected as n, observe as o, unwrap as p, iterated as r, propRef as s, DoubleWeakMap as t, makeObjectAssignable as u, isNotEqual as v, canBeInteger as w, $set as x, $avoidTrigger as y, kebabToCamel as z };

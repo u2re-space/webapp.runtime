@@ -1,4 +1,4 @@
-//#region src/shared/utils/Runtime.ts
+//#region src/shared/other/utils/Runtime.ts
 /**
 * Runtime-safe helpers for mixed environments
 * (window, service worker, worker, extension contexts).

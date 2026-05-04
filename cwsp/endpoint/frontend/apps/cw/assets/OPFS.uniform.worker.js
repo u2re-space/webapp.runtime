@@ -12,7 +12,7 @@
 		return target;
 	};
 	//#endregion
-	//#region shared/fest/uniform/newer/next/types/Interface.ts
+	//#region ../../modules/projects/uniform.ts/src/newer/next/types/Interface.ts
 	let WReflectAction = /* @__PURE__ */ function(WReflectAction) {
 		WReflectAction["GET"] = "get";
 		WReflectAction["SET"] = "set";
@@ -35,7 +35,7 @@
 		return WReflectAction;
 	}({});
 	//#endregion
-	//#region shared/fest/uniform/newer/core/TransportCore.ts
+	//#region ../../modules/projects/uniform.ts/src/newer/core/TransportCore.ts
 	const TRANSPORT_TYPE_ALIASES = {
 		"ws": "websocket",
 		"socket": "websocket",
@@ -63,309 +63,205 @@
 		return "internal";
 	}
 	//#endregion
-	//#region shared/fest/core/runtime/dom-globals-polyfill.ts
+	//#region ../../modules/projects/core.ts/src/utils/Primitive.ts
+	const $fxy = Symbol.for("@fix");
 	/**
-	* Chrome MV3 service workers (and some workers) do not expose DOM interface
-	* constructors on `globalThis`. Shared app bundles that include custom elements
-	* and `fest/dom` still load in the SW, so `class X extends HTMLElement` and
-	* `instanceof HTMLElement` would otherwise throw ReferenceError during evaluation.
-	*
-	* Browser / extension pages already have these globals; this is a no-op there.
+	* Check if a value is a primitive type (null, string, number, boolean, bigint, or undefined).
+	* @param obj - The value to check
+	* @returns True if the value is a primitive type, false otherwise
 	*/
-	function installDomConstructorPolyfills() {
-		const g = globalThis;
-		if (typeof g.HTMLElement === "function") return;
-		const stub = class {};
-		const ensure = (name) => {
-			if (typeof g[name] !== "function") g[name] = stub;
-		};
-		ensure("EventTarget");
-		ensure("Node");
-		ensure("Element");
-		ensure("HTMLElement");
-		ensure("SVGElement");
-		ensure("Text");
-		ensure("Comment");
-		ensure("DocumentFragment");
-		ensure("ShadowRoot");
-		ensure("HTMLDocument");
-		ensure("Document");
-		ensure("HTMLBodyElement");
-		ensure("HTMLHeadElement");
-		ensure("HTMLCanvasElement");
-		ensure("HTMLInputElement");
-		ensure("HTMLLinkElement");
-		ensure("HTMLStyleElement");
-		ensure("HTMLPreElement");
-		ensure("HTMLDivElement");
-		ensure("CSSStyleRule");
-		ensure("CSSLayerBlockRule");
-	}
-	var init_dom_globals_polyfill = __esmMin((() => {}));
+	const isPrimitive = (obj) => {
+		return typeof obj == "string" || typeof obj == "number" || typeof obj == "boolean" || typeof obj == "bigint" || typeof obj == "undefined" || obj == null;
+	};
+	const tryParseByHint = (value, hint) => {
+		if (!isPrimitive(value)) return null;
+		if (hint == "number") return Number(value) || 0;
+		if (hint == "string") return String(value) || "";
+		if (hint == "boolean") return !!value;
+		return value;
+	};
+	const unwrap = (obj, fallback) => {
+		return obj?.[$fxy] ?? (obj != null ? obj : fallback) ?? fallback;
+	};
+	const fixFx = (obj) => {
+		if (typeof obj == "function" || obj == null) return obj;
+		const fx = function() {};
+		fx[$fxy] = obj;
+		return fx;
+	};
+	const getRandomValues = (array) => {
+		return crypto?.getRandomValues ? crypto?.getRandomValues?.(array) : (() => {
+			const values = new Uint8Array(array.length);
+			for (let i = 0; i < array.length; i++) values[i] = Math.floor(Math.random() * 256);
+			return values;
+		})();
+	};
+	const UUIDv4 = () => crypto?.randomUUID ? crypto?.randomUUID?.() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (+c ^ getRandomValues?.(new Uint8Array(1))?.[0] & 15 >> +c / 4).toString(16));
+	const unwrapArray = (arr) => {
+		if (Array.isArray(arr)) return arr?.flatMap?.((el) => {
+			if (Array.isArray(el)) return unwrapArray(el);
+			return el;
+		});
+		else return arr;
+	};
+	const isNotComplexArray = (arr) => {
+		return unwrapArray(arr)?.every?.(isCanJustReturn);
+	};
+	const isCanJustReturn = (obj) => {
+		return isPrimitive(obj) || typeof SharedArrayBuffer == "function" && obj instanceof SharedArrayBuffer || isTypedArray(obj) || Array.isArray(obj) && isNotComplexArray(obj);
+	};
+	const isTypedArray = (value) => {
+		return ArrayBuffer.isView(value) && !(value instanceof DataView);
+	};
+	const isCanTransfer = (obj) => {
+		return isPrimitive(obj) || typeof ArrayBuffer == "function" && obj instanceof ArrayBuffer || typeof MessagePort == "function" && obj instanceof MessagePort || typeof ReadableStream == "function" && obj instanceof ReadableStream || typeof WritableStream == "function" && obj instanceof WritableStream || typeof TransformStream == "function" && obj instanceof TransformStream || typeof ImageBitmap == "function" && obj instanceof ImageBitmap || typeof VideoFrame == "function" && obj instanceof VideoFrame || typeof OffscreenCanvas == "function" && obj instanceof OffscreenCanvas || typeof RTCDataChannel == "function" && obj instanceof RTCDataChannel || typeof AudioData == "function" && obj instanceof AudioData || typeof WebTransportReceiveStream == "function" && obj instanceof WebTransportReceiveStream || typeof WebTransportSendStream == "function" && obj instanceof WebTransportSendStream || typeof WebTransportReceiveStream == "function" && obj instanceof WebTransportReceiveStream;
+	};
 	//#endregion
-	//#region shared/fest/core/utils/PromiseTry.ts
-	var init_PromiseTry = __esmMin((() => {
-		if (typeof Promise !== "undefined" && typeof Promise.try !== "function") Promise.try = function(callbackOrValue, ...args) {
-			try {
-				if (typeof callbackOrValue === "function") return Promise.resolve(callbackOrValue(...args));
-				return Promise.resolve(callbackOrValue);
-			} catch (error) {
-				return Promise.reject(error);
-			}
-		};
-	}));
+	//#region ../../modules/projects/core.ts/src/utils/Object.ts
+	const deepOperateAndClone = (obj, operation, $prev) => {
+		if (Array.isArray(obj)) {
+			if (obj.every(isCanJustReturn)) return obj.map(operation);
+			return obj.map((value, index) => deepOperateAndClone(value, operation, [obj, index]));
+		}
+		if (obj instanceof Map) {
+			const entries = Array.from(obj.entries());
+			if (entries.map(([key, value]) => value).every(isCanJustReturn)) return new Map(entries.map(([key, value]) => [key, operation(value, key, obj)]));
+			return new Map(entries.map(([key, value]) => [key, deepOperateAndClone(value, operation, [obj, key])]));
+		}
+		if (obj instanceof Set) {
+			const entries = Array.from(obj.entries());
+			const values = entries.map(([key, value]) => value);
+			if (entries.every(isCanJustReturn)) return new Set(values.map(operation));
+			return new Set(values.map((value) => deepOperateAndClone(value, operation, [obj, value])));
+		}
+		if (typeof obj == "object" && obj?.constructor == Object && Object.prototype.toString.call(obj) == "[object Object]") {
+			const entries = Array.from(Object.entries(obj));
+			if (entries.map(([key, value]) => value).every(isCanJustReturn)) return Object.fromEntries(entries.map(([key, value]) => [key, operation(value, key, obj)]));
+			return Object.fromEntries(entries.map(([key, value]) => [key, deepOperateAndClone(value, operation, [obj, key])]));
+		}
+		return operation(obj, $prev?.[1] ?? "", $prev?.[0] ?? null);
+	};
 	//#endregion
-	//#region shared/fest/core/utils/PromiseUtils.ts
-	var init_PromiseUtils = __esmMin((() => {})), ChannelRegistry, ChannelHealthMonitor;
-	var init_ChannelUtils = __esmMin((() => {
-		ChannelRegistry = class {
-			constructor() {
-				this.channels = /* @__PURE__ */ new Map();
-				this.listeners = /* @__PURE__ */ new Map();
+	//#region ../../modules/projects/core.ts/src/utils/Promised.ts
+	const resolvedMap = /* @__PURE__ */ new WeakMap(), handledMap = /* @__PURE__ */ new WeakMap();
+	const actWith = (promiseOrPlain, cb) => {
+		if (promiseOrPlain instanceof Promise || typeof promiseOrPlain?.then == "function") {
+			if (resolvedMap?.has?.(promiseOrPlain)) return cb(resolvedMap?.get?.(promiseOrPlain));
+			return Promise.try?.(async () => {
+				const item = await promiseOrPlain;
+				resolvedMap?.set?.(promiseOrPlain, item);
+				return item;
+			})?.then?.(cb);
+		}
+		return cb(promiseOrPlain);
+	};
+	var PromiseHandler = class {
+		#resolve;
+		#reject;
+		constructor(resolve, reject) {
+			this.#resolve = resolve;
+			this.#reject = reject;
+		}
+		defineProperty(target, prop, descriptor) {
+			if (unwrap(target) instanceof Promise) return Reflect.defineProperty(target, prop, descriptor);
+			return actWith(unwrap(target), (obj) => Reflect.defineProperty(obj, prop, descriptor));
+		}
+		deleteProperty(target, prop) {
+			if (unwrap(target) instanceof Promise) return Reflect.deleteProperty(target, prop);
+			return actWith(unwrap(target), (obj) => Reflect.deleteProperty(obj, prop));
+		}
+		getPrototypeOf(target) {
+			if (unwrap(target) instanceof Promise) return Reflect.getPrototypeOf(target);
+			return actWith(unwrap(target), (obj) => Reflect.getPrototypeOf(obj));
+		}
+		setPrototypeOf(target, proto) {
+			if (unwrap(target) instanceof Promise) return Reflect.setPrototypeOf(target, proto);
+			return actWith(unwrap(target), (obj) => Reflect.setPrototypeOf(obj, proto));
+		}
+		isExtensible(target) {
+			if (unwrap(target) instanceof Promise) return Reflect.isExtensible(target);
+			return actWith(unwrap(target), (obj) => Reflect.isExtensible(obj));
+		}
+		preventExtensions(target) {
+			if (unwrap(target) instanceof Promise) return Reflect.ownKeys(target);
+			return actWith(unwrap(target), (obj) => Reflect.preventExtensions(obj));
+		}
+		ownKeys(target) {
+			const uwp = unwrap(target);
+			if (uwp instanceof Promise) return Object.keys(uwp);
+			return actWith(uwp, (obj) => {
+				return (typeof obj == "object" || typeof obj == "function") && obj != null ? Object.keys(obj) : [];
+			}) ?? [];
+		}
+		getOwnPropertyDescriptor(target, prop) {
+			if (unwrap(target) instanceof Promise) return Reflect.getOwnPropertyDescriptor(target, prop);
+			return actWith(unwrap(target), (obj) => Reflect.getOwnPropertyDescriptor(obj, prop));
+		}
+		construct(target, args, newTarget) {
+			return actWith(unwrap(target), (ct) => Reflect.construct(ct, args, newTarget));
+		}
+		has(target, prop) {
+			if (unwrap(target) instanceof Promise) return Reflect.has(target, prop);
+			return actWith(unwrap(target), (obj) => Reflect.has(obj, prop));
+		}
+		get(target, prop, receiver) {
+			target = unwrap(target);
+			if (prop == "promise") return target;
+			if (prop == "resolve" && this.#resolve) return (...args) => {
+				const result = this.#resolve?.(...args);
+				this.#resolve = null;
+				return result;
+			};
+			if (prop == "reject" && this.#reject) return (...args) => {
+				const result = this.#reject?.(...args);
+				this.#reject = null;
+				return result;
+			};
+			if (prop == "then" || prop == "catch" || prop == "finally") if (target instanceof Promise) return target?.[prop]?.bind?.(target);
+			else {
+				const $tmp = Promise.try(() => target);
+				return $tmp?.[prop]?.bind?.($tmp);
 			}
-			/**
-			* Register a channel
-			*/
-			register(name, channel) {
-				this.channels.set(name, channel);
-				const listeners = this.listeners.get(name);
-				if (listeners) for (const listener of listeners) try {
-					listener(channel);
-				} catch (error) {
-					console.error(`[ChannelRegistry] Listener error for ${name}:`, error);
+			let result = void 0;
+			if (resolvedMap?.has?.(target) && (result = resolvedMap?.get?.(target))?.[prop] != null) result = resolvedMap?.get?.(target)?.[prop];
+			else result = Promised(actWith(target, async (obj) => {
+				if (unwrap(obj) instanceof Promise) return Reflect.get(obj, prop, receiver);
+				if (isPrimitive(obj)) return prop == Symbol.toPrimitive || prop == Symbol.toStringTag ? obj : void 0;
+				let value = void 0;
+				try {
+					value = Reflect.get(obj, prop, receiver);
+				} catch (e) {
+					value = target?.[prop];
 				}
-				return channel;
+				if (typeof value == "function") return value?.bind?.(obj);
+				return value;
+			}));
+			if (prop == Symbol.toStringTag) {
+				if (isPrimitive(result)) return String(result ?? "") || "";
+				return result?.[Symbol.toStringTag]?.() || String(result ?? "") || "";
 			}
-			/**
-			* Get a registered channel
-			*/
-			get(name) {
-				return this.channels.get(name);
-			}
-			/**
-			* Check if a channel is registered
-			*/
-			has(name) {
-				return this.channels.has(name);
-			}
-			/**
-			* Unregister a channel
-			*/
-			unregister(name) {
-				const existed = this.channels.delete(name);
-				if (existed) {
-					const listeners = this.listeners.get(name);
-					if (listeners) for (const listener of listeners) try {
-						listener(null);
-					} catch (error) {
-						console.error(`[ChannelRegistry] Unregister listener error for ${name}:`, error);
-					}
-				}
-				return existed;
-			}
-			/**
-			* Listen for channel registration/unregistration
-			*/
-			onChannelChange(name, listener) {
-				if (!this.listeners.has(name)) this.listeners.set(name, /* @__PURE__ */ new Set());
-				const listeners = this.listeners.get(name);
-				listeners.add(listener);
-				if (this.channels.has(name)) try {
-					listener(this.channels.get(name));
-				} catch (error) {
-					console.error(`[ChannelRegistry] Initial listener error for ${name}:`, error);
-				}
-				return () => {
-					listeners.delete(listener);
-					if (listeners.size === 0) this.listeners.delete(name);
-				};
-			}
-			/**
-			* Get all registered channel names
-			*/
-			getChannelNames() {
-				return Array.from(this.channels.keys());
-			}
-			/**
-			* Clear all channels and listeners
-			*/
-			clear() {
-				this.channels.clear();
-				this.listeners.clear();
-			}
-		};
-		new ChannelRegistry();
-		ChannelHealthMonitor = class {
-			constructor() {
-				this.healthChecks = /* @__PURE__ */ new Map();
-				this.intervals = /* @__PURE__ */ new Map();
-				this.healthStatus = /* @__PURE__ */ new Map();
-			}
-			/**
-			* Register a health check for a channel
-			*/
-			registerHealthCheck(channelName, healthCheck, intervalMs = 3e4) {
-				this.healthChecks.set(channelName, healthCheck);
-				const existingInterval = this.intervals.get(channelName);
-				if (existingInterval) clearInterval(existingInterval);
-				const interval = setInterval(async () => {
-					try {
-						const isHealthy = await healthCheck();
-						this.healthStatus.set(channelName, isHealthy);
-						if (!isHealthy) console.warn(`[ChannelHealth] Channel '${channelName}' is unhealthy`);
-					} catch (error) {
-						console.error(`[ChannelHealth] Health check failed for '${channelName}':`, error);
-						this.healthStatus.set(channelName, false);
-					}
-				}, intervalMs);
-				this.intervals.set(channelName, interval);
-				healthCheck().then((isHealthy) => {
-					this.healthStatus.set(channelName, isHealthy);
-				}).catch(() => {
-					this.healthStatus.set(channelName, false);
-				});
-			}
-			/**
-			* Get health status of a channel
-			*/
-			isHealthy(channelName) {
-				return this.healthStatus.get(channelName) ?? false;
-			}
-			/**
-			* Get all health statuses
-			*/
-			getAllHealthStatuses() {
-				const result = {};
-				for (const [name, status] of this.healthStatus) result[name] = status;
+			if (prop == Symbol.toPrimitive) return (hint) => {
+				if (isPrimitive(result)) return tryParseByHint(result, hint);
+			};
+			return result;
+		}
+		set(target, prop, value) {
+			return actWith(unwrap(target), (obj) => Reflect.set(obj, prop, value));
+		}
+		apply(target, thisArg, args) {
+			if (this.#resolve) {
+				const result = this.#resolve?.(...args);
+				this.#resolve = null;
 				return result;
 			}
-			/**
-			* Stop monitoring a channel
-			*/
-			stopMonitoring(channelName) {
-				const interval = this.intervals.get(channelName);
-				if (interval) {
-					clearInterval(interval);
-					this.intervals.delete(channelName);
+			return actWith(unwrap(target, this.#resolve), (obj) => {
+				if (typeof obj == "function") {
+					if (unwrap(obj) instanceof Promise) return Reflect.apply(obj, thisArg, args);
+					return Reflect.apply(obj, thisArg, args);
 				}
-				this.healthChecks.delete(channelName);
-				this.healthStatus.delete(channelName);
-			}
-			/**
-			* Stop all monitoring
-			*/
-			stopAllMonitoring() {
-				for (const interval of this.intervals.values()) clearInterval(interval);
-				this.intervals.clear();
-				this.healthChecks.clear();
-				this.healthStatus.clear();
-			}
-		};
-		new ChannelHealthMonitor();
-	}));
-	//#endregion
-	//#region shared/fest/core/utils/Upsert.ts
-	var init_Upsert = __esmMin((() => {
-		WeakMap.prototype.getOrInsert ??= function(key, defaultValue) {
-			if (!this.has(key)) this.set(key, defaultValue);
-			return this.get(key);
-		};
-		WeakMap.prototype.getOrInsertComputed ??= function(key, callbackFunction) {
-			if (!this.has(key)) this.set(key, callbackFunction(key));
-			return this.get(key);
-		};
-		Map.prototype.getOrInsert ??= function(key, defaultValue) {
-			if (!this.has(key)) this.set(key, defaultValue);
-			return this.get(key);
-		};
-		Map.prototype.getOrInsertComputed ??= function(key, callbackFunction) {
-			if (!this.has(key)) this.set(key, callbackFunction(key));
-			return this.get(key);
-		};
-	}));
-	//#endregion
-	//#region shared/fest/core/utils/Primitive.ts
-	var $fxy, isPrimitive, tryParseByHint, unwrap, fixFx, getRandomValues, UUIDv4, unwrapArray, isNotComplexArray, isCanJustReturn, isTypedArray, isCanTransfer;
-	var init_Primitive = __esmMin((() => {
-		$fxy = Symbol.for("@fix");
-		isPrimitive = (obj) => {
-			return typeof obj == "string" || typeof obj == "number" || typeof obj == "boolean" || typeof obj == "bigint" || typeof obj == "undefined" || obj == null;
-		};
-		tryParseByHint = (value, hint) => {
-			if (!isPrimitive(value)) return null;
-			if (hint == "number") return Number(value) || 0;
-			if (hint == "string") return String(value) || "";
-			if (hint == "boolean") return !!value;
-			return value;
-		};
-		unwrap = (obj, fallback) => {
-			return obj?.[$fxy] ?? (obj != null ? obj : fallback) ?? fallback;
-		};
-		fixFx = (obj) => {
-			if (typeof obj == "function" || obj == null) return obj;
-			const fx = function() {};
-			fx[$fxy] = obj;
-			return fx;
-		};
-		getRandomValues = (array) => {
-			return crypto?.getRandomValues ? crypto?.getRandomValues?.(array) : (() => {
-				const values = new Uint8Array(array.length);
-				for (let i = 0; i < array.length; i++) values[i] = Math.floor(Math.random() * 256);
-				return values;
-			})();
-		};
-		UUIDv4 = () => crypto?.randomUUID ? crypto?.randomUUID?.() : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) => (+c ^ getRandomValues?.(new Uint8Array(1))?.[0] & 15 >> +c / 4).toString(16));
-		unwrapArray = (arr) => {
-			if (Array.isArray(arr)) return arr?.flatMap?.((el) => {
-				if (Array.isArray(el)) return unwrapArray(el);
-				return el;
 			});
-			else return arr;
-		};
-		isNotComplexArray = (arr) => {
-			return unwrapArray(arr)?.every?.(isCanJustReturn);
-		};
-		isCanJustReturn = (obj) => {
-			return isPrimitive(obj) || typeof SharedArrayBuffer == "function" && obj instanceof SharedArrayBuffer || isTypedArray(obj) || Array.isArray(obj) && isNotComplexArray(obj);
-		};
-		isTypedArray = (value) => {
-			return ArrayBuffer.isView(value) && !(value instanceof DataView);
-		};
-		isCanTransfer = (obj) => {
-			return isPrimitive(obj) || typeof ArrayBuffer == "function" && obj instanceof ArrayBuffer || typeof MessagePort == "function" && obj instanceof MessagePort || typeof ReadableStream == "function" && obj instanceof ReadableStream || typeof WritableStream == "function" && obj instanceof WritableStream || typeof TransformStream == "function" && obj instanceof TransformStream || typeof ImageBitmap == "function" && obj instanceof ImageBitmap || typeof VideoFrame == "function" && obj instanceof VideoFrame || typeof OffscreenCanvas == "function" && obj instanceof OffscreenCanvas || typeof RTCDataChannel == "function" && obj instanceof RTCDataChannel || typeof AudioData == "function" && obj instanceof AudioData || typeof WebTransportReceiveStream == "function" && obj instanceof WebTransportReceiveStream || typeof WebTransportSendStream == "function" && obj instanceof WebTransportSendStream || typeof WebTransportReceiveStream == "function" && obj instanceof WebTransportReceiveStream;
-		};
-	}));
-	//#endregion
-	//#region shared/fest/core/utils/Object.ts
-	var deepOperateAndClone;
-	var init_Object = __esmMin((() => {
-		init_Primitive();
-		deepOperateAndClone = (obj, operation, $prev) => {
-			if (Array.isArray(obj)) {
-				if (obj.every(isCanJustReturn)) return obj.map(operation);
-				return obj.map((value, index) => deepOperateAndClone(value, operation, [obj, index]));
-			}
-			if (obj instanceof Map) {
-				const entries = Array.from(obj.entries());
-				if (entries.map(([key, value]) => value).every(isCanJustReturn)) return new Map(entries.map(([key, value]) => [key, operation(value, key, obj)]));
-				return new Map(entries.map(([key, value]) => [key, deepOperateAndClone(value, operation, [obj, key])]));
-			}
-			if (obj instanceof Set) {
-				const entries = Array.from(obj.entries());
-				const values = entries.map(([key, value]) => value);
-				if (entries.every(isCanJustReturn)) return new Set(values.map(operation));
-				return new Set(values.map((value) => deepOperateAndClone(value, operation, [obj, value])));
-			}
-			if (typeof obj == "object" && obj?.constructor == Object && Object.prototype.toString.call(obj) == "[object Object]") {
-				const entries = Array.from(Object.entries(obj));
-				if (entries.map(([key, value]) => value).every(isCanJustReturn)) return Object.fromEntries(entries.map(([key, value]) => [key, operation(value, key, obj)]));
-				return Object.fromEntries(entries.map(([key, value]) => [key, deepOperateAndClone(value, operation, [obj, key])]));
-			}
-			return operation(obj, $prev?.[1] ?? "", $prev?.[0] ?? null);
-		};
-	}));
-	//#endregion
-	//#region shared/fest/core/utils/Promised.ts
+		}
+	};
 	/**
 	* Wrap a promise or value in a Proxy that allows synchronous property access.
 	* For resolved promises, this enables accessing properties as if the promise was already resolved.
@@ -381,173 +277,12 @@
 		if (!handledMap?.has?.(promise)) promise?.then?.((item) => resolvedMap?.set?.(promise, item));
 		return handledMap?.getOrInsertComputed?.(promise, () => new Proxy(fixFx(promise), new PromiseHandler(resolve, reject)));
 	}
-	var resolvedMap, handledMap, actWith, PromiseHandler;
-	var init_Promised = __esmMin((() => {
-		init_Primitive();
-		resolvedMap = /* @__PURE__ */ new WeakMap(), handledMap = /* @__PURE__ */ new WeakMap();
-		actWith = (promiseOrPlain, cb) => {
-			if (promiseOrPlain instanceof Promise || typeof promiseOrPlain?.then == "function") {
-				if (resolvedMap?.has?.(promiseOrPlain)) return cb(resolvedMap?.get?.(promiseOrPlain));
-				return Promise.try?.(async () => {
-					const item = await promiseOrPlain;
-					resolvedMap?.set?.(promiseOrPlain, item);
-					return item;
-				})?.then?.(cb);
-			}
-			return cb(promiseOrPlain);
-		};
-		PromiseHandler = class {
-			#resolve;
-			#reject;
-			constructor(resolve, reject) {
-				this.#resolve = resolve;
-				this.#reject = reject;
-			}
-			defineProperty(target, prop, descriptor) {
-				if (unwrap(target) instanceof Promise) return Reflect.defineProperty(target, prop, descriptor);
-				return actWith(unwrap(target), (obj) => Reflect.defineProperty(obj, prop, descriptor));
-			}
-			deleteProperty(target, prop) {
-				if (unwrap(target) instanceof Promise) return Reflect.deleteProperty(target, prop);
-				return actWith(unwrap(target), (obj) => Reflect.deleteProperty(obj, prop));
-			}
-			getPrototypeOf(target) {
-				if (unwrap(target) instanceof Promise) return Reflect.getPrototypeOf(target);
-				return actWith(unwrap(target), (obj) => Reflect.getPrototypeOf(obj));
-			}
-			setPrototypeOf(target, proto) {
-				if (unwrap(target) instanceof Promise) return Reflect.setPrototypeOf(target, proto);
-				return actWith(unwrap(target), (obj) => Reflect.setPrototypeOf(obj, proto));
-			}
-			isExtensible(target) {
-				if (unwrap(target) instanceof Promise) return Reflect.isExtensible(target);
-				return actWith(unwrap(target), (obj) => Reflect.isExtensible(obj));
-			}
-			preventExtensions(target) {
-				if (unwrap(target) instanceof Promise) return Reflect.ownKeys(target);
-				return actWith(unwrap(target), (obj) => Reflect.preventExtensions(obj));
-			}
-			ownKeys(target) {
-				const uwp = unwrap(target);
-				if (uwp instanceof Promise) return Object.keys(uwp);
-				return actWith(uwp, (obj) => {
-					return (typeof obj == "object" || typeof obj == "function") && obj != null ? Object.keys(obj) : [];
-				}) ?? [];
-			}
-			getOwnPropertyDescriptor(target, prop) {
-				if (unwrap(target) instanceof Promise) return Reflect.getOwnPropertyDescriptor(target, prop);
-				return actWith(unwrap(target), (obj) => Reflect.getOwnPropertyDescriptor(obj, prop));
-			}
-			construct(target, args, newTarget) {
-				return actWith(unwrap(target), (ct) => Reflect.construct(ct, args, newTarget));
-			}
-			has(target, prop) {
-				if (unwrap(target) instanceof Promise) return Reflect.has(target, prop);
-				return actWith(unwrap(target), (obj) => Reflect.has(obj, prop));
-			}
-			get(target, prop, receiver) {
-				target = unwrap(target);
-				if (prop == "promise") return target;
-				if (prop == "resolve" && this.#resolve) return (...args) => {
-					const result = this.#resolve?.(...args);
-					this.#resolve = null;
-					return result;
-				};
-				if (prop == "reject" && this.#reject) return (...args) => {
-					const result = this.#reject?.(...args);
-					this.#reject = null;
-					return result;
-				};
-				if (prop == "then" || prop == "catch" || prop == "finally") if (target instanceof Promise) return target?.[prop]?.bind?.(target);
-				else {
-					const $tmp = Promise.try(() => target);
-					return $tmp?.[prop]?.bind?.($tmp);
-				}
-				let result = void 0;
-				if (resolvedMap?.has?.(target) && (result = resolvedMap?.get?.(target))?.[prop] != null) result = resolvedMap?.get?.(target)?.[prop];
-				else result = Promised(actWith(target, async (obj) => {
-					if (unwrap(obj) instanceof Promise) return Reflect.get(obj, prop, receiver);
-					if (isPrimitive(obj)) return prop == Symbol.toPrimitive || prop == Symbol.toStringTag ? obj : void 0;
-					let value = void 0;
-					try {
-						value = Reflect.get(obj, prop, receiver);
-					} catch (e) {
-						value = target?.[prop];
-					}
-					if (typeof value == "function") return value?.bind?.(obj);
-					return value;
-				}));
-				if (prop == Symbol.toStringTag) {
-					if (isPrimitive(result)) return String(result ?? "") || "";
-					return result?.[Symbol.toStringTag]?.() || String(result ?? "") || "";
-				}
-				if (prop == Symbol.toPrimitive) return (hint) => {
-					if (isPrimitive(result)) return tryParseByHint(result, hint);
-				};
-				return result;
-			}
-			set(target, prop, value) {
-				return actWith(unwrap(target), (obj) => Reflect.set(obj, prop, value));
-			}
-			apply(target, thisArg, args) {
-				if (this.#resolve) {
-					const result = this.#resolve?.(...args);
-					this.#resolve = null;
-					return result;
-				}
-				return actWith(unwrap(target, this.#resolve), (obj) => {
-					if (typeof obj == "function") {
-						if (unwrap(obj) instanceof Promise) return Reflect.apply(obj, thisArg, args);
-						return Reflect.apply(obj, thisArg, args);
-					}
-				});
-			}
-		};
-	}));
 	//#endregion
-	//#region shared/fest/core/utils/WRef.ts
-	var init_WRef = __esmMin((() => {}));
-	//#endregion
-	//#region shared/fest/core/utils/Convert.ts
-	var init_Convert = __esmMin((() => {}));
-	//#endregion
-	//#region shared/fest/core/utils/GridItemUtils.ts
-	var init_GridItemUtils = __esmMin((() => {}));
-	//#endregion
-	//#region shared/fest/core/utils/UserPath.ts
-	var init_UserPath = __esmMin((() => {}));
-	//#endregion
-	//#region shared/fest/core/utils/Mapped.ts
-	var init_Mapped = __esmMin((() => {}));
-	//#endregion
-	//#region shared/fest/core/utils/Phone.ts
-	var init_Phone = __esmMin((() => {}));
-	//#endregion
-	//#region shared/fest/core/index.ts
-	var init_core = __esmMin((() => {
-		init_dom_globals_polyfill();
-		init_PromiseTry();
-		init_PromiseUtils();
-		init_ChannelUtils();
-		init_Upsert();
-		init_Primitive();
-		init_Object();
-		init_Promised();
-		init_WRef();
-		init_Convert();
-		init_GridItemUtils();
-		init_UserPath();
-		init_Mapped();
-		init_Phone();
-		installDomConstructorPolyfills();
-	}));
-	//#endregion
-	//#region shared/fest/uniform/newer/next/observable/Observable.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/observable/Observable.ts
 	var BaseSubscription = class {
+		_closed = false;
 		constructor(_unsubscribe) {
 			this._unsubscribe = _unsubscribe;
-			this._closed = false;
 		}
 		get closed() {
 			return this._closed;
@@ -611,9 +346,11 @@
 	* Subject - Observable that can be pushed to
 	*/
 	var ChannelSubject = class {
+		_subs = /* @__PURE__ */ new Set();
+		_buffer = [];
+		_maxBuffer;
+		_replay;
 		constructor(options = {}) {
-			this._subs = /* @__PURE__ */ new Set();
-			this._buffer = [];
 			this._maxBuffer = options.bufferSize ?? 0;
 			this._replay = options.replayOnSubscribe ?? false;
 		}
@@ -666,8 +403,7 @@
 		return () => s.unsubscribe();
 	});
 	//#endregion
-	//#region shared/fest/uniform/newer/next/proxy/Invoker.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/Invoker.ts
 	function detectContextType() {
 		if (typeof globalThis.Deno !== "undefined") return "deno";
 		if (typeof globalThis.process !== "undefined" && globalThis.process?.versions?.node) return "node";
@@ -720,8 +456,16 @@
 		preventExtensions: (target) => Reflect.preventExtensions(target)
 	};
 	//#endregion
-	//#region shared/fest/uniform/newer/next/proxy/Proxy.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/Proxy.ts
+	/**
+	* Proxy - Unified Remote Proxy Creation
+	*
+	* Single source of truth for all proxy-related functionality:
+	* - Remote object proxies (transparent RPC)
+	* - Descriptor-based proxies
+	* - Type-safe proxy creation
+	* - Expose/listen patterns
+	*/
 	/** Symbol to identify proxy objects */
 	const PROXY_MARKER = Symbol.for("uniform.proxy");
 	/** Symbol to access proxy internals */
@@ -732,9 +476,10 @@
 	* Handles all Reflect operations and forwards them to the invoker.
 	*/
 	var RemoteProxyHandler = class {
+		_config;
+		_childCache = /* @__PURE__ */ new Map();
 		constructor(_invoker, config) {
 			this._invoker = _invoker;
-			this._childCache = /* @__PURE__ */ new Map();
 			this._config = {
 				channel: config.channel,
 				basePath: config.basePath ?? [],
@@ -874,7 +619,7 @@
 	/** @deprecated Use wrapDescriptor */
 	const makeRequestProxy = wrapDescriptor;
 	//#endregion
-	//#region shared/fest/uniform/newer/next/channel/internal/ConnectionModel.ts
+	//#region ../../modules/projects/uniform.ts/src/newer/next/channel/internal/ConnectionModel.ts
 	function createConnectionKey(params) {
 		return [
 			params.localChannel,
@@ -899,10 +644,10 @@
 		}).sort((a, b) => b.updatedAt - a.updatedAt);
 	}
 	var ConnectionRegistry = class {
+		_connections = /* @__PURE__ */ new Map();
 		constructor(_createId, _emitEvent) {
 			this._createId = _createId;
 			this._emitEvent = _emitEvent;
-			this._connections = /* @__PURE__ */ new Map();
 		}
 		register(params) {
 			const key = createConnectionKey(params);
@@ -986,8 +731,23 @@
 		}
 	};
 	//#endregion
-	//#region shared/fest/uniform/newer/next/channel/UnifiedChannel.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/channel/UnifiedChannel.ts
+	/**
+	* Unified Channel System
+	*
+	* Merges and unifies:
+	* - RequestProxy (proxy creation and dispatch)
+	* - Invoker (Requestor/Responder abstraction)
+	* - ChannelContext (multi-channel management)
+	* - ObservableChannels (Observable-based messaging)
+	*
+	* Single entry point for all channel communication patterns:
+	* - `createChannel()` - Create a unified channel
+	* - `channel.expose()` - Expose objects for remote invocation
+	* - `channel.import()` - Import remote modules
+	* - `channel.proxy()` - Create transparent proxy to remote
+	* - `channel.connect()` - Connect to transport
+	*/
 	/**
 	* UnifiedChannel - Single entry point for all channel communication
 	*
@@ -999,6 +759,21 @@
 	* - Multi-transport support (Worker, Port, Broadcast, WebSocket, Chrome)
 	*/
 	var UnifiedChannel = class {
+		_name;
+		_contextType;
+		_config;
+		_transports = /* @__PURE__ */ new Map();
+		_defaultTransport = null;
+		_connectionEvents = new ChannelSubject({ bufferSize: 200 });
+		_connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._connectionEvents.next(event));
+		_pending = /* @__PURE__ */ new Map();
+		_subscriptions = [];
+		_inbound = new ChannelSubject({ bufferSize: 100 });
+		_outbound = new ChannelSubject({ bufferSize: 100 });
+		_invocations = new ChannelSubject({ bufferSize: 100 });
+		_responses = new ChannelSubject({ bufferSize: 100 });
+		_exposed = /* @__PURE__ */ new Map();
+		_proxyCache = /* @__PURE__ */ new WeakMap();
 		__getPrivate(key) {
 			return this[key];
 		}
@@ -1006,18 +781,6 @@
 			this[key] = value;
 		}
 		constructor(config) {
-			this._transports = /* @__PURE__ */ new Map();
-			this._defaultTransport = null;
-			this._connectionEvents = new ChannelSubject({ bufferSize: 200 });
-			this._connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._connectionEvents.next(event));
-			this._pending = /* @__PURE__ */ new Map();
-			this._subscriptions = [];
-			this._inbound = new ChannelSubject({ bufferSize: 100 });
-			this._outbound = new ChannelSubject({ bufferSize: 100 });
-			this._invocations = new ChannelSubject({ bufferSize: 100 });
-			this._responses = new ChannelSubject({ bufferSize: 100 });
-			this._exposed = /* @__PURE__ */ new Map();
-			this._proxyCache = /* @__PURE__ */ new WeakMap();
 			const cfg = typeof config === "string" ? { name: config } : config;
 			this._name = cfg.name;
 			this._contextType = cfg.autoDetect !== false ? detectContextType() : "unknown";
@@ -1743,7 +1506,7 @@
 		return WORKER_CHANNEL;
 	}
 	//#endregion
-	//#region shared/fest/uniform/newer/core/Alias.ts
+	//#region ../../modules/projects/uniform.ts/src/newer/core/Alias.ts
 	const TS = {
 		rjb: "rejectBy",
 		rvb: "resolveBy",
@@ -1755,9 +1518,6 @@
 		ta: "typedarray",
 		udf: "undefined"
 	};
-	//#endregion
-	//#region shared/fest/uniform/newer/core/Useful.ts
-	init_core();
 	[
 		typeof ArrayBuffer != TS.udf ? ArrayBuffer : null,
 		typeof MessagePort != TS.udf ? MessagePort : null,
@@ -1773,8 +1533,7 @@
 		typeof RTCDataChannel != TS.udf ? RTCDataChannel : null
 	].filter((E) => E != null);
 	//#endregion
-	//#region shared/fest/uniform/newer/next/channel/Channels.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/channel/Channels.ts
 	const SELF_CHANNEL = {
 		name: "unknown",
 		instance: null
@@ -1783,6 +1542,7 @@
 	const isReflectAction$1 = (action) => [...Object.values(WReflectAction)].includes(action);
 	/** @deprecated Use UnifiedChannel.remote() instead */
 	var RemoteChannelHelper$1 = class {
+		_channel;
 		constructor(channelName, options = {}) {
 			this.channelName = channelName;
 			this.options = options;
@@ -1804,10 +1564,11 @@
 	};
 	/** @deprecated Use UnifiedChannel instead */
 	var ChannelHandler$1 = class {
+		_unified;
+		broadcasts = {};
 		constructor(channel, options = {}) {
 			this.channel = channel;
 			this.options = options;
-			this.broadcasts = {};
 			this._unified = createUnifiedChannel({
 				name: channel,
 				autoListen: false
@@ -1861,8 +1622,7 @@
 		return $channel;
 	};
 	//#endregion
-	//#region shared/fest/uniform/newer/next/storage/DataBase.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/storage/DataBase.ts
 	const handMap = /* @__PURE__ */ new WeakMap();
 	const wrapMap = /* @__PURE__ */ new WeakMap();
 	const descMap = /* @__PURE__ */ new WeakMap();
@@ -1957,8 +1717,15 @@
 		return (registeredInPath?.get?.(data) ?? $desc?.path) == null;
 	};
 	//#endregion
-	//#region shared/fest/uniform/newer/core/RequestHandler.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/core/RequestHandler.ts
+	/**
+	* Request Handler Core - Unified Reflect Action Handling
+	*
+	* Single source of truth for all action execution:
+	* - UnifiedChannel, ChannelContext, Proxy module
+	* - Supports both DataBase-backed and direct object targets
+	* - Supports custom Reflect implementations
+	*/
 	const isObject = (obj) => (typeof obj === "object" || typeof obj === "function") && obj != null;
 	const defaultReflect = {
 		get: (t, p) => t?.[p],
@@ -2150,30 +1917,35 @@
 		return buildResponse(reqId, action, channelName, sender, newPath, result, toTransfer);
 	}
 	//#endregion
-	//#region shared/fest/uniform/newer/next/channel/Connection.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/channel/Connection.ts
+	/**
+	* Channel Connection - Connection abstraction layer
+	*
+	* Provides connection pooling, state management, and message routing.
+	*/
 	var ChannelConnection = class {
+		_id = UUIDv4();
+		_state = "disconnected";
+		_inbound = new ChannelSubject({ bufferSize: 1e3 });
+		_outbound = new ChannelSubject({ bufferSize: 1e3 });
+		_stateChanges = new ChannelSubject();
+		_connectedPeers = /* @__PURE__ */ new Map();
+		_subs = [];
+		_stats = {
+			messagesSent: 0,
+			messagesReceived: 0,
+			bytesTransferred: 0,
+			latencyMs: 0,
+			uptime: 0,
+			reconnectCount: 0
+		};
+		_startTime = 0;
+		_pending = /* @__PURE__ */ new Map();
+		_buffer = [];
+		_opts;
 		constructor(_name, _transportType = "internal", options = {}) {
 			this._name = _name;
 			this._transportType = _transportType;
-			this._id = UUIDv4();
-			this._state = "disconnected";
-			this._inbound = new ChannelSubject({ bufferSize: 1e3 });
-			this._outbound = new ChannelSubject({ bufferSize: 1e3 });
-			this._stateChanges = new ChannelSubject();
-			this._connectedPeers = /* @__PURE__ */ new Map();
-			this._subs = [];
-			this._stats = {
-				messagesSent: 0,
-				messagesReceived: 0,
-				bytesTransferred: 0,
-				latencyMs: 0,
-				uptime: 0,
-				reconnectCount: 0
-			};
-			this._startTime = 0;
-			this._pending = /* @__PURE__ */ new Map();
-			this._buffer = [];
 			this._opts = {
 				timeout: 3e4,
 				autoReconnect: true,
@@ -2342,12 +2114,8 @@
 		}
 	};
 	var ConnectionPool = class ConnectionPool {
-		constructor() {
-			this._connections = /* @__PURE__ */ new Map();
-		}
-		static {
-			this._instance = null;
-		}
+		_connections = /* @__PURE__ */ new Map();
+		static _instance = null;
 		static getInstance() {
 			if (!ConnectionPool._instance) ConnectionPool._instance = new ConnectionPool();
 			return ConnectionPool._instance;
@@ -2380,11 +2148,17 @@
 	const getConnectionPool = () => ConnectionPool.getInstance();
 	const getConnection = (name, transportType, options) => getConnectionPool().getOrCreate(name, transportType, options);
 	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/Transport.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/storage/Storage.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/storage/Storage.ts
+	/**
+	* IndexedDB Integration for Channel System
+	*
+	* Provides persistent storage capabilities for channel communication:
+	* - Defer: Queue messages for later delivery
+	* - Pending: Track pending operations
+	* - Mailbox/Inbox: Store messages per channel
+	* - Transactions: Batch operations with rollback
+	* - Exchange: Coordinate data between contexts
+	*/
 	const DB_NAME = "uniform_channels";
 	const DB_VERSION = 1;
 	const STORES = {
@@ -2398,12 +2172,13 @@
 	* IndexedDB manager for channel storage
 	*/
 	var ChannelStorage = class {
+		_db = null;
+		_isOpen = false;
+		_openPromise = null;
+		_channelName;
+		_messageUpdates = new ChannelSubject();
+		_exchangeUpdates = new ChannelSubject();
 		constructor(channelName) {
-			this._db = null;
-			this._isOpen = false;
-			this._openPromise = null;
-			this._messageUpdates = new ChannelSubject();
-			this._exchangeUpdates = new ChannelSubject();
 			this._channelName = channelName;
 		}
 		/**
@@ -2954,11 +2729,11 @@
 	* Helper class for batch operations with rollback support
 	*/
 	var ChannelTransaction = class {
+		_operations = [];
+		_isCommitted = false;
+		_isRolledBack = false;
 		constructor(_storage) {
 			this._storage = _storage;
-			this._operations = [];
-			this._isCommitted = false;
-			this._isRolledBack = false;
 		}
 		/**
 		* Add put operation
@@ -3042,10 +2817,25 @@
 		return _storageInstances.get(channelName);
 	}
 	//#endregion
-	//#region shared/fest/uniform/newer/next/channel/ChannelContext.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/channel/ChannelContext.ts
+	/**
+	* Channel Context - Multi-Channel Support
+	*
+	* Provides a way to create multiple independent channel endpoints/ports
+	* in the same context. Suitable for:
+	* - Lazy-loaded components
+	* - Multiple DOM components with isolated communication
+	* - Micro-frontend architectures
+	* - Component-level channel isolation
+	*
+	* vNext architecture note:
+	* - ChannelContext composes UnifiedChannel instances per endpoint.
+	* - UnifiedChannel is the canonical transport/invocation runtime engine.
+	*/
 	const workerCode = new URL("" + new URL("Worker.ts", self.location.href).href, "" + self.location.href);
 	var RemoteChannelHelper = class {
+		_connection;
+		_storage;
 		constructor(_channel, _context, _options = {}) {
 			this._channel = _channel;
 			this._context = _context;
@@ -3090,6 +2880,8 @@
 		}
 	};
 	var ChannelHandler = class {
+		_connection;
+		_unified;
 		get _forResolves() {
 			return this._unified.__getPrivate("_pending");
 		}
@@ -3189,19 +2981,20 @@
 	* - Global self/globalThis as default target
 	*/
 	var ChannelContext = class {
+		_id = UUIDv4();
+		_hostName;
+		_host = null;
+		_endpoints = /* @__PURE__ */ new Map();
+		_unifiedByChannel = /* @__PURE__ */ new Map();
+		_unifiedConnectionSubs = /* @__PURE__ */ new Map();
+		_remoteChannels = /* @__PURE__ */ new Map();
+		_deferredChannels = /* @__PURE__ */ new Map();
+		_connectionEvents = new ChannelSubject({ bufferSize: 200 });
+		_connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._emitConnectionEvent(event));
+		_closed = false;
+		_globalSelf = null;
 		constructor(_options = {}) {
 			this._options = _options;
-			this._id = UUIDv4();
-			this._host = null;
-			this._endpoints = /* @__PURE__ */ new Map();
-			this._unifiedByChannel = /* @__PURE__ */ new Map();
-			this._unifiedConnectionSubs = /* @__PURE__ */ new Map();
-			this._remoteChannels = /* @__PURE__ */ new Map();
-			this._deferredChannels = /* @__PURE__ */ new Map();
-			this._connectionEvents = new ChannelSubject({ bufferSize: 200 });
-			this._connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._emitConnectionEvent(event));
-			this._closed = false;
-			this._globalSelf = null;
 			this._hostName = _options.name ?? `ctx-${this._id.slice(0, 8)}`;
 			if (_options.useGlobalSelf !== false) this._globalSelf = typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : null;
 		}
@@ -3814,19 +3607,29 @@
 		return ctx;
 	}
 	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/Worker.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/transport/Worker.ts
+	/**
+	* Worker Entry Point - Multi-Channel Support
+	*
+	* This worker context supports:
+	* - Multiple channel creation/initialization
+	* - Observing new incoming channel connections
+	* - Dynamic channel addition after initialization
+	* - Connection from remote/host contexts
+	*/
 	/**
 	* WorkerContext - Manages channels within a Worker
 	*
 	* Supports observing new incoming connections from host/remote contexts.
 	*/
 	var WorkerContext = class {
+		_context;
+		_config;
+		_subscriptions = [];
+		_incomingConnections = new ChannelSubject({ bufferSize: 100 });
+		_channelCreated = new ChannelSubject({ bufferSize: 100 });
+		_channelClosed = new ChannelSubject();
 		constructor(config = {}) {
-			this._subscriptions = [];
-			this._incomingConnections = new ChannelSubject({ bufferSize: 100 });
-			this._channelCreated = new ChannelSubject({ bufferSize: 100 });
-			this._channelClosed = new ChannelSubject();
 			this._config = {
 				name: config.name ?? "worker",
 				workerName: config.workerName ?? `worker-${UUIDv4().slice(0, 8)}`,
@@ -4089,120 +3892,29 @@
 	}
 	getWorkerContext({ name: "worker" });
 	//#endregion
-	//#region shared/fest/uniform/newer/next/observable/ChromeObservable.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/observable/SocketIOObservable.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/SharedWorkerTransport.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/AtomicsTransport.ts
-	init_core();
-	(class AtomicsRingBuffer {
-		static {
-			this.META_SIZE = 16;
-		}
-		static {
-			this.WRITE_IDX = 0;
-		}
-		static {
-			this.READ_IDX = 4;
-		}
-		static {
-			this.OVERFLOW = 8;
-		}
-		constructor(bufferOrConfig = {}) {
-			if (bufferOrConfig instanceof SharedArrayBuffer) {
-				this._buffer = bufferOrConfig;
-				this._slotCount = 64;
-				this._slotSize = (this._buffer.byteLength - AtomicsRingBuffer.META_SIZE) / this._slotCount;
-			} else {
-				this._slotSize = bufferOrConfig.slotSize ?? 1024;
-				this._slotCount = bufferOrConfig.slotCount ?? 64;
-				this._slotCount = 1 << Math.ceil(Math.log2(this._slotCount));
-				const totalSize = AtomicsRingBuffer.META_SIZE + this._slotSize * this._slotCount;
-				this._buffer = new SharedArrayBuffer(totalSize);
-			}
-			this._meta = new Int32Array(this._buffer, 0, AtomicsRingBuffer.META_SIZE / 4);
-			this._data = new Uint8Array(this._buffer, AtomicsRingBuffer.META_SIZE);
-			this._mask = this._slotCount - 1;
-		}
-		/**
-		* Write message to ring buffer (non-blocking)
-		*/
-		write(data) {
-			if (data.byteLength > this._slotSize - 4) return false;
-			const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			const readIdx = Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX);
-			if ((writeIdx + 1 & this._mask) === (readIdx & this._mask)) {
-				Atomics.add(this._meta, AtomicsRingBuffer.OVERFLOW, 1);
-				return false;
-			}
-			const slot = (writeIdx & this._mask) * this._slotSize;
-			new DataView(this._buffer, AtomicsRingBuffer.META_SIZE + slot).setUint32(0, data.byteLength, true);
-			this._data.set(data, slot + 4);
-			Atomics.store(this._meta, AtomicsRingBuffer.WRITE_IDX, writeIdx + 1);
-			Atomics.notify(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			return true;
-		}
-		/**
-		* Read message from ring buffer (non-blocking)
-		*/
-		read() {
-			const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			const readIdx = Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX);
-			if (readIdx === writeIdx) return null;
-			const slot = (readIdx & this._mask) * this._slotSize;
-			const size = new DataView(this._buffer, AtomicsRingBuffer.META_SIZE + slot).getUint32(0, true);
-			if (size === 0 || size > this._slotSize - 4) return null;
-			const data = new Uint8Array(size);
-			data.set(this._data.subarray(slot + 4, slot + 4 + size));
-			Atomics.store(this._meta, AtomicsRingBuffer.READ_IDX, readIdx + 1);
-			return data;
-		}
-		/**
-		* Wait for data to be available
-		*/
-		async waitRead(timeout) {
-			const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			if (Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX) < writeIdx) return this.read();
-			if ("waitAsync" in Atomics) {
-				if (await Atomics.waitAsync(this._meta, AtomicsRingBuffer.WRITE_IDX, writeIdx, timeout ?? 1e3).value === "ok") return this.read();
-			} else {
-				await new Promise((r) => setTimeout(r, Math.min(timeout ?? 1e3, 100)));
-				return this.read();
-			}
-			return null;
-		}
-		get buffer() {
-			return this._buffer;
-		}
-		get available() {
-			return Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX) - Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX) & this._mask;
-		}
-		get overflow() {
-			return Atomics.load(this._meta, AtomicsRingBuffer.OVERFLOW);
-		}
-	});
-	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/RTCDataChannelTransport.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/PortTransport.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/transport/PortTransport.ts
+	/**
+	* MessagePort/MessageChannel Enhanced Transport
+	*
+	* Advanced port-based communication with:
+	* - MessageChannel pair creation
+	* - Port pooling and management
+	* - Cross-context transfer (iframe, worker, window)
+	* - Automatic reconnection
+	* - Request/response with timeout
+	*/
 	var PortTransport = class {
+		_port;
+		_subs = /* @__PURE__ */ new Set();
+		_pending = /* @__PURE__ */ new Map();
+		_listening = false;
+		_cleanup = null;
+		_portId = UUIDv4();
+		_state = new ChannelSubject();
+		_keepAliveTimer = null;
 		constructor(port, _channelName, _config = {}) {
 			this._channelName = _channelName;
 			this._config = _config;
-			this._subs = /* @__PURE__ */ new Set();
-			this._pending = /* @__PURE__ */ new Map();
-			this._listening = false;
-			this._cleanup = null;
-			this._portId = UUIDv4();
-			this._state = new ChannelSubject();
-			this._keepAliveTimer = null;
 			this._port = port;
 			this._setupPort();
 			if (_config.autoStart !== false) this.start();
@@ -4352,13 +4064,13 @@
 	* Connect to window/iframe via MessageChannel
 	*/
 	var WindowPortConnector = class {
+		_transport = null;
+		_state = new ChannelSubject();
+		_handshakeComplete = false;
 		constructor(_target, _channelName, _config = {}) {
 			this._target = _target;
 			this._channelName = _channelName;
 			this._config = _config;
-			this._transport = null;
-			this._state = new ChannelSubject();
-			this._handshakeComplete = false;
 		}
 		/**
 		* Initiate connection to target window
@@ -4427,17 +4139,7 @@
 	};
 	WindowPortConnector.listen;
 	//#endregion
-	//#region shared/fest/uniform/newer/next/storage/TransferableStorage.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/ServiceWorkerHost.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/transport/UnifiedTransport.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/storage/Queued.ts
-	init_core();
+	//#region ../../modules/projects/uniform.ts/src/newer/next/storage/Queued.ts
 	/**
 	* Simplified worker registration for common patterns
 	*/
@@ -4449,13 +4151,7 @@
 		return channelHandler;
 	};
 	//#endregion
-	//#region shared/fest/uniform/newer/next/utils/Utils.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/uniform/newer/next/channel/ChannelMessageHandler.ts
-	init_core();
-	//#endregion
-	//#region shared/fest/lure/utils/opfs/OPFS.worker.ts
+	//#region ../../modules/projects/lur.e/src/utils/opfs/OPFS.worker.ts
 	var OPFS_worker_exports = /* @__PURE__ */ __exportAll({
 		getDirHandle: () => getDirHandle,
 		getFileSystemRoot: () => getFileSystemRoot,
@@ -4465,7 +4161,6 @@
 	});
 	var mappedRoots, activeObservers, getFileSystemRoot, normalizePath, resolveFileSystemHandle, getDirHandle, handlers, SW_BRIDGE_CHANNEL_NAME, swBridgeChannel;
 	var init_OPFS_worker = __esmMin((() => {
-		init_core();
 		mappedRoots = /* @__PURE__ */ new Map();
 		activeObservers = /* @__PURE__ */ new Map();
 		getFileSystemRoot = async (id = "") => {
@@ -4690,7 +4385,7 @@
 		});
 	}));
 	//#endregion
-	//#region shared/fest/lure/utils/opfs/OPFS.uniform.worker.ts
+	//#region ../../modules/projects/lur.e/src/utils/opfs/OPFS.uniform.worker.ts
 	init_OPFS_worker();
 	if (handlers) registerWorkerAPI(handlers);
 	const processMessage = async (envelope) => {

@@ -509,7 +509,7 @@ var SystemBarsPluginWeb = class extends WebPlugin {
 };
 registerPlugin("SystemBars", { web: () => new SystemBarsPluginWeb() });
 //#endregion
-//#region src/shared/native/cws-bridge.ts
+//#region src/shared/routing/native/cws-bridge.ts
 var cws_bridge_exports = /* @__PURE__ */ __exportAll({
 	CwsBridge: () => CwsBridge,
 	getNativeUnifiedSettings: () => getNativeUnifiedSettings,

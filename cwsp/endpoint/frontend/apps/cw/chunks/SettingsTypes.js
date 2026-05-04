@@ -1,4 +1,4 @@
-//#region src/shared/config/SettingsTypes.ts
+//#region src/shared/other/config/SettingsTypes.ts
 var BUILTIN_AI_MODELS = [
 	"gpt-5.1",
 	"gpt-5.2",

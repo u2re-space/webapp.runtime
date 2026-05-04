@@ -1,4 +1,4 @@
-//#region src/shared/config/Names.ts
+//#region src/shared/other/config/Names.ts
 /**
 * Centralized naming system for CrossWord application
 * Consolidates component names, channel names, route names, etc.
@@ -247,7 +247,7 @@ var createDestinationChannelMappings = () => {
 BROADCAST_CHANNELS.SERVICE_WORKCENTER, BROADCAST_CHANNELS.SERVICE_SETTINGS, BROADCAST_CHANNELS.SERVICE_VIEWER, BROADCAST_CHANNELS.SERVICE_EXPLORER, BROADCAST_CHANNELS.SERVICE_AIRPAD, BROADCAST_CHANNELS.SERVICE_PRINT, BROADCAST_CHANNELS.SERVICE_HISTORY, BROADCAST_CHANNELS.SERVICE_EDITOR, BROADCAST_CHANNELS.SERVICE_HOME;
 ROUTE_HASHES.WORKCENTER, ROUTE_HASHES.SETTINGS, ROUTE_HASHES.MARKDOWN_VIEWER, ROUTE_HASHES.FILE_EXPLORER, ROUTE_HASHES.PRINT, ROUTE_HASHES.HISTORY, ROUTE_HASHES.MARKDOWN_EDITOR;
 //#endregion
-//#region src/shared/channel/UniformInterop.ts
+//#region ../../modules/projects/subsystem/src/routing/channel/UniformInterop.ts
 /**
 * Shared interop helpers for CrossWord transport envelopes.
 *

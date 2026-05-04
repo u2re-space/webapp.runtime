@@ -1,7 +1,6 @@
 import { f as safe, l as stringRef, o as observe, u as makeObjectAssignable } from "../fest/object.js";
-import { t as JSOX } from "../vendor/jsox.js";
-import { C as makeUIState } from "../com/app.js";
-import "../com/app2.js";
+import { I as JSOX, w as makeUIState } from "../vendor/jsox.js";
+import "./Clipboard.js";
 import { n as scheduleFrame } from "./Runtime.js";
 //#region src/shared/store/StateStorage.ts
 /**
@@ -305,7 +304,7 @@ var addSpeedDialItem = (item) => {
 	if (metaChanged) persistSpeedDialMeta();
 	return item;
 };
-var wallpaperState = makeUIState("cw::workspace::wallpaper", () => observe({
+makeUIState("cw::workspace::wallpaper", () => observe({
 	src: "/assets/wallpaper.jpg",
 	opacity: 1,
 	blur: 0
@@ -314,7 +313,6 @@ var wallpaperState = makeUIState("cw::workspace::wallpaper", () => observe({
 	opacity: 1,
 	blur: 0
 }), (state) => ({ ...state }));
-var persistWallpaper = () => wallpaperState?.$save?.();
 var gridLayoutState = makeUIState("cw::workspace::grid-layout", () => observe({
 	columns: 4,
 	rows: 8,
@@ -349,4 +347,4 @@ var applyGridSettings = (settings) => {
 };
 if (typeof globalThis !== "undefined" && typeof document !== "undefined") scheduleFrame(() => applyGridSettings());
 //#endregion
-export { persistSpeedDialItems as a, speedDialItems as c, ensureSpeedDialMeta as i, wallpaperState as l, applyGridSettings as n, persistSpeedDialMeta as o, createEmptySpeedDialItem as r, persistWallpaper as s, addSpeedDialItem as t };
+export { persistSpeedDialItems as a, ensureSpeedDialMeta as i, applyGridSettings as n, persistSpeedDialMeta as o, createEmptySpeedDialItem as r, speedDialItems as s, addSpeedDialItem as t };

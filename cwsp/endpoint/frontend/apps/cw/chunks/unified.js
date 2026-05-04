@@ -1,10 +1,10 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
-import "./core.js";
 import { n as loadSettings } from "./Settings.js";
+import { n as getRuntimeSettings } from "./RuntimeSettings.js";
 import { i as buildInstructionPrompt, n as SVG_GRAPHICS_ADDON, o as getIntermediateRecognitionInstruction, r as TRANSLATE_INSTRUCTION, s as getOutputFormatInstruction, t as LANGUAGE_INSTRUCTIONS } from "./utils.js";
+import "./core.js";
 import { a as unwrapUnwantedCodeBlocks, i as isImageData, n as getGPTInstance, r as getResponseFormat } from "../vendor/@toon-format_toon.js";
 import "./AIResponseParser.js";
-import { n as getRuntimeSettings } from "./RuntimeSettings.js";
 //#region src/shared/service/processing/adapters.ts
 var detectPlatform = () => {
 	try {

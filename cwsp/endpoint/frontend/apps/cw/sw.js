@@ -2758,7 +2758,7 @@ var ExpirationPlugin = class {
 	}
 };
 //#endregion
-//#region src/shared/config/SettingsTypes.ts
+//#region src/shared/other/config/SettingsTypes.ts
 var defaultSpeechLanguage, DEFAULT_SETTINGS;
 var init_SettingsTypes = __esmMin((() => {
 	defaultSpeechLanguage = () => {
@@ -5454,7 +5454,7 @@ var init_jsox = __esmMin((() => {
 	});
 }));
 //#endregion
-//#region shared/fest/dom/agate/Properties.ts
+//#region ../../modules/projects/dom.ts/src/agate/Properties.ts
 var __registeredCssProperties;
 var init_Properties = __esmMin((() => {
 	__registeredCssProperties = /* @__PURE__ */ new Set();
@@ -5665,10 +5665,10 @@ var init_Properties = __esmMin((() => {
 	});
 }));
 //#endregion
-//#region shared/fest/dom/agate/Detect.ts
+//#region ../../modules/projects/dom.ts/src/agate/Detect.ts
 var init_Detect = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/core/runtime/dom-globals-polyfill.ts
+//#region ../../modules/projects/core.ts/src/runtime/dom-globals-polyfill.ts
 /**
 * Chrome MV3 service workers (and some workers) do not expose DOM interface
 * constructors on `globalThis`. Shared app bundles that include custom elements
@@ -5708,26 +5708,12 @@ function installDomConstructorPolyfills() {
 }
 var init_dom_globals_polyfill = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/core/utils/PromiseTry.ts
-var init_PromiseTry = __esmMin((() => {
-	if (typeof Promise !== "undefined" && typeof Promise.try !== "function") Promise.try = function(callbackOrValue, ...args) {
-		try {
-			if (typeof callbackOrValue === "function") return Promise.resolve(callbackOrValue(...args));
-			return Promise.resolve(callbackOrValue);
-		} catch (error) {
-			return Promise.reject(error);
-		}
-	};
-}));
-//#endregion
-//#region shared/fest/core/utils/PromiseUtils.ts
+//#region ../../modules/projects/core.ts/src/utils/PromiseUtils.ts
 var init_PromiseUtils = __esmMin((() => {})), ChannelRegistry, ChannelHealthMonitor;
 var init_ChannelUtils = __esmMin((() => {
 	ChannelRegistry = class {
-		constructor() {
-			this.channels = /* @__PURE__ */ new Map();
-			this.listeners = /* @__PURE__ */ new Map();
-		}
+		channels = /* @__PURE__ */ new Map();
+		listeners = /* @__PURE__ */ new Map();
 		/**
 		* Register a channel
 		*/
@@ -5801,11 +5787,9 @@ var init_ChannelUtils = __esmMin((() => {
 	};
 	new ChannelRegistry();
 	ChannelHealthMonitor = class {
-		constructor() {
-			this.healthChecks = /* @__PURE__ */ new Map();
-			this.intervals = /* @__PURE__ */ new Map();
-			this.healthStatus = /* @__PURE__ */ new Map();
-		}
+		healthChecks = /* @__PURE__ */ new Map();
+		intervals = /* @__PURE__ */ new Map();
+		healthStatus = /* @__PURE__ */ new Map();
 		/**
 		* Register a health check for a channel
 		*/
@@ -5869,7 +5853,7 @@ var init_ChannelUtils = __esmMin((() => {
 	new ChannelHealthMonitor();
 }));
 //#endregion
-//#region shared/fest/core/utils/Upsert.ts
+//#region ../../modules/projects/core.ts/src/utils/Upsert.ts
 var init_Upsert = __esmMin((() => {
 	WeakMap.prototype.getOrInsert ??= function(key, defaultValue) {
 		if (!this.has(key)) this.set(key, defaultValue);
@@ -5889,7 +5873,7 @@ var init_Upsert = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/Primitive.ts
+//#region ../../modules/projects/core.ts/src/utils/Primitive.ts
 var $fxy, isObservable$1, isPrimitive, tryParseByHint, hasProperty, hasValue, $getValue, unwrap$1, deref$1, fixFx, $set$1, getRandomValues, clamp$1, withCtx, UUIDv4, camelToKebab$1, kebabToCamel, isValueUnit, isVal, normalizePrimitive, $triggerLock$1, $avoidTrigger, tryStringAsNumber, INTEGER_REGEXP, tryStringAsInteger, canBeInteger, isArrayOrIterable, handleListeners, isRef, unref, toRef$1, isValueRef, isObject$1, getValue, potentiallyAsync, potentiallyAsyncMap, makeTriggerLess, unwrapArray, isNotComplexArray, isCanJustReturn, isTypedArray, isCanTransfer, defaultByType;
 var init_Primitive = __esmMin((() => {
 	$fxy = Symbol.for("@fix");
@@ -6074,7 +6058,7 @@ var init_Primitive = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/Object.ts
+//#region ../../modules/projects/core.ts/src/utils/Object.ts
 var isIterable, isKeyType, isValidObj, bindFx, bindCtx, callByProp, callByAllProp, isNotEqual, boundCtx, isArrayInvalidKey, inProxy, contextify, deepOperateAndClone, bindEvent;
 var init_Object = __esmMin((() => {
 	init_Primitive();
@@ -6166,7 +6150,7 @@ var init_Object = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/Promised.ts
+//#region ../../modules/projects/core.ts/src/utils/Promised.ts
 /**
 * Wrap a promise or value in a Proxy that allows synchronous property access.
 * For resolved promises, this enables accessing properties as if the promise was already resolved.
@@ -6306,7 +6290,7 @@ var init_Promised = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/WRef.ts
+//#region ../../modules/projects/core.ts/src/utils/WRef.ts
 /**
 * Create a WeakRef wrapper proxy that allows safe access to weakly referenced objects.
 * The proxy automatically dereferences WeakRefs when accessing properties and handles
@@ -6394,7 +6378,7 @@ var init_WRef = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/Convert.ts
+//#region ../../modules/projects/core.ts/src/utils/Convert.ts
 var cvt_cs_to_os;
 var init_Convert = __esmMin((() => {
 	cvt_cs_to_os = (pos_in_cs, size_in_cs, or_i = 0) => {
@@ -6408,10 +6392,10 @@ var init_Convert = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/GridItemUtils.ts
+//#region ../../modules/projects/core.ts/src/utils/GridItemUtils.ts
 var init_GridItemUtils = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/core/utils/UserPath.ts
+//#region ../../modules/projects/core.ts/src/utils/UserPath.ts
 var normalizeSlashes, isUserScopePath, stripUserScopePrefix, toUserRelativePath, userPathCandidates;
 var init_UserPath = __esmMin((() => {
 	normalizeSlashes = (input) => {
@@ -6440,16 +6424,21 @@ var init_UserPath = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/core/utils/Mapped.ts
+//#region ../../modules/projects/core.ts/src/utils/Mapped.ts
 var init_Mapped$1 = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/core/utils/Phone.ts
+//#region ../../modules/projects/core.ts/src/utils/Phone.ts
 var init_Phone = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/core/index.ts
-var init_core$3 = __esmMin((() => {
+//#region ../../modules/projects/core.ts/src/utils/Time.ts
+var init_Time = __esmMin((() => {}));
+//#endregion
+//#region ../../modules/projects/core.ts/src/utils/Misc.ts
+var init_Misc = __esmMin((() => {}));
+//#endregion
+//#region ../../modules/projects/core.ts/src/index.ts
+var init_src$4 = __esmMin((() => {
 	init_dom_globals_polyfill();
-	init_PromiseTry();
 	init_PromiseUtils();
 	init_ChannelUtils();
 	init_Upsert();
@@ -6462,10 +6451,12 @@ var init_core$3 = __esmMin((() => {
 	init_UserPath();
 	init_Mapped$1();
 	init_Phone();
+	init_Time();
+	init_Misc();
 	installDomConstructorPolyfills();
 }));
 //#endregion
-//#region shared/fest/dom/agate/Utils.ts
+//#region ../../modules/projects/dom.ts/src/agate/Utils.ts
 function addEvent(target, type, cb, opts = passiveOpts$1) {
 	target?.addEventListener?.(type, cb, opts);
 	const wr = typeof target == "object" || typeof target == "function" && !target?.deref ? new WeakRef(target) : target;
@@ -6476,7 +6467,7 @@ function removeEvent(target, type, cb, opts = passiveOpts$1) {
 }
 var createIdleDeadlineFallback, runWhenIdle$3, makeRAFCycle, RAFBehavior, ROOT$1, setAttributesIfNull, throttleMap, setIdleInterval$1, borderBoxWidth, borderBoxHeight, contentBoxWidth, contentBoxHeight, onBorderObserve$1, onContentObserve$1, doContentObserve, doBorderObserve, setChecked, isValidParent$1, indexOf, MATCH, createElementVanilla, isElement, includeSelf, hasParent, passiveOpts$1, addEvents, addEventsList, removeEvents, getEventTarget, containsOrSelf, MOCElement, isInFocus;
 var init_Utils$4 = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	createIdleDeadlineFallback = () => ({
 		didTimeout: false,
 		timeRemaining: () => 0
@@ -6724,10 +6715,10 @@ var init_Utils$4 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/agate/Zoom.ts
+//#region ../../modules/projects/dom.ts/src/agate/Zoom.ts
 var zoomValues, zoomOf, fixedClientZoom, unfixedClientZoom, orientOf, getBoundingOrientRect, bbw, bbh, cbw, cbh;
 var init_Zoom = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Utils$4();
 	zoomValues = /* @__PURE__ */ new WeakMap();
 	zoomOf = (element = document.documentElement) => {
@@ -6782,7 +6773,7 @@ var init_Zoom = __esmMin((() => {
 	cbh = (el, orient = null) => (orient ?? orientOf(el)) % 2 ? el[contentBoxWidth] ?? el?.clientWidth : el[contentBoxHeight] ?? el?.clientHeight;
 }));
 //#endregion
-//#region shared/fest/dom/agate/Viewport.ts
+//#region ../../modules/projects/dom.ts/src/agate/Viewport.ts
 var runWhenIdle$2, getAvailSize, availSize, orientationNumberMap, updateVP, getCorrectOrientation, passiveOpts, whenAnyScreenChanges;
 var init_Viewport = __esmMin((() => {
 	init_Utils$4();
@@ -6889,16 +6880,215 @@ var init_Measure = __esmMin((() => {
 	new OffscreenCanvas(1, 1).getContext("2d");
 }));
 //#endregion
-//#region shared/fest/dom/agate/LauncherGrid.ts
+//#region ../../modules/projects/dom.ts/src/agate/LauncherGrid.ts
 var init_LauncherGrid = __esmMin((() => {
-	init_core$3();
 	init_Zoom();
 }));
 //#endregion
-//#region shared/fest/dom/mixin/Style.ts
+//#region ../../modules/projects/dom.ts/src/decor/Animation.ts
+var init_Animation = __esmMin((() => {
+	init_Detect();
+	init_Utils$4();
+})), onContentObserve, unwrapFromQuery, observeContentBox, observeAttribute, observeAttributeBySelector, observeBySelector;
+var init_Observer = __esmMin((() => {
+	onContentObserve = /* @__PURE__ */ new WeakMap();
+	unwrapFromQuery = (element) => {
+		if (typeof element?.current == "object") element = element?.element ?? element?.current ?? (typeof element?.self == "object" ? element?.self : null) ?? element;
+		return element;
+	};
+	observeContentBox = (element, cb) => {
+		if (!onContentObserve.has(element = unwrapFromQuery(element))) {
+			const callbacks = [];
+			const observer = new ResizeObserver((entries) => {
+				for (const entry of entries) if (entry.contentBoxSize) {
+					const contentBoxSize = entry.contentBoxSize[0];
+					if (contentBoxSize) callbacks.forEach((cb) => cb?.(contentBoxSize, observer));
+				}
+			});
+			cb?.({
+				inlineSize: element.clientWidth,
+				blockSize: element.clientHeight
+			}, observer);
+			onContentObserve.set(element, callbacks);
+			if ((element?.element ?? element) instanceof Node) observer.observe(element?.element ?? element, { box: "content-box" });
+		}
+		onContentObserve.get(element)?.push?.(cb);
+		return { disconnect: () => onContentObserve.get(element)?.splice?.(onContentObserve.get(element)?.indexOf(cb) || -1, 1) };
+	};
+	observeAttribute = (element, attribute, cb) => {
+		if (typeof element?.selector == "string") return observeAttributeBySelector(element, element?.selector, attribute, cb);
+		const attributeList = new Set((attribute.split(",") || [attribute]).map((s) => s.trim()));
+		const observer = new MutationObserver((mutationList, observer) => {
+			for (const mutation of mutationList) if (mutation.attributeName && attributeList.has(mutation.attributeName)) cb(mutation, observer);
+		});
+		if ((element?.element ?? element) instanceof Node) observer.observe(element = unwrapFromQuery(element), {
+			attributes: true,
+			attributeOldValue: true,
+			attributeFilter: [...attributeList]
+		});
+		attributeList.forEach((attribute) => cb({
+			target: element,
+			type: "attributes",
+			attributeName: attribute,
+			oldValue: element?.getAttribute?.(attribute)
+		}, observer));
+		return observer;
+	};
+	observeAttributeBySelector = (element, selector, attribute, cb) => {
+		const attributeList = new Set([...attribute.split(",") || [attribute]].map((s) => s.trim()));
+		const observer = new MutationObserver((mutationList, observer) => {
+			for (const mutation of mutationList) if (mutation.type == "childList") {
+				const addedNodes = Array.from(mutation.addedNodes) || [];
+				const removedNodes = Array.from(mutation.removedNodes) || [];
+				addedNodes.push(...Array.from(mutation.addedNodes || []).flatMap((el) => Array.from(el?.querySelectorAll?.(selector) || [])));
+				removedNodes.push(...Array.from(mutation.removedNodes || []).flatMap((el) => Array.from(el?.querySelectorAll?.(selector) || [])));
+				[...new Set(addedNodes)]?.filter((el) => el?.matches?.(selector))?.map?.((target) => {
+					attributeList.forEach((attribute) => {
+						cb({
+							target,
+							type: "attributes",
+							attributeName: attribute,
+							oldValue: target?.getAttribute?.(attribute)
+						}, observer);
+					});
+				});
+			} else if (mutation.target?.matches?.(selector) && mutation.attributeName && attributeList.has(mutation.attributeName)) cb(mutation, observer);
+		});
+		observer.observe(element = unwrapFromQuery(element), {
+			attributeOldValue: true,
+			attributes: true,
+			attributeFilter: [...attributeList],
+			childList: true,
+			subtree: true,
+			characterData: true
+		});
+		[...element.querySelectorAll(selector)].map((target) => attributeList.forEach((attribute) => cb({
+			target,
+			type: "attributes",
+			attributeName: attribute,
+			oldValue: target?.getAttribute?.(attribute)
+		}, observer)));
+		return observer;
+	};
+	observeBySelector = (element, selector = "*", cb = (mut, obs) => {}) => {
+		const unwrapNodesBySelector = (nodes) => {
+			const $nodes = Array.from(nodes || []) || [];
+			$nodes.push(...Array.from(nodes || []).flatMap((el) => Array.from(el?.querySelectorAll?.(selector) || [])));
+			return [...Array.from(new Set($nodes).values())].filter((el) => el?.matches?.(selector));
+		};
+		const handleMutation = (mutation) => {
+			const observer = obRef?.deref?.();
+			const addedNodes = unwrapNodesBySelector(mutation.addedNodes);
+			const removedNodes = unwrapNodesBySelector(mutation.removedNodes);
+			if (addedNodes.length > 0 || removedNodes.length > 0) cb?.({
+				type: mutation.type,
+				target: mutation.target,
+				attributeName: mutation.attributeName,
+				attributeNamespace: mutation.attributeNamespace,
+				nextSibling: mutation.nextSibling,
+				oldValue: mutation.oldValue,
+				previousSibling: mutation.previousSibling,
+				addedNodes,
+				removedNodes
+			}, observer);
+		};
+		const handleCome = (ev) => {
+			handleMutation({
+				addedNodes: [ev?.target].filter((el) => !!el),
+				removedNodes: [ev?.relatedTarget].filter((el) => !!el),
+				type: "childList",
+				target: ev?.currentTarget
+			});
+		};
+		const handleOutCome = (ev) => {
+			handleMutation({
+				addedNodes: [ev?.relatedTarget].filter((el) => !!el),
+				removedNodes: [ev?.target].filter((el) => !!el),
+				type: "childList",
+				target: ev?.currentTarget
+			});
+		};
+		const handleFocusClick = (ev) => {
+			handleMutation({
+				addedNodes: [ev?.target].filter((el) => !!el),
+				removedNodes: [ev?.relatedTarget || document?.activeElement].filter((el) => !!el),
+				type: "childList",
+				target: ev?.currentTarget
+			});
+		};
+		const factors = {
+			passive: true,
+			capture: false
+		};
+		if (selector?.includes?.(":hover") && selector?.includes?.(":active")) {
+			element.addEventListener("pointerover", handleCome, factors);
+			element.addEventListener("pointerout", handleOutCome, factors);
+			element.addEventListener("pointerdown", handleCome, factors);
+			element.addEventListener("pointerup", handleOutCome, factors);
+			element.addEventListener("pointercancel", handleOutCome, factors);
+			return { disconnect: () => {
+				element.removeEventListener("pointerover", handleCome, factors);
+				element.removeEventListener("pointerout", handleOutCome, factors);
+				element.removeEventListener("pointerdown", handleCome, factors);
+				element.removeEventListener("pointerup", handleOutCome, factors);
+				element.removeEventListener("pointercancel", handleOutCome, factors);
+			} };
+		}
+		if (selector?.includes?.(":hover")) {
+			element.addEventListener("pointerover", handleCome, factors);
+			element.addEventListener("pointerout", handleOutCome, factors);
+			return { disconnect: () => {
+				element.removeEventListener("pointerover", handleCome, factors);
+				element.removeEventListener("pointerout", handleOutCome, factors);
+			} };
+		}
+		if (selector?.includes?.(":active")) {
+			element.addEventListener("pointerdown", handleCome, factors);
+			element.addEventListener("pointerup", handleOutCome, factors);
+			element.addEventListener("pointercancel", handleOutCome, factors);
+			return { disconnect: () => {
+				element.removeEventListener("pointerdown", handleCome, factors);
+				element.removeEventListener("pointerup", handleOutCome, factors);
+				element.removeEventListener("pointercancel", handleOutCome, factors);
+			} };
+		}
+		if (selector?.includes?.(":focus") && selector?.includes?.(":focus-within") && selector?.includes?.(":focus-visible")) {
+			element.addEventListener("focusin", handleCome, factors);
+			element.addEventListener("focusout", handleOutCome, factors);
+			element.addEventListener("click", handleFocusClick, factors);
+			return { disconnect: () => {
+				element.removeEventListener("focusin", handleCome, factors);
+				element.removeEventListener("focusout", handleOutCome, factors);
+				element.removeEventListener("click", handleFocusClick, factors);
+			} };
+		}
+		const observer = new MutationObserver((mutationList, observer) => {
+			for (const mutation of mutationList) if (mutation.type == "childList") handleMutation(mutation);
+		});
+		const obRef = new WeakRef(observer);
+		if ((element?.element ?? element) instanceof Node) observer.observe(element = unwrapFromQuery(element), {
+			childList: true,
+			subtree: true
+		});
+		const selected = Array.from(element.querySelectorAll(selector));
+		if (selected.length > 0) cb?.({ addedNodes: selected }, observer);
+		return observer;
+	};
+}));
+//#endregion
+//#region ../../modules/projects/dom.ts/src/decor/Appear.ts
+var init_Appear = __esmMin((() => {
+	init_Observer();
+	init_Animation();
+}));
+//#endregion
+//#region ../../modules/projects/dom.ts/src/decor/Shape.ts
+var init_Shape = __esmMin((() => {}));
+//#endregion
+//#region ../../modules/projects/dom.ts/src/mixin/Style.ts
 var supportsConstructableStylesheet, cssTextRequiresInlineStyleElement, OWNER, styleElement, setStyleURL, hasTypedOM, isStyleValue, isUnitValue, setPropertyIfNotEqual, setStylePropertyTyped, setStylePropertyFallback, promiseOrDirect, blobURLMap, cacheMap, fetchAndCache, cacheContentMap, cacheBlobContentMap, fetchAsInline, adoptedSelectorMap, adoptedShadowSelectorMap, adoptedLayerMap, adoptedShadowLayerMap, getAdoptedStyleRule, setStyleProperty, loadStyleSheet, loadBlobStyle, loadInlineStyle, setProperty, adoptedMap, adoptedBlobMap, applyAdoptedStyleText, loadAsAdopted, removeAdopted, getPropertyValue, getPadding;
 var init_Style = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	supportsConstructableStylesheet = () => typeof globalThis !== "undefined" && typeof globalThis.CSSStyleSheet === "function";
 	cssTextRequiresInlineStyleElement = (css) => typeof css === "string" && /@import\b/i.test(css);
 	OWNER = "DOM", styleElement = typeof document != "undefined" ? document.createElement("style") : null;
@@ -7288,206 +7478,7 @@ var init_Style = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/decor/Animation.ts
-var init_Animation = __esmMin((() => {
-	init_Style();
-	init_Utils$4();
-})), onContentObserve, unwrapFromQuery, observeContentBox, observeAttribute, observeAttributeBySelector, observeBySelector;
-var init_Observer = __esmMin((() => {
-	onContentObserve = /* @__PURE__ */ new WeakMap();
-	unwrapFromQuery = (element) => {
-		if (typeof element?.current == "object") element = element?.element ?? element?.current ?? (typeof element?.self == "object" ? element?.self : null) ?? element;
-		return element;
-	};
-	observeContentBox = (element, cb) => {
-		if (!onContentObserve.has(element = unwrapFromQuery(element))) {
-			const callbacks = [];
-			const observer = new ResizeObserver((entries) => {
-				for (const entry of entries) if (entry.contentBoxSize) {
-					const contentBoxSize = entry.contentBoxSize[0];
-					if (contentBoxSize) callbacks.forEach((cb) => cb?.(contentBoxSize, observer));
-				}
-			});
-			cb?.({
-				inlineSize: element.clientWidth,
-				blockSize: element.clientHeight
-			}, observer);
-			onContentObserve.set(element, callbacks);
-			if ((element?.element ?? element) instanceof Node) observer.observe(element?.element ?? element, { box: "content-box" });
-		}
-		onContentObserve.get(element)?.push?.(cb);
-		return { disconnect: () => onContentObserve.get(element)?.splice?.(onContentObserve.get(element)?.indexOf(cb) || -1, 1) };
-	};
-	observeAttribute = (element, attribute, cb) => {
-		if (typeof element?.selector == "string") return observeAttributeBySelector(element, element?.selector, attribute, cb);
-		const attributeList = new Set((attribute.split(",") || [attribute]).map((s) => s.trim()));
-		const observer = new MutationObserver((mutationList, observer) => {
-			for (const mutation of mutationList) if (mutation.attributeName && attributeList.has(mutation.attributeName)) cb(mutation, observer);
-		});
-		if ((element?.element ?? element) instanceof Node) observer.observe(element = unwrapFromQuery(element), {
-			attributes: true,
-			attributeOldValue: true,
-			attributeFilter: [...attributeList]
-		});
-		attributeList.forEach((attribute) => cb({
-			target: element,
-			type: "attributes",
-			attributeName: attribute,
-			oldValue: element?.getAttribute?.(attribute)
-		}, observer));
-		return observer;
-	};
-	observeAttributeBySelector = (element, selector, attribute, cb) => {
-		const attributeList = new Set([...attribute.split(",") || [attribute]].map((s) => s.trim()));
-		const observer = new MutationObserver((mutationList, observer) => {
-			for (const mutation of mutationList) if (mutation.type == "childList") {
-				const addedNodes = Array.from(mutation.addedNodes) || [];
-				const removedNodes = Array.from(mutation.removedNodes) || [];
-				addedNodes.push(...Array.from(mutation.addedNodes || []).flatMap((el) => Array.from(el?.querySelectorAll?.(selector) || [])));
-				removedNodes.push(...Array.from(mutation.removedNodes || []).flatMap((el) => Array.from(el?.querySelectorAll?.(selector) || [])));
-				[...new Set(addedNodes)]?.filter((el) => el?.matches?.(selector))?.map?.((target) => {
-					attributeList.forEach((attribute) => {
-						cb({
-							target,
-							type: "attributes",
-							attributeName: attribute,
-							oldValue: target?.getAttribute?.(attribute)
-						}, observer);
-					});
-				});
-			} else if (mutation.target?.matches?.(selector) && mutation.attributeName && attributeList.has(mutation.attributeName)) cb(mutation, observer);
-		});
-		observer.observe(element = unwrapFromQuery(element), {
-			attributeOldValue: true,
-			attributes: true,
-			attributeFilter: [...attributeList],
-			childList: true,
-			subtree: true,
-			characterData: true
-		});
-		[...element.querySelectorAll(selector)].map((target) => attributeList.forEach((attribute) => cb({
-			target,
-			type: "attributes",
-			attributeName: attribute,
-			oldValue: target?.getAttribute?.(attribute)
-		}, observer)));
-		return observer;
-	};
-	observeBySelector = (element, selector = "*", cb = (mut, obs) => {}) => {
-		const unwrapNodesBySelector = (nodes) => {
-			const $nodes = Array.from(nodes || []) || [];
-			$nodes.push(...Array.from(nodes || []).flatMap((el) => Array.from(el?.querySelectorAll?.(selector) || [])));
-			return [...Array.from(new Set($nodes).values())].filter((el) => el?.matches?.(selector));
-		};
-		const handleMutation = (mutation) => {
-			const observer = obRef?.deref?.();
-			const addedNodes = unwrapNodesBySelector(mutation.addedNodes);
-			const removedNodes = unwrapNodesBySelector(mutation.removedNodes);
-			if (addedNodes.length > 0 || removedNodes.length > 0) cb?.({
-				type: mutation.type,
-				target: mutation.target,
-				attributeName: mutation.attributeName,
-				attributeNamespace: mutation.attributeNamespace,
-				nextSibling: mutation.nextSibling,
-				oldValue: mutation.oldValue,
-				previousSibling: mutation.previousSibling,
-				addedNodes,
-				removedNodes
-			}, observer);
-		};
-		const handleCome = (ev) => {
-			handleMutation({
-				addedNodes: [ev?.target].filter((el) => !!el),
-				removedNodes: [ev?.relatedTarget].filter((el) => !!el),
-				type: "childList",
-				target: ev?.currentTarget
-			});
-		};
-		const handleOutCome = (ev) => {
-			handleMutation({
-				addedNodes: [ev?.relatedTarget].filter((el) => !!el),
-				removedNodes: [ev?.target].filter((el) => !!el),
-				type: "childList",
-				target: ev?.currentTarget
-			});
-		};
-		const handleFocusClick = (ev) => {
-			handleMutation({
-				addedNodes: [ev?.target].filter((el) => !!el),
-				removedNodes: [ev?.relatedTarget || document?.activeElement].filter((el) => !!el),
-				type: "childList",
-				target: ev?.currentTarget
-			});
-		};
-		const factors = {
-			passive: true,
-			capture: false
-		};
-		if (selector?.includes?.(":hover") && selector?.includes?.(":active")) {
-			element.addEventListener("pointerover", handleCome, factors);
-			element.addEventListener("pointerout", handleOutCome, factors);
-			element.addEventListener("pointerdown", handleCome, factors);
-			element.addEventListener("pointerup", handleOutCome, factors);
-			element.addEventListener("pointercancel", handleOutCome, factors);
-			return { disconnect: () => {
-				element.removeEventListener("pointerover", handleCome, factors);
-				element.removeEventListener("pointerout", handleOutCome, factors);
-				element.removeEventListener("pointerdown", handleCome, factors);
-				element.removeEventListener("pointerup", handleOutCome, factors);
-				element.removeEventListener("pointercancel", handleOutCome, factors);
-			} };
-		}
-		if (selector?.includes?.(":hover")) {
-			element.addEventListener("pointerover", handleCome, factors);
-			element.addEventListener("pointerout", handleOutCome, factors);
-			return { disconnect: () => {
-				element.removeEventListener("pointerover", handleCome, factors);
-				element.removeEventListener("pointerout", handleOutCome, factors);
-			} };
-		}
-		if (selector?.includes?.(":active")) {
-			element.addEventListener("pointerdown", handleCome, factors);
-			element.addEventListener("pointerup", handleOutCome, factors);
-			element.addEventListener("pointercancel", handleOutCome, factors);
-			return { disconnect: () => {
-				element.removeEventListener("pointerdown", handleCome, factors);
-				element.removeEventListener("pointerup", handleOutCome, factors);
-				element.removeEventListener("pointercancel", handleOutCome, factors);
-			} };
-		}
-		if (selector?.includes?.(":focus") && selector?.includes?.(":focus-within") && selector?.includes?.(":focus-visible")) {
-			element.addEventListener("focusin", handleCome, factors);
-			element.addEventListener("focusout", handleOutCome, factors);
-			element.addEventListener("click", handleFocusClick, factors);
-			return { disconnect: () => {
-				element.removeEventListener("focusin", handleCome, factors);
-				element.removeEventListener("focusout", handleOutCome, factors);
-				element.removeEventListener("click", handleFocusClick, factors);
-			} };
-		}
-		const observer = new MutationObserver((mutationList, observer) => {
-			for (const mutation of mutationList) if (mutation.type == "childList") handleMutation(mutation);
-		});
-		const obRef = new WeakRef(observer);
-		if ((element?.element ?? element) instanceof Node) observer.observe(element = unwrapFromQuery(element), {
-			childList: true,
-			subtree: true
-		});
-		const selected = Array.from(element.querySelectorAll(selector));
-		if (selected.length > 0) cb?.({ addedNodes: selected }, observer);
-		return observer;
-	};
-}));
-//#endregion
-//#region shared/fest/dom/decor/Appear.ts
-var init_Appear = __esmMin((() => {
-	init_Animation();
-}));
-//#endregion
-//#region shared/fest/dom/decor/Shape.ts
-var init_Shape = __esmMin((() => {}));
-//#endregion
-//#region shared/fest/dom/mixin/Behavior.ts
+//#region ../../modules/projects/dom.ts/src/mixin/Behavior.ts
 var boundBehaviors, bindBehavior, reflectBehaviors;
 var init_Behavior = __esmMin((() => {
 	boundBehaviors = /* @__PURE__ */ new WeakMap();
@@ -7506,7 +7497,7 @@ var init_Behavior = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/mixin/Store.ts
+//#region ../../modules/projects/dom.ts/src/mixin/Store.ts
 var namedStoreMaps, getStoresOfElement, bindStore, reflectStores;
 var init_Store = __esmMin((() => {
 	namedStoreMaps = /* @__PURE__ */ new Map();
@@ -7530,7 +7521,7 @@ var init_Store = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/mixin/Mixins.ts
+//#region ../../modules/projects/dom.ts/src/mixin/Mixins.ts
 var reflectMixins, getElementRelated, bindMixins, boundMixinSet, mixinElements, mixinRegistry, mixinNamespace, updateMixinAttributes, roots, addRoot, updateAllMixins, updateMixinAttributesAll, updateMixinAttributesAllInRoots, nameRegistryF, registerMixin, DOMMixin;
 var init_Mixins = __esmMin((() => {
 	init_Observer();
@@ -7657,11 +7648,11 @@ var init_Mixins = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/mixin/Handler.ts
+//#region ../../modules/projects/dom.ts/src/mixin/Handler.ts
 var handleHidden, handleProperty, handleDataset, deleteStyleProperty, handleStyleChange, handleAttribute;
 var init_Handler$1 = __esmMin((() => {
 	init_Style();
-	init_core$3();
+	init_src$4();
 	handleHidden = (element, _, visible) => {
 		const $ref = visible;
 		if (hasValue(visible)) visible = visible.value;
@@ -7728,7 +7719,7 @@ var init_Handler$1 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/mixin/junction/types.ts
+//#region ../../modules/projects/dom.ts/src/mixin/junction/types.ts
 function junctionToBox$1(a, b) {
 	const left = Math.min(a.x, b.x);
 	const top = Math.min(a.y, b.y);
@@ -7763,10 +7754,10 @@ var init_types$1 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/dom/mixin/junction/JunctionMixins.ts
+//#region ../../modules/projects/dom.ts/src/mixin/junction/JunctionMixins.ts
 var mixinDisposers$1, pushDisposable$1, runDisposers$1, parsePxVar$1, queryHandle$1, JunctionSelectMixin$1, JunctionDragMixin$1, JunctionResizeMixin$1;
 var init_JunctionMixins = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_types$1();
 	mixinDisposers$1 = /* @__PURE__ */ new WeakMap();
 	pushDisposable$1 = (host, mixinName, fn) => {
@@ -8088,8 +8079,8 @@ var init_JunctionMixins = __esmMin((() => {
 	new JunctionResizeMixin$1();
 }));
 //#endregion
-//#region shared/fest/dom/index.ts
-var init_dom = __esmMin((() => {
+//#region ../../modules/projects/dom.ts/src/index.ts
+var init_src$3 = __esmMin((() => {
 	init_Properties();
 	init_Detect();
 	init_Zoom();
@@ -8109,7 +8100,7 @@ var init_dom = __esmMin((() => {
 	init_JunctionMixins();
 }));
 //#endregion
-//#region shared/fest/object/wrap/Symbol.ts
+//#region ../../modules/projects/object.ts/src/wrap/Symbol.ts
 var $value, $extractKey$, $originalKey$, $registryKey$, $behavior$1, $promise, $triggerLess, $triggerLock, $triggerControl, $trigger, $affected, $isNotEqual, $realProp;
 var init_Symbol = __esmMin((() => {
 	/**
@@ -8136,7 +8127,7 @@ var init_Symbol = __esmMin((() => {
 	$realProp = Symbol.for("@realProp");
 }));
 //#endregion
-//#region shared/fest/object/wrap/Utils.ts
+//#region ../../modules/projects/object.ts/src/wrap/Utils.ts
 /**
 * Append a callback to an object's disposal/call chain.
 *
@@ -8164,7 +8155,7 @@ function addToCallChain(obj, methodKey, callback) {
 }
 var safe, unwrap, deref, isThenable, withPromise, disposeMap, disposeRegistry;
 var init_Utils$3 = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Symbol();
 	safe = (target) => {
 		const unwrap = typeof target == "object" || typeof target == "function" ? target?.[$extractKey$] ?? target : target, mapped = (e) => safe(e);
@@ -8202,14 +8193,10 @@ var init_Utils$3 = __esmMin((() => {
 	});
 }));
 //#endregion
-//#region shared/fest/object/wrap/AssignObject.ts
-var init_AssignObject = __esmMin((() => {
-	init_core$3();
-	init_Symbol();
-	init_Utils$3();
-}));
+//#region ../../modules/projects/object.ts/src/wrap/AssignObject.ts
+var init_AssignObject = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/object/core/Subscript.ts
+//#region ../../modules/projects/object.ts/src/core/Subscript.ts
 var withUnsub, completeWithUnsub, subscriptRegistry, globalEffectListeners, wrapped, register, wrapWith, forAll, wildcardTriggers, triggerAliases, triggerCanonicalNames, normalizeTriggerName, triggerNamesOf, expandTriggerFilter, normalizeTriggerFilter, triggerFilterAllows, isOptionsObject, normalizeAffectedOptions, Subscript;
 var init_Subscript = __esmMin((() => {
 	init_Symbol();
@@ -8303,6 +8290,7 @@ var init_Subscript = __esmMin((() => {
 		};
 	};
 	Subscript = class {
+		compatible;
 		#source;
 		#listeners;
 		#flags = /* @__PURE__ */ new WeakSet();
@@ -8494,7 +8482,7 @@ var init_Subscript = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/object/core/Specific.ts
+//#region ../../modules/projects/object.ts/src/core/Specific.ts
 function isGetter(obj, propName) {
 	let got = true;
 	try {
@@ -8513,7 +8501,7 @@ var init_Specific = __esmMin((() => {
 	init_Mainline();
 	init_Subscript();
 	init_Symbol();
-	init_core$3();
+	init_src$4();
 	__systemSkip = new Set([
 		Symbol.toStringTag,
 		Symbol.iterator,
@@ -8778,6 +8766,7 @@ var init_Specific = __esmMin((() => {
 		}
 	};
 	ObserveArrayHandler = class {
+		[$triggerLock];
 		constructor() {}
 		has(target, name) {
 			return Reflect.has(target, name);
@@ -8886,6 +8875,7 @@ var init_Specific = __esmMin((() => {
 		}
 	};
 	ObserveObjectHandler = class {
+		[$triggerLock];
 		constructor() {}
 		get(target, name, ctx) {
 			if ([
@@ -9032,6 +9022,7 @@ var init_Specific = __esmMin((() => {
 		}
 	};
 	ObserveMapHandler = class {
+		[$triggerLock];
 		constructor() {}
 		get(target, name, ctx) {
 			if ([
@@ -9126,9 +9117,8 @@ var init_Specific = __esmMin((() => {
 		}
 	};
 	ObserveSetHandler = class {
-		constructor() {
-			this[$triggerLock] = false;
-		}
+		[$triggerLock] = false;
+		constructor() {}
 		get(target, name, ctx) {
 			if ([
 				$extractKey$,
@@ -9237,7 +9227,7 @@ var init_Specific = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/object/core/Primitives.ts
+//#region ../../modules/projects/object.ts/src/core/Primitives.ts
 /** `function` (not `const`) so circular Mainline ↔ Primitives/Assigned init cannot TDZ in bundled output. */
 function observe(target, stateName) {
 	if (target == null || typeof target == "symbol" || !(typeof target == "object" || typeof target == "function") || $isObservable(target)) return target;
@@ -9262,7 +9252,7 @@ function observe(target, stateName) {
 }
 var numberRef, stringRef, booleanRef, wrapRef, markRealProp, propRef, $ref, ref, isObservable, recoverReactive;
 var init_Primitives = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Symbol();
 	init_Utils$3();
 	init_Specific();
@@ -9438,7 +9428,7 @@ var init_Primitives = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/object/core/Mainline.ts
+//#region ../../modules/projects/object.ts/src/core/Mainline.ts
 /**
 * Subscribe to iteration-level changes for arrays, sets, maps, and ref-like
 * containers whose `value` should itself be treated as a collection.
@@ -9481,7 +9471,7 @@ function unaffected(tg, cb) {
 }
 var specializedSubscribe, checkValidObj, initialTrigger, realPropOf, normalizeAffectedProp, propValueOf, callByPropRefAware, withTrigger, subscribeDirectly, subscribeInput, checkIsPaired, subscribePaired, subscribeThenable, affected, DoubleWeakMap, registeredIterated;
 var init_Mainline = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Symbol();
 	init_Utils$3();
 	init_Subscript();
@@ -9664,14 +9654,14 @@ var init_Mainline = __esmMin((() => {
 	registeredIterated = new DoubleWeakMap();
 }));
 //#endregion
-//#region shared/fest/object/core/Assigned.ts
+//#region ../../modules/projects/object.ts/src/core/Assigned.ts
 var conditionalRef, conditional, observableBySet, computed;
 var init_Assigned = __esmMin((() => {
 	init_Mainline();
 	init_Utils$3();
 	init_Primitives();
 	init_Symbol();
-	init_core$3();
+	init_src$4();
 	conditionalRef = (cond, ifTrue, ifFalse, behavior) => {
 		if (isPrimitive(cond)) return cond ? ifTrue : ifFalse;
 		const getTrue = () => {
@@ -9761,8 +9751,8 @@ var init_Assigned = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/object/index.ts
-var init_object = __esmMin((() => {
+//#region ../../modules/projects/object.ts/src/index.ts
+var init_src$2 = __esmMin((() => {
 	init_AssignObject();
 	init_Assigned();
 	init_Mainline();
@@ -9771,12 +9761,12 @@ var init_object = __esmMin((() => {
 	init_Utils$3();
 }));
 //#endregion
-//#region shared/fest/lure/interactive/tasking/History.ts
+//#region ../../modules/projects/lur.e/src/interactive/tasking/History.ts
 var STATE_KEY, STACK_KEY, historyState, getCurrentState, saveStack, loadStack, mergeState, initialized$1, originalPush, originalReplace, originalGo, originalForward, originalBack, initHistory, updateReactiveState, navigate, historyViewRef;
 var init_History = __esmMin((() => {
-	init_object();
-	init_dom();
-	init_core$3();
+	init_src$2();
+	init_src$3();
+	init_src$4();
 	init_BackNavigation();
 	STATE_KEY = "rs-nav-ctx";
 	STACK_KEY = "rs-nav-stack";
@@ -10005,10 +9995,10 @@ var init_History = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/tasking/BackNavigation.ts
+//#region ../../modules/projects/lur.e/src/interactive/tasking/BackNavigation.ts
 var ClosePriority, registry, navigationInitialized, processingBack, historyDepth, options, ignoreNextPopState, setIgnoreNextPopState, getIgnoreNextPopState, generateId$1, registerCloseable, unregisterCloseable, getActiveCloseables, getActiveCloseable, closeHighestPriority, closeByGroup, hasActiveCloseable, handleBackNavigation, initBackNavigation, registerContextMenu, registerModal, registerSidebar, registerOverlay, createBackNavigableModal;
 var init_BackNavigation = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_History();
 	ClosePriority = /* @__PURE__ */ function(ClosePriority) {
 		ClosePriority[ClosePriority["CONTEXT_MENU"] = 100] = "CONTEXT_MENU";
@@ -10238,12 +10228,12 @@ var init_BackNavigation = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/core/Links.ts
+//#region ../../modules/projects/lur.e/src/lure/core/Links.ts
 var localStorageLinkMap, cleanupOf, runWithoutSetterTrigger, setRefValue, selectSourceInput, radioScopeOf, radioNameOf, radioSelectorOf, radioCheckedIn, radioByValueIn, eventTrigger, mutationTrigger, resizeTrigger, makeLinker, localStorageLink, normalizeHash, hashTargetLink, matchMediaLink, visibleLink, attrLink, sizeLink, scrollLink, checkedLink, radioValueLink, valueLink, valueAsNumberLink, observeSizeLink, refCtl, orientLink, pointerEventLink;
 var init_Links = __esmMin((() => {
-	init_dom();
-	init_object();
-	init_core$3();
+	init_src$3();
+	init_src$2();
+	init_src$4();
 	init_BackNavigation();
 	localStorageLinkMap = /* @__PURE__ */ new Map();
 	cleanupOf = (cleanup) => {
@@ -10736,15 +10726,15 @@ var init_Links = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/core/Refs.ts
+//#region ../../modules/projects/lur.e/src/lure/core/Refs.ts
 var makeRef, orientRef, attrRef, valueRef, radioValueRef, valueAsNumberRef, localStorageRef, sizeRef, checkedRef, scrollRef, visibleRef, matchMediaRef, hashTargetRef, makeWeakRef, scrollSize, reactiveScrollbarSize, paddingBoxSize, pointerEventRef;
 var init_Refs = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Links();
-	init_dom();
+	init_src$3();
 	init_Binding();
-	init_core$3();
-	init_lure();
+	init_src$4();
+	init_src();
 	makeRef = (host, type, link, ...args) => {
 		if (link == attrLink || link == handleAttribute) {
 			const exists = elMap$1?.get?.(host)?.get?.(handleAttribute)?.get?.(args[0])?.[0];
@@ -10841,11 +10831,13 @@ var init_Refs = __esmMin((() => {
 	}), pointerEventLink, ...args);
 }));
 //#endregion
-//#region shared/fest/lure/utils/math/Point2D.ts
+//#region ../../modules/projects/lur.e/src/utils/math/Point2D.ts
 var Vector2D, vector2Ref, Matrix2D, matrix2x2Ref;
 var init_Point2D = __esmMin((() => {
-	init_object();
+	init_src$2();
 	Vector2D = class Vector2D {
+		_x;
+		_y;
 		constructor(x = 0, y = 0) {
 			this._x = typeof x === "number" ? numberRef(x) : x;
 			this._y = typeof y === "number" ? numberRef(y) : y;
@@ -10984,6 +10976,7 @@ var init_Point2D = __esmMin((() => {
 		return new Vector2D(x, y);
 	};
 	Matrix2D = class Matrix2D {
+		_elements;
 		constructor(a = 1, b = 0, c = 0, d = 1) {
 			this._elements = [
 				typeof a === "number" ? numberRef(a) : a,
@@ -11104,11 +11097,15 @@ var init_Point2D = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/math/Point4D.ts
+//#region ../../modules/projects/lur.e/src/utils/math/Point4D.ts
 var Vector4D, vector4Ref, Matrix4D, matrix4x4Ref;
 var init_Point4D = __esmMin((() => {
-	init_object();
+	init_src$2();
 	Vector4D = class Vector4D {
+		_x;
+		_y;
+		_z;
+		_w;
 		constructor(x = 0, y = 0, z = 0, w = 1) {
 			this._x = typeof x === "number" ? numberRef(x) : x;
 			this._y = typeof y === "number" ? numberRef(y) : y;
@@ -11185,6 +11182,7 @@ var init_Point4D = __esmMin((() => {
 		return new Vector4D(x, y, z, w);
 	};
 	Matrix4D = class Matrix4D {
+		_elements;
 		constructor(a = 1, b = 0, c = 0, d = 0, e = 0, f = 1, g = 0, h = 0, i = 0, j = 0, k = 1, l = 0, m = 0, n = 0, o = 0, p = 1) {
 			this._elements = [
 				typeof a === "number" ? numberRef(a) : a,
@@ -11406,11 +11404,14 @@ var init_Point4D = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/math/Point3D.ts
+//#region ../../modules/projects/lur.e/src/utils/math/Point3D.ts
 var Vector3D, vector3Ref, Matrix3D, matrix3x3Ref;
 var init_Point3D = __esmMin((() => {
-	init_object();
+	init_src$2();
 	Vector3D = class Vector3D {
+		_x;
+		_y;
+		_z;
 		constructor(x = 0, y = 0, z = 0) {
 			this._x = typeof x === "number" ? numberRef(x) : x;
 			this._y = typeof y === "number" ? numberRef(y) : y;
@@ -11473,6 +11474,7 @@ var init_Point3D = __esmMin((() => {
 		return new Vector3D(x, y, z);
 	};
 	Matrix3D = class Matrix3D {
+		_elements;
 		constructor(a = 1, b = 0, c = 0, d = 0, e = 1, f = 0, g = 0, h = 0, i = 1) {
 			this._elements = [
 				typeof a === "number" ? numberRef(a) : a,
@@ -11610,10 +11612,10 @@ var init_Point3D = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/math/Operations.ts
+//#region ../../modules/projects/lur.e/src/utils/math/Operations.ts
 var vectorFromArray, vectorToArray, translate2D, scale2D, rotate2D, createRect2D, rectCenter, rectContainsPoint, rectIntersects, rectUnion, clampPointToRect, pointToRectDistance, rectArea, scaleRectAroundCenter, transformRect2D, relativePosition, absolutePosition, constrainRectAspectRatio, smoothValueTransition, sliderThumbPosition, scrollbarMetrics, screenToControlValue, easeInOutCubic, easeOutBounce, momentumScroll, scrollBoundsWithBounce, flattenRefs, operated, addRef, subtractRef, multiplyRef, divideRef, modulusRef, powerRef, sinRef, cosRef, tanRef, asinRef, acosRef, atanRef, atan2Ref, hypotRef, squareRootRef, cubeRootRef, absoluteRef, signRef, clampRef, addVector2D, subtractVector2D, multiplyVector2D, divideVector2D, dotProduct2D, magnitude2D, normalize2D, addVector3D, subtractVector3D, multiplyVector3D, divideVector3D, dotProduct3D, crossProduct3D, magnitude3D, normalize3D, addVector4D, subtractVector4D, multiplyVector4D, divideVector4D, dotProduct4D, magnitude4D, normalize4D;
 var init_Operations = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Point2D();
 	init_Point3D();
 	init_Point4D();
@@ -12094,28 +12096,26 @@ var init_Operations = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/CSSAdapter.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/CSSAdapter.ts
 var CSSUnitConverter, CSSTransform, CSSPosition, CSSBinder, CSSCalc, DOMMatrixAdapter, CSSCustomProps, CSSUnitUtils, CSSInputControls, CSSScrollbarControls, CSSMomentumScrolling, CSSInteractionStates;
 var init_CSSAdapter = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Binding();
 	init_Point2D();
 	init_Point4D();
 	init_Operations();
-	init_dom();
+	init_src$3();
 	CSSUnitConverter = class {
-		static {
-			this.unitPatterns = {
-				px: /(-?\d*\.?\d+)px/g,
-				em: /(-?\d*\.?\d+)em/g,
-				rem: /(-?\d*\.?\d+)rem/g,
-				vh: /(-?\d*\.?\d+)vh/g,
-				vw: /(-?\d*\.?\d+)vw/g,
-				vmin: /(-?\d*\.?\d+)vmin/g,
-				vmax: /(-?\d*\.?\d+)vmax/g,
-				percent: /(-?\d*\.?\d+)%/g
-			};
-		}
+		static unitPatterns = {
+			px: /(-?\d*\.?\d+)px/g,
+			em: /(-?\d*\.?\d+)em/g,
+			rem: /(-?\d*\.?\d+)rem/g,
+			vh: /(-?\d*\.?\d+)vh/g,
+			vw: /(-?\d*\.?\d+)vw/g,
+			vmin: /(-?\d*\.?\d+)vmin/g,
+			vmax: /(-?\d*\.?\d+)vmax/g,
+			percent: /(-?\d*\.?\d+)%/g
+		};
 		static toPixels(value, element) {
 			if (!value) return 0;
 			const testElement = element || document.body;
@@ -12560,10 +12560,10 @@ var init_CSSAdapter = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/Utils.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/Utils.ts
 var generateAnchorId, getComputedZIndex, getExistsZIndex, ReactiveCSSValue, ReactiveTransform, ReactiveAnimation, ReactiveMediaQuery, ReactiveViewport, ReactiveElementSize, ReactiveScroll;
 var init_Utils$2 = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_CSSAdapter();
 	generateAnchorId = () => {
 		return "--" + Math.random().toString(36).substring(2, 15).replace(/[0-9]/g, "");
@@ -12579,6 +12579,8 @@ var init_Utils$2 = __esmMin((() => {
 		return getComputedZIndex(element);
 	};
 	ReactiveCSSValue = class {
+		value;
+		unit;
 		constructor(initialValue, unit = "px") {
 			const parsed = typeof initialValue === "string" ? CSSUnitConverter.parseValue(initialValue) : {
 				value: initialValue,
@@ -12598,9 +12600,7 @@ var init_Utils$2 = __esmMin((() => {
 		}
 	};
 	ReactiveTransform = class {
-		constructor() {
-			this.transforms = [];
-		}
+		transforms = [];
 		translate(x, y) {
 			const vector = typeof x === "number" && typeof y === "number" ? {
 				x: numberRef(x),
@@ -12637,6 +12637,10 @@ var init_Utils$2 = __esmMin((() => {
 		}
 	};
 	ReactiveAnimation = class {
+		element;
+		properties;
+		duration;
+		easing;
 		constructor(element, duration = 1e3, easing = "ease-out") {
 			this.element = element;
 			this.properties = /* @__PURE__ */ new Map();
@@ -12671,6 +12675,8 @@ var init_Utils$2 = __esmMin((() => {
 		}
 	};
 	ReactiveMediaQuery = class {
+		query;
+		matches;
 		constructor(query) {
 			this.query = query;
 			this.matches = numberRef(0);
@@ -12688,12 +12694,8 @@ var init_Utils$2 = __esmMin((() => {
 		}
 	};
 	ReactiveViewport = class {
-		static {
-			this.width = numberRef(typeof window != "undefined" ? window?.innerWidth : 0);
-		}
-		static {
-			this.height = numberRef(typeof window != "undefined" ? window?.innerHeight : 0);
-		}
+		static width = numberRef(typeof window != "undefined" ? window?.innerWidth : 0);
+		static height = numberRef(typeof window != "undefined" ? window?.innerHeight : 0);
 		static init() {
 			const updateSize = () => {
 				this.width.value = window?.innerWidth;
@@ -12710,6 +12712,9 @@ var init_Utils$2 = __esmMin((() => {
 	};
 	ReactiveViewport.init();
 	ReactiveElementSize = class {
+		element;
+		size;
+		observer;
 		constructor(element) {
 			this.element = element;
 			this.size = {
@@ -12741,6 +12746,9 @@ var init_Utils$2 = __esmMin((() => {
 		}
 	};
 	ReactiveScroll = class {
+		element;
+		scrollLeft;
+		scrollTop;
 		constructor(element = document.documentElement) {
 			this.element = element;
 			this.scrollLeft = numberRef(element.scrollLeft);
@@ -12764,13 +12772,15 @@ var init_Utils$2 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/CSSAnchor.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/CSSAnchor.ts
 var registeredAnchorIds, registeredAnchors, CSSAnchor, makeAnchorElement;
 var init_CSSAnchor = __esmMin((() => {
 	init_Utils$2();
 	registeredAnchorIds = /* @__PURE__ */ new WeakMap();
 	registeredAnchors = /* @__PURE__ */ new WeakMap();
 	CSSAnchor = class {
+		source;
+		anchorId;
 		constructor(source) {
 			this.source = source;
 			registeredAnchors.set(source, this);
@@ -12867,12 +12877,12 @@ var init_CSSAnchor = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/CSSTimeline.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/CSSTimeline.ts
 var $extract, $element, timelineHandler, $makeScrollTimeline, EnhancedScrollTimeline, makeScrollTimeline;
 var init_CSSTimeline = __esmMin((() => {
-	init_core$3();
-	init_object();
-	init_dom();
+	init_src$4();
+	init_src$2();
+	init_src$3();
 	init_Refs();
 	init_CSSAnchor();
 	$extract = Symbol.for("__extract");
@@ -12969,6 +12979,10 @@ var init_CSSTimeline = __esmMin((() => {
 		}), timelineHandler);
 	};
 	EnhancedScrollTimeline = class {
+		source;
+		axis;
+		timeline;
+		anchor;
 		constructor(sourceOrOptions, $options) {
 			let options = !(sourceOrOptions instanceof HTMLElement) ? sourceOrOptions : {};
 			if (sourceOrOptions instanceof HTMLElement) {
@@ -13055,7 +13069,7 @@ var init_CSSTimeline = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/CSSAnimated.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/CSSAnimated.ts
 /**
 * Get or create animation state for an element
 */
@@ -13213,15 +13227,13 @@ function animatedRef(initialValue, animationType = "animate", options = {}) {
 }
 var AnimationState, animationStates, AnimationSequence, AnimationPresets, effectProperty$1, animateByTimeline;
 var init_CSSAnimated = __esmMin((() => {
-	init_object();
-	init_core$3();
-	init_dom();
+	init_src$2();
+	init_src$4();
+	init_src$3();
 	init_CSSTimeline();
 	AnimationState = class {
-		constructor() {
-			this.animations = /* @__PURE__ */ new Map();
-			this.transitions = /* @__PURE__ */ new Map();
-		}
+		animations = /* @__PURE__ */ new Map();
+		transitions = /* @__PURE__ */ new Map();
 		setAnimation(property, animation) {
 			this.animations.set(property, animation);
 		}
@@ -13262,9 +13274,7 @@ var init_CSSAnimated = __esmMin((() => {
 	};
 	animationStates = /* @__PURE__ */ new WeakMap();
 	AnimationSequence = class AnimationSequence {
-		constructor() {
-			this.steps = [];
-		}
+		steps = [];
 		addStep(properties, options = {}, delay = 0) {
 			this.steps.push({
 				properties,
@@ -13340,12 +13350,12 @@ var init_CSSAnimated = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/core/Binding.ts
+//#region ../../modules/projects/lur.e/src/lure/core/Binding.ts
 var runWhenIdle$1, elMap$1, alives, $mapped, $virtual, $behavior, isLinkerLike, bindBeh, bindCtrl, reflectControllers, $observeInput, $observeAttribute, removeFromBank, addToBank, hasInBank, bindHandler, updateInput, bindWith, bindForms, bindAnimated, bindTransition, bindSpring, bindMorph, createAnimatedRef, createAnimationSequence, cancelAnimations, bindWithAnimation, bindAnimatedBatch, bindPreset, bindConditionalAnimation, asPointerInsetLength, withInsetWithPointer, bindWhileConnected;
 var init_Binding = __esmMin((() => {
-	init_object();
-	init_dom();
-	init_core$3();
+	init_src$2();
+	init_src$3();
+	init_src$4();
 	init_CSSAnimated();
 	runWhenIdle$1 = (cb, timeout = 100) => {
 		if (typeof globalThis.requestIdleCallback === "function") return globalThis.requestIdleCallback(cb, { timeout });
@@ -13716,11 +13726,11 @@ var init_Binding = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/misc/Styles.ts
+//#region ../../modules/projects/lur.e/src/lure/misc/Styles.ts
 var isEffectivelyEmptyStyleText, pruneEmptyStyleAttribute, applyNormalizedInlineStyle, S, css;
 var init_Styles = __esmMin((() => {
 	init_Binding();
-	init_dom();
+	init_src$3();
 	isEffectivelyEmptyStyleText = (cssText) => {
 		const s = typeof cssText == "string" ? cssText.trim() : "";
 		if (!s) return true;
@@ -13786,12 +13796,12 @@ var init_Styles = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/node/Queried.ts
+//#region ../../modules/projects/lur.e/src/lure/node/Queried.ts
 var existsQueries, alreadyUsed, queryExtensions, UniversalElementHandler, Q, extendQueryPrototype;
 var init_Queried = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_Binding();
-	init_object();
+	init_src$2();
 	existsQueries = /* @__PURE__ */ new WeakMap();
 	alreadyUsed = /* @__PURE__ */ new WeakMap();
 	queryExtensions = {
@@ -13809,10 +13819,11 @@ var init_Queried = __esmMin((() => {
 		}
 	};
 	UniversalElementHandler = class {
+		direction = "children";
+		selector;
+		index = 0;
+		_eventMap = /* @__PURE__ */ new WeakMap();
 		constructor(selector, index = 0, direction = "children") {
-			this.direction = "children";
-			this.index = 0;
-			this._eventMap = /* @__PURE__ */ new WeakMap();
 			this.index = index;
 			this.selector = selector;
 			this.direction = direction;
@@ -14077,13 +14088,13 @@ var init_Queried = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/context/Reflect.ts
+//#region ../../modules/projects/lur.e/src/lure/context/Reflect.ts
 var $entries, reflectAttributes, reflectARIA, reflectDataset, reflectStyles, reflectWithStyleRules, reflectProperties, reflectClassList;
 var init_Reflect = __esmMin((() => {
-	init_object();
-	init_core$3();
+	init_src$2();
+	init_src$4();
 	init_Binding();
-	init_dom();
+	init_src$3();
 	init_Styles();
 	init_Queried();
 	$entries = (obj) => {
@@ -14208,13 +14219,12 @@ var init_Reflect = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/context/ReflectChildren.ts
+//#region ../../modules/projects/lur.e/src/lure/context/ReflectChildren.ts
 var makeUpdater, asArray$2, reformChildren;
 var init_ReflectChildren = __esmMin((() => {
-	init_object();
 	init_Utils$1();
 	init_Binding();
-	init_dom();
+	init_src$3();
 	makeUpdater = (defaultParent = null, mapper, isArray = true) => {
 		const commandBuffer = [];
 		const merge = () => {
@@ -14278,14 +14288,14 @@ var init_ReflectChildren = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/node/Changeable.ts
+//#region ../../modules/projects/lur.e/src/lure/node/Changeable.ts
 var Ch, isWeakCompatible$1, C;
 var init_Changeable = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Utils$1();
 	init_ReflectChildren();
-	init_core$3();
-	init_dom();
+	init_src$4();
+	init_src$3();
 	init_Binding();
 	init_Queried();
 	Ch = class {
@@ -14426,13 +14436,13 @@ var init_Changeable = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/context/Utils.ts
+//#region ../../modules/projects/lur.e/src/lure/context/Utils.ts
 var KIDNAP_WITHOUT_HANG, isElementValue, elMap, tmMap, getMapped, $promiseResolvedMap, $makePromisePlaceholder, $getBase, $getLeaf, $getNode, isWeakCompatible, __nodeGuard, __getNode, getNode, appendOrEmplaceByIndex, appendFix, asArray$1, appendArray, appendChild, dePhantomNode, replaceOrSwap, replaceChildren, removeChild, removeNotExists, T;
 var init_Utils$1 = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Binding();
-	init_dom();
-	init_core$3();
+	init_src$3();
+	init_src$4();
 	init_Changeable();
 	init_Queried();
 	KIDNAP_WITHOUT_HANG = (el, requestor) => {
@@ -14617,15 +14627,15 @@ var init_Utils$1 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/node/Mapped.ts
+//#region ../../modules/projects/lur.e/src/lure/node/Mapped.ts
 var asArray, Mp, M;
 var init_Mapped = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Binding();
 	init_Utils$1();
 	init_ReflectChildren();
-	init_core$3();
-	init_dom();
+	init_src$4();
+	init_src$3();
 	init_Changeable();
 	asArray = (children) => {
 		if (children instanceof Map || children instanceof Set) children = Array.from(children?.values?.());
@@ -14774,13 +14784,13 @@ var init_Mapped = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/node/Bindings.ts
+//#region ../../modules/projects/lur.e/src/lure/node/Bindings.ts
 var Qp, $createElement, E;
 var init_Bindings = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_Reflect();
 	init_Binding();
-	init_object();
+	init_src$2();
 	init_Queried();
 	init_Mapped();
 	init_Utils$1();
@@ -14829,13 +14839,13 @@ var init_Bindings = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/node/Switched.ts
+//#region ../../modules/projects/lur.e/src/lure/node/Switched.ts
 var $getFromMapped, getFromMapped, SwM, SwHandler, I;
 var init_Switched = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Utils$1();
-	init_core$3();
-	init_dom();
+	init_src$4();
+	init_src$3();
 	$getFromMapped = (mapped, value) => {
 		if (typeof value == "number" && value < 0 || typeof value == "string" && !value || value == null) return { element: "" };
 		if (mapped instanceof Map || typeof mapped?.get == "function") return mapped.get(value);
@@ -14847,8 +14857,10 @@ var init_Switched = __esmMin((() => {
 	};
 	SwM = class {
 		#stub = document.createComment("");
+		current;
+		mapped;
+		boundParent = null;
 		constructor(params, mapped) {
-			this.boundParent = null;
 			this.#stub = document.createComment("");
 			this.current = params?.current ?? { value: -1 };
 			this.mapped = params?.mapped ?? mapped ?? [];
@@ -14943,14 +14955,14 @@ var init_Switched = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/node/JSX.ts
+//#region ../../modules/projects/lur.e/src/lure/node/JSX.ts
 var createElement;
 var init_JSX = __esmMin((() => {
 	init_Bindings();
 	init_Mapped();
 	init_Switched();
 	init_Queried();
-	init_core$3();
+	init_src$4();
 	createElement = (type, props = {}, children, ...others) => {
 		let normalized = {}, ref;
 		let attributes = {}, properties = {}, classList = {}, style = {}, ctrls = {}, on = {};
@@ -15000,7 +15012,7 @@ var init_JSX = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/misc/Normalizer.ts
+//#region ../../modules/projects/lur.e/src/lure/misc/Normalizer.ts
 function getIndentColumns(line, tabWidth = 4) {
 	let col = 0;
 	for (let i = 0; i < line.length; i++) {
@@ -15290,7 +15302,7 @@ function checkInsideTagBlock(contextParts, ...str) {
 }
 var init_Normalizer = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/lure/lure/misc/Syntax.ts
+//#region ../../modules/projects/lur.e/src/lure/misc/Syntax.ts
 function html(strings, ...values) {
 	if (strings?.at?.(0)?.trim?.()?.startsWith?.("<") && strings?.at?.(-1)?.trim?.()?.endsWith?.(">")) return htmlBuilder({ createElement: null })(strings, ...values);
 	return linearBuilder(strings, ...values);
@@ -15366,11 +15378,11 @@ function htmlBuilder({ createElement = null } = {}) {
 }
 var EMap, parseTag, parseIndex, connectElement, linearBuilder, isValidParent, replaceNode, H;
 var init_Syntax = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Utils$1();
 	init_Bindings();
 	init_Mapped();
-	init_dom();
+	init_src$3();
 	init_Normalizer();
 	init_Styles();
 	EMap = /* @__PURE__ */ new WeakMap(), parseTag = (str) => {
@@ -15535,7 +15547,7 @@ var init_Syntax = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/lure/misc/Glit.ts
+//#region ../../modules/projects/lur.e/src/lure/misc/Glit.ts
 function withProperties(ctr) {
 	const proto = ctr.prototype ?? Object.getPrototypeOf(ctr) ?? ctr;
 	const $prev = proto?.$init ?? ctr?.$init;
@@ -15686,6 +15698,8 @@ function GLitElement(derivate) {
 		#styleElement;
 		#defaultStyle;
 		#initialized = false;
+		styleLibs = [];
+		adoptedStyleSheets = [];
 		get styles() {}
 		get initialAttributes() {}
 		styleLayers() {
@@ -15696,8 +15710,6 @@ function GLitElement(derivate) {
 		}
 		constructor(...args) {
 			super(...args);
-			this.styleLibs = [];
-			this.adoptedStyleSheets = [];
 			if (isNotExtended(this)) {
 				const shadowRoot = addRoot(this.shadowRoot ?? this.createShadowRoot?.() ?? this.attachShadow({ mode: "open" }));
 				const defStyle = this.#defaultStyle ??= defaultStyle?.cloneNode?.(true);
@@ -15818,8 +15830,8 @@ function GLitElement(derivate) {
 }
 var styleCache, styleElementCache, propStore, CSM, camelToKebab, whenBoxValid, whenAxisValid, characters, inRenderKey, defKeys, defaultStyle, defineSource, getDef, adoptedStyleSheetsCache, addAdoptedSheetToElement, loadCachedStyles, isNotExtended, customElement;
 var init_Glit = __esmMin((() => {
-	init_object();
-	init_dom();
+	init_src$2();
+	init_src$3();
 	init_Refs();
 	init_Queried();
 	init_Syntax();
@@ -15965,10 +15977,10 @@ var init_Glit = __esmMin((() => {
 	customElement = defineElement;
 }));
 //#endregion
-//#region shared/fest/lure/interactive/tasking/Manager.ts
+//#region ../../modules/projects/lur.e/src/interactive/tasking/Manager.ts
 var getBy, historyBack, getFocused, registerTask, navigationEnable;
 var init_Manager = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_BackNavigation();
 	getBy = (tasks = [], taskId) => {
 		return tasks.find((t) => taskId == t || typeof t.taskId == "string" && t.taskId?.replace?.(/^#/, "") == (typeof taskId == "string" ? taskId?.replace?.(/^#/, "") : null));
@@ -16046,18 +16058,23 @@ var init_Manager = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/tasking/Types.ts
+//#region ../../modules/projects/lur.e/src/interactive/tasking/Types.ts
 var init_Types = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/lure/interactive/tasking/Tasks.ts
+//#region ../../modules/projects/lur.e/src/interactive/tasking/Tasks.ts
 var Task, makeTask, makeTasks;
 var init_Tasks = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Manager();
 	init_BackNavigation();
 	Task = class {
+		$active = false;
+		$action;
+		payload;
+		taskId;
+		list;
+		_unregisterBack;
 		constructor(taskId, list, state = null, payload = {}, action) {
-			this.$active = false;
 			this.taskId = taskId;
 			this.list = list;
 			this.payload = payload;
@@ -16172,7 +16189,7 @@ var init_Tasks = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/LazyEvents.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/LazyEvents.ts
 var hubsByTarget, keyOf, lazyAddEventListener, proxiedByRoot, resolveHTMLElement, shouldApply, addProxiedEvent;
 var init_LazyEvents = __esmMin((() => {
 	hubsByTarget = /* @__PURE__ */ new WeakMap();
@@ -16329,7 +16346,7 @@ var init_LazyEvents = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/Trigger.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/Trigger.ts
 function makeInterruptTrigger(except = null, ref = booleanRef(false), closeEvents = [
 	"pointerdown",
 	"click",
@@ -16397,10 +16414,10 @@ function makeClickOutsideTrigger(ref, except = null, element, options = {}) {
 }
 var ROOT, $set, doObserve, makeShiftTrigger, OOBTrigger;
 var init_Trigger = __esmMin((() => {
-	init_dom();
-	init_object();
+	init_src$3();
+	init_src$2();
 	init_LazyEvents();
-	init_core$3();
+	init_src$4();
 	ROOT = typeof document != "undefined" ? document?.documentElement : null;
 	$set = (rv, key, val) => {
 		if (rv?.deref?.() != null) return rv.deref()[key] = val;
@@ -16462,10 +16479,10 @@ var init_Trigger = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/math/GridMath.ts
+//#region ../../modules/projects/lur.e/src/utils/math/GridMath.ts
 var GridCoordUtils, GridCellUtils, GridLayoutUtils, GridAnimationUtils, GridInteractionUtils, clampCell, floorCell, ceilCell, roundCell, snapToGridCell, getCellDistance, getAdjacentCells, getCellsInRange, findPathBetweenCells, checkCellCollision, optimizeCellLayout;
 var init_GridMath = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_math();
 	GridCoordUtils = class GridCoordUtils {
 		static create(row = 0, col = 0) {
@@ -16965,9 +16982,9 @@ var init_GridMath = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/math/index.ts
+//#region ../../modules/projects/lur.e/src/utils/math/index.ts
 var init_math = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Point2D();
 	init_Point3D();
 	init_Point4D();
@@ -16977,11 +16994,11 @@ var init_math = __esmMin((() => {
 	init_Operations();
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/PointerAPI.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/PointerAPI.ts
 var DecorWith, elementPointerMap, agWrapEvent, preventedPointers, clickPrevention, PointerEventDrag, draggingPointerMap, grabForDrag, bindDraggable;
 var init_PointerAPI = __esmMin((() => {
-	init_dom();
-	init_core$3();
+	init_src$3();
+	init_src$4();
 	init_math();
 	DecorWith = class {
 		#addition;
@@ -17268,13 +17285,13 @@ var init_PointerAPI = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/Draggable.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/Draggable.ts
 var DragHandler;
 var init_Draggable$1 = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_Trigger();
 	init_PointerAPI();
-	init_object();
+	init_src$2();
 	init_math();
 	DragHandler = class {
 		#holder;
@@ -17366,13 +17383,12 @@ var init_Draggable$1 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/Resizable.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/Resizable.ts
 var ResizeHandler;
 var init_Resizable = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_Trigger();
-	init_core$3();
-	init_object();
+	init_src$4();
 	init_Bindings();
 	init_PointerAPI();
 	init_math();
@@ -17425,46 +17441,21 @@ var init_Resizable = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/Selection.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/Selection.ts
 var SelectionController;
 var init_Selection = __esmMin((() => {
-	init_dom();
-	init_Trigger();
-	init_PointerAPI();
 	init_math();
-	init_object();
 	SelectionController = class {
+		target;
+		options;
+		selectionRect;
+		overlayElement;
+		isActive = false;
+		startPoint;
+		currentPoint;
+		dragStart;
+		resizeHandle;
 		constructor(options = {}) {
-			this.isActive = false;
-			this.handlePointerDown = (e) => {
-				if (e.button !== 0) return;
-				const point = vector2Ref(e.clientX, e.clientY);
-				const handle = this.getHandleAtPoint(point);
-				if (handle) {
-					this.startResize(handle, point);
-					return;
-				}
-				if (this.selectionRect && rectContainsPoint(this.selectionRect, point).value) {
-					this.startDrag(point);
-					return;
-				}
-				this.startSelection(point);
-			};
-			this.handlePointerMove = (e) => {
-				const point = vector2Ref(e.clientX, e.clientY);
-				if (this.resizeHandle) this.updateResize(point);
-				else if (this.dragStart) this.updateDrag(point);
-				else if (this.startPoint) this.updateSelection(point);
-			};
-			this.handlePointerUp = (e) => {
-				if (this.resizeHandle) this.endResize();
-				else if (this.dragStart) this.endDrag();
-				else if (this.startPoint) this.endSelection();
-			};
-			this.handleKeyDown = (e) => {
-				if (e.key === "Escape") this.clearSelection();
-				else if (e.key === "Enter" && this.selectionRect) this.options.onSelect?.(this.selectionRect);
-			};
 			this.options = {
 				target: document.body,
 				minSize: vector2Ref(10, 10),
@@ -17628,6 +17619,35 @@ var init_Selection = __esmMin((() => {
 			this.target.removeEventListener("pointerup", this.handlePointerUp);
 			document.removeEventListener("keydown", this.handleKeyDown);
 		}
+		handlePointerDown = (e) => {
+			if (e.button !== 0) return;
+			const point = vector2Ref(e.clientX, e.clientY);
+			const handle = this.getHandleAtPoint(point);
+			if (handle) {
+				this.startResize(handle, point);
+				return;
+			}
+			if (this.selectionRect && rectContainsPoint(this.selectionRect, point).value) {
+				this.startDrag(point);
+				return;
+			}
+			this.startSelection(point);
+		};
+		handlePointerMove = (e) => {
+			const point = vector2Ref(e.clientX, e.clientY);
+			if (this.resizeHandle) this.updateResize(point);
+			else if (this.dragStart) this.updateDrag(point);
+			else if (this.startPoint) this.updateSelection(point);
+		};
+		handlePointerUp = (e) => {
+			if (this.resizeHandle) this.endResize();
+			else if (this.dragStart) this.endDrag();
+			else if (this.startPoint) this.endSelection();
+		};
+		handleKeyDown = (e) => {
+			if (e.key === "Escape") this.clearSelection();
+			else if (e.key === "Enter" && this.selectionRect) this.options.onSelect?.(this.selectionRect);
+		};
 		startSelection(point) {
 			this.startPoint = point;
 			this.currentPoint = point;
@@ -17818,10 +17838,10 @@ var init_Selection = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/LongHover.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/LongHover.ts
 var LongHoverHandler;
 var init_LongHover = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	LongHoverHandler = class {
 		#holder;
 		constructor(holder, options, fx = (ev) => {
@@ -17879,10 +17899,10 @@ var init_LongHover = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/LongPress.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/LongPress.ts
 var defaultOptions, preventor, LongPressHandler;
 var init_LongPress = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	defaultOptions = {
 		anyPointer: true,
 		mouseImmediate: true,
@@ -17898,11 +17918,6 @@ var init_LongPress = __esmMin((() => {
 		#holder;
 		#preventedPointers;
 		constructor(holder, options = { ...defaultOptions }, fx) {
-			this.holding = {
-				fx: null,
-				options: {},
-				actionState: {}
-			};
 			(this.#holder = holder)["@control"] = this;
 			this.#preventedPointers = /* @__PURE__ */ new Set();
 			if (!holder) throw Error("Element is null...");
@@ -18023,6 +18038,11 @@ var init_LongPress = __esmMin((() => {
 			actionState.cancelCallback();
 			this.resetAction(self, actionState);
 		}
+		holding = {
+			fx: null,
+			options: {},
+			actionState: {}
+		};
 		hasParent(current, parent) {
 			while (current) {
 				if (current === parent) return true;
@@ -18042,10 +18062,10 @@ var init_LongPress = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/Swipe.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/Swipe.ts
 var SwipeHandler;
 var init_Swipe = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	SwipeHandler = class {
 		#holder;
 		constructor(holder, options) {
@@ -18115,10 +18135,10 @@ var init_Swipe = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/Handler.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/Handler.ts
 var handleByPointer, handleForFixPosition;
 var init_Handler = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	handleByPointer = (cb, root = typeof document != "undefined" ? document?.documentElement : null) => {
 		if (!root) return () => {};
 		let pointerId = -1;
@@ -18150,7 +18170,7 @@ var init_Handler = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/mixins/types.ts
+//#region ../../modules/projects/lur.e/src/interactive/mixins/types.ts
 function junctionToBox(a, b) {
 	const left = Math.min(a.x, b.x);
 	const top = Math.min(a.y, b.y);
@@ -18185,10 +18205,10 @@ var init_types = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/mixins/Junction.ts
+//#region ../../modules/projects/lur.e/src/interactive/mixins/Junction.ts
 var mixinDisposers, pushDisposable, runDisposers, parsePxVar, queryHandle, JunctionSelectMixin, JunctionDragMixin, JunctionResizeMixin;
 var init_Junction = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_types();
 	mixinDisposers = /* @__PURE__ */ new WeakMap();
 	pushDisposable = (host, mixinName, fn) => {
@@ -18510,7 +18530,7 @@ var init_Junction = __esmMin((() => {
 	new JunctionResizeMixin();
 }));
 //#endregion
-//#region shared/fest/lure/interactive/mixins/Draggable.ts
+//#region ../../modules/projects/lur.e/src/interactive/mixins/Draggable.ts
 function tokenSelector(el, attr, value) {
 	el.setAttribute(attr, value);
 	return `[${attr}="${value}"]`;
@@ -18593,18 +18613,18 @@ function bindAnchorableDragResize(opts) {
 }
 var ANCHOR_IDENT;
 var init_Draggable = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	ANCHOR_IDENT = /^--[-\w]+$/;
 }));
 //#endregion
-//#region shared/fest/lure/interactive/mixins/index.ts
+//#region ../../modules/projects/lur.e/src/interactive/mixins/index.ts
 var init_mixins = __esmMin((() => {
 	init_types();
 	init_Junction();
 	init_Draggable();
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/BBoxAnchor.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/BBoxAnchor.ts
 function boundingBoxAnchorRef(anchor, options) {
 	if (!anchor) return () => {};
 	const position = vector2Ref(0, 0);
@@ -18682,8 +18702,8 @@ function boundingBoxAnchorRef(anchor, options) {
 }
 var bindWithRect, bindScrollbarPosition;
 var init_BBoxAnchor = __esmMin((() => {
-	init_object();
-	init_dom();
+	init_src$2();
+	init_src$3();
 	init_Binding();
 	init_Point2D();
 	init_Operations();
@@ -18757,7 +18777,7 @@ var init_BBoxAnchor = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/IntersectionAnchor.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/IntersectionAnchor.ts
 function intersectionBoxAnchorRef(anchor, options) {
 	if (!anchor) return () => {};
 	const area = [
@@ -18942,8 +18962,8 @@ function enhancedIntersectionBoxAnchorRef(anchor, options) {
 }
 var computeIntersectionRect;
 var init_IntersectionAnchor = __esmMin((() => {
-	init_object();
-	init_dom();
+	init_src$2();
+	init_src$3();
 	computeIntersectionRect = (anchor, root = document.documentElement, includeExtendedInfo = false) => {
 		const rootRect = getBoundingOrientRect(root) ?? root?.getBoundingClientRect?.();
 		const anchorRect = getBoundingOrientRect(anchor) ?? anchor?.getBoundingClientRect?.();
@@ -19009,7 +19029,7 @@ var init_IntersectionAnchor = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/layers/AnchorOverlay.ts
+//#region ../../modules/projects/lur.e/src/design/layers/AnchorOverlay.ts
 var getParentOrShadowRoot, observeDisconnect, observeConnect, appendAsOverlay, appendScrollbarOverlay, createReactiveScrollbarOverlay;
 var init_AnchorOverlay = __esmMin((() => {
 	init_CSSAnchor();
@@ -19155,10 +19175,10 @@ var init_AnchorOverlay = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/layers/Register.ts
+//#region ../../modules/projects/lur.e/src/design/layers/Register.ts
 var registered, registerOverlayElement;
 var init_Register = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_AnchorOverlay();
 	registered = /* @__PURE__ */ new Map();
 	registerOverlayElement = (name, construct) => {
@@ -19193,10 +19213,10 @@ var init_Register = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/CtxMenu.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/CtxMenu.ts
 var itemClickHandle, visibleMap, registerCtxMenu, getBoundVisibleRef, bindMenuItemClickHandler, getGlobalContextMenu, makeMenuHandler, ctxMenuTrigger, dropMenuTrigger;
 var init_CtxMenu = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	init_Refs();
 	init_LazyEvents();
 	init_Binding();
@@ -19348,7 +19368,7 @@ var init_CtxMenu = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/Clipboard.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/Clipboard.ts
 var CLIPBOARD_CHANNEL, CLIPBOARD_LEGACY_MAX_CHARS, CLIPBOARD_TEXT_MAX_CHARS, CLIPBOARD_OPERATION_TIMEOUT_MS, scheduleClipboardFrame, toText, raceClipboardWrite, writeText, writeHTML, writeImage, convertToPng, readText, copy, broadcastClipboardFeedback, requestCopy, _clipboardBroadcastChannel, _clipboardBroadcastRefCount, _clipboardBroadcastHandler, _clipboardBroadcastQueue, listenForClipboardRequests, initClipboardReceiver, isClipboardAvailable, isClipboardWriteAvailable, isChromeExtension, requestCopyViaCRX, COPY_HACK, copyWithResult, collectProviders, handleClipboardEvent, initialized, initGlobalClipboard;
 var init_Clipboard = __esmMin((() => {
 	init_LazyEvents();
@@ -19786,7 +19806,7 @@ var init_Clipboard = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/DesktopStateStorage.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/DesktopStateStorage.ts
 /** Encode grid state as compact JSON (ISO timestamp for debugging / sync). */
 function encodeDesktopState(columns, rows, items) {
 	const payload = {
@@ -19876,7 +19896,7 @@ var init_DesktopStateStorage = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/DesktopItemIconCodec.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/DesktopItemIconCodec.ts
 var GOOGLE_FAVICON_RE, packHrefInline, unpackHrefInline, hostnameToFaviconRef, faviconUrlForHostname, normalizeIconSrcFromPayload, expandIconSrcForDom, compactIconSrcForStorage, ITEM_COMPACT_KIND, serializeDesktopItemCompact, parseDesktopItemCompact;
 var init_DesktopItemIconCodec = __esmMin((() => {
 	GOOGLE_FAVICON_RE = /^https:\/\/www\.google\.com\/s2\/favicons\?[^#]*domain=([^&]+)/i;
@@ -19999,7 +20019,7 @@ var init_DesktopItemIconCodec = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/HistoryManager.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/HistoryManager.ts
 /**
 * Utility function to create a history manager
 */
@@ -20010,8 +20030,11 @@ var HistoryManager;
 var init_HistoryManager = __esmMin((() => {
 	init_Syntax();
 	HistoryManager = class {
+		storageKey;
+		maxEntries;
+		autoSave;
+		entries = [];
 		constructor(options = {}) {
-			this.entries = [];
 			this.storageKey = options.storageKey || "rs-basic-history";
 			this.maxEntries = options.maxEntries || 100;
 			this.autoSave = options.autoSave !== false;
@@ -20290,12 +20313,12 @@ var init_HistoryManager = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/UIState.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/UIState.ts
 var mapEntriesFrom, ownProp, isPlainObject$2, identityOf, resolveEntryKey, mergePlainObject, mergeValue, reloadInto, mergeByKey, hasChromeStorage$1, makeUIState;
 var init_UIState = __esmMin((() => {
 	init_jsox();
-	init_dom();
-	init_object();
+	init_src$3();
+	init_src$2();
 	mapEntriesFrom = (source) => {
 		if (!source) return [];
 		if (source instanceof Map) return Array.from(source.entries());
@@ -20525,7 +20548,7 @@ var init_UIState = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/VoiceInput.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/VoiceInput.ts
 /**
 * Get speech prompt with timeout
 */
@@ -20572,9 +20595,10 @@ async function requestMicrophonePermission() {
 var VoiceInputManager;
 var init_VoiceInput = __esmMin((() => {
 	VoiceInputManager = class {
+		recognition = null;
+		isListening = false;
+		options;
 		constructor(options = {}) {
-			this.recognition = null;
-			this.isListening = false;
 			this.options = {
 				language: "en-US",
 				continuous: false,
@@ -20714,10 +20738,10 @@ var init_VoiceInput = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/HookEvent.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/HookEvent.ts
 var allowedElements, implementPasteEvent, implementDropEvent;
 var init_HookEvent = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	allowedElements = "ui-tabbed-box";
 	implementPasteEvent = (container, handler) => {
 		(container || globalThis)?.addEventListener("paste", (event) => {
@@ -20763,12 +20787,12 @@ var init_HookEvent = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/PointerAnchor.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/PointerAnchor.ts
 var pointerAnchorRef, visibleBySelectorRef, showAttributeRef;
 var init_PointerAnchor = __esmMin((() => {
-	init_object();
+	init_src$2();
 	init_Handler();
-	init_core$3();
+	init_src$4();
 	pointerAnchorRef = (root = typeof document != "undefined" ? document?.documentElement : null) => {
 		if (!root) return () => {};
 		const coordinate = [numberRef(0), numberRef(0)];
@@ -20795,7 +20819,7 @@ var init_PointerAnchor = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/ContainerQuery.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/ContainerQuery.ts
 function createResponsiveScrollbarConfig(container) {
 	const sizeTracker = new ContainerSizeTracker(container);
 	const queryManager = new ContainerQueryManager({ container });
@@ -20846,12 +20870,14 @@ function createResponsiveScrollbarConfig(container) {
 }
 var ContainerQueryManager, ContainerSizeTracker;
 var init_ContainerQuery = __esmMin((() => {
-	init_object();
-	init_dom();
+	init_src$2();
+	init_src$3();
 	ContainerQueryManager = class {
+		container;
+		queries;
+		activeQueries = /* @__PURE__ */ new Set();
+		queryStates = /* @__PURE__ */ new Map();
 		constructor(options = {}) {
-			this.activeQueries = /* @__PURE__ */ new Set();
-			this.queryStates = /* @__PURE__ */ new Map();
 			this.container = options.container || document.documentElement;
 			this.queries = /* @__PURE__ */ new Map();
 			const defaultQueries = {
@@ -20908,11 +20934,13 @@ var init_ContainerQuery = __esmMin((() => {
 		}
 	};
 	ContainerSizeTracker = class {
+		container;
+		sizeRef = numberRef(0);
+		widthRef = numberRef(0);
+		heightRef = numberRef(0);
+		aspectRatioRef = numberRef(0);
+		resizeObserver;
 		constructor(container) {
-			this.sizeRef = numberRef(0);
-			this.widthRef = numberRef(0);
-			this.heightRef = numberRef(0);
-			this.aspectRatioRef = numberRef(0);
 			this.container = container;
 			this.updateSize();
 			if (typeof ResizeObserver !== "undefined") {
@@ -20947,7 +20975,7 @@ var init_ContainerQuery = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/color/ScrollbarTheme.ts
+//#region ../../modules/projects/lur.e/src/design/color/ScrollbarTheme.ts
 function generateScrollbarCSS(selector, theme) {
 	return `
         ${selector} {
@@ -21093,6 +21121,9 @@ var init_ScrollbarTheme = __esmMin((() => {
 		}
 	};
 	ScrollbarThemeManager = class {
+		currentTheme;
+		scrollbarElement;
+		styleElement;
 		constructor(scrollbarElement, initialTheme = scrollbarThemes.light) {
 			this.scrollbarElement = scrollbarElement;
 			this.currentTheme = { ...initialTheme };
@@ -21173,35 +21204,43 @@ var init_ScrollbarTheme = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/controllers/EnhancedGestures.ts
+//#region ../../modules/projects/lur.e/src/interactive/controllers/EnhancedGestures.ts
 var EnhancedGestureHandler, ScrollbarGestureHandler;
 var init_EnhancedGestures = __esmMin((() => {
-	init_object();
-	init_dom();
+	init_src$3();
 	EnhancedGestureHandler = class {
+		element;
+		options;
+		isActive = false;
+		startTime = 0;
+		startPosition = {
+			x: 0,
+			y: 0
+		};
+		currentPosition = {
+			x: 0,
+			y: 0
+		};
+		velocity = {
+			x: 0,
+			y: 0
+		};
+		lastPosition = {
+			x: 0,
+			y: 0
+		};
+		lastTime = 0;
+		pointers = /* @__PURE__ */ new Map();
+		initialDistance = 0;
+		currentDistance = 0;
+		onStart;
+		onMove;
+		onEnd;
+		onMomentum;
+		onSwipe;
+		onPinch;
+		momentumFrame;
 		constructor(element, options = {}) {
-			this.isActive = false;
-			this.startTime = 0;
-			this.startPosition = {
-				x: 0,
-				y: 0
-			};
-			this.currentPosition = {
-				x: 0,
-				y: 0
-			};
-			this.velocity = {
-				x: 0,
-				y: 0
-			};
-			this.lastPosition = {
-				x: 0,
-				y: 0
-			};
-			this.lastTime = 0;
-			this.pointers = /* @__PURE__ */ new Map();
-			this.initialDistance = 0;
-			this.currentDistance = 0;
 			this.element = element;
 			this.options = {
 				enableMomentum: true,
@@ -21380,6 +21419,10 @@ var init_EnhancedGestures = __esmMin((() => {
 		}
 	};
 	ScrollbarGestureHandler = class extends EnhancedGestureHandler {
+		scrollbar;
+		content;
+		axis;
+		scrollPosition = 0;
 		constructor(scrollbar, content, axis, options) {
 			super(scrollbar, {
 				enableMomentum: true,
@@ -21387,7 +21430,6 @@ var init_EnhancedGestures = __esmMin((() => {
 				enablePinch: false,
 				...options
 			});
-			this.scrollPosition = 0;
 			this.scrollbar = scrollbar;
 			this.content = content;
 			this.axis = axis;
@@ -21432,12 +21474,12 @@ var init_EnhancedGestures = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/ScrollBar.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/ScrollBar.ts
 var axisConfig, CAXIS, asWeak$1, effectProperty, makeInteractive, ScrollBar;
 var init_ScrollBar = __esmMin((() => {
-	init_object();
-	init_lure();
-	init_dom();
+	init_src$2();
+	init_src();
+	init_src$3();
 	init_BBoxAnchor();
 	init_PointerAnchor();
 	init_CSSTimeline();
@@ -21607,14 +21649,29 @@ var init_ScrollBar = __esmMin((() => {
 		});
 	};
 	ScrollBar = class {
+		scrollbar;
+		content;
+		status;
+		holder;
+		inputChange;
+		spatialAnchor;
+		pointerAnchor;
+		_spatialAnchorCleanup;
+		_pointerAnchorCleanup;
+		enhancedTimeline;
+		isVisible = numberRef(1);
+		isDragging = numberRef(0);
+		thumbPosition = vector2Ref(0, 0);
+		thumbSize = vector2Ref(20, 20);
+		containerSize = vector2Ref(0, 0);
+		thumbTransform = new ReactiveTransform();
+		scrollbarOpacity = numberRef(1);
+		responsiveConfig;
+		_unsubscribeAutoHide;
+		_unsubscribeAccessibility;
+		gestureHandler;
+		themeManager;
 		constructor({ holder, scrollbar, content, inputChange }, axis = 0) {
-			this.isVisible = numberRef(1);
-			this.isDragging = numberRef(0);
-			this.thumbPosition = vector2Ref(0, 0);
-			this.thumbSize = vector2Ref(20, 20);
-			this.containerSize = vector2Ref(0, 0);
-			this.thumbTransform = new ReactiveTransform();
-			this.scrollbarOpacity = numberRef(1);
 			this.scrollbar = scrollbar;
 			this.holder = holder;
 			this.content = content;
@@ -21867,15 +21924,15 @@ var init_ScrollBar = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/InputExt.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/InputExt.ts
 var boolDepIconRef, indicationRef, reactiveInputPosition, reactiveInputHandleTransform, convertValueToPointer, convertPointerToValueShift, correctValue, convertPointerToValue, getValueWithShift, setInputValue, setValueByShift, setValueByPointer, resolveDragging, getInputValues, progress, getClampedValue, clampedValueRef, dragSlider;
 var init_InputExt = __esmMin((() => {
-	init_dom();
-	init_object();
+	init_src$3();
+	init_src$2();
 	init_PointerAPI();
 	init_Trigger();
 	init_Binding();
-	init_lure();
+	init_src();
 	init_Utils$2();
 	init_CSSAdapter();
 	boolDepIconRef = (cnd) => conditional(cnd, "badge-check", "badge");
@@ -22047,7 +22104,7 @@ var init_InputExt = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/TemplateManager.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/TemplateManager.ts
 /**
 * Utility function to create a template manager
 */
@@ -22058,8 +22115,10 @@ var TemplateManager;
 var init_TemplateManager = __esmMin((() => {
 	init_Syntax();
 	TemplateManager = class {
+		storageKey;
+		templates = [];
+		defaultTemplates;
 		constructor(options = {}) {
-			this.templates = [];
 			this.storageKey = options.storageKey || "rs-prompt-templates";
 			this.defaultTemplates = options.defaultTemplates || this.getDefaultTemplates();
 			this.loadTemplates();
@@ -22323,11 +22382,11 @@ var init_TemplateManager = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/anchor/Status.ts
+//#region ../../modules/projects/lur.e/src/design/anchor/Status.ts
 var batteryStatusRef, timeStatusRef, signalStatusRef;
 var init_Status = __esmMin((() => {
-	init_dom();
-	init_object();
+	init_src$3();
+	init_src$2();
 	batteryStatusRef = () => {
 		const rv = ref("battery-charging");
 		const batteryStatus = navigator.getBattery?.();
@@ -22384,10 +22443,10 @@ var init_Status = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/color/Renderer.ts
+//#region ../../modules/projects/lur.e/src/design/color/Renderer.ts
 var makeRenderer;
 var init_Renderer = __esmMin((() => {
-	init_dom();
+	init_src$3();
 	makeRenderer = () => {
 		const canvas = document.createElement("canvas");
 		const fallback = document.createElement("div");
@@ -22482,7 +22541,7 @@ var init_Renderer = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/color/DynamicEngine.ts
+//#region ../../modules/projects/lur.e/src/design/color/DynamicEngine.ts
 function extractAlpha(input) {
 	if (typeof input !== "string") return null;
 	let color = input.trim().toLowerCase();
@@ -22541,8 +22600,8 @@ function clamp(v, min, max) {
 }
 var runWhenIdle, electronAPI, tacp, setIdleInterval, sampleShellToolbarBackgroundColor, sampleWcoTitlebarStripColor, pickBgColor, pickFromCenter, dynamicNativeFrame, dynamicBgColors, dynamicTheme, currentColorFromPointRef, currentColorFromCenterRef;
 var init_DynamicEngine = __esmMin((() => {
-	init_dom();
-	init_object();
+	init_src$3();
+	init_src$2();
 	runWhenIdle = (cb, timeout = 100) => {
 		if (typeof globalThis.requestIdleCallback === "function") return globalThis.requestIdleCallback(cb, { timeout });
 		return setTimeout(() => cb({
@@ -22694,7 +22753,7 @@ var init_DynamicEngine = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/design/color/ThemeEngine.ts
+//#region ../../modules/projects/lur.e/src/design/color/ThemeEngine.ts
 var colorScheme, maybeStartThemeEngine;
 var init_ThemeEngine = __esmMin((() => {
 	init_DynamicEngine();
@@ -22711,10 +22770,10 @@ var init_ThemeEngine = __esmMin((() => {
 	maybeStartThemeEngine();
 }));
 //#endregion
-//#region shared/fest/lure/design/color/StyleRules.ts
+//#region ../../modules/projects/lur.e/src/design/color/StyleRules.ts
 var updateThemeBase;
 var init_StyleRules = __esmMin((() => {
-	init_lure();
+	init_src();
 	updateThemeBase = async (originColor = null) => {
 		const primaryRef = localStorageRef("--primary", originColor);
 		if (originColor != null && primaryRef.value != originColor) primaryRef.value = originColor;
@@ -22723,7 +22782,7 @@ var init_StyleRules = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/types/Interface.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/types/Interface.ts
 var WReflectAction;
 var init_Interface = __esmMin((() => {
 	WReflectAction = /* @__PURE__ */ function(WReflectAction) {
@@ -22749,7 +22808,7 @@ var init_Interface = __esmMin((() => {
 	}({});
 }));
 //#endregion
-//#region shared/fest/uniform/newer/core/TransportCore.ts
+//#region ../../modules/projects/uniform.ts/src/newer/core/TransportCore.ts
 function normalizeTransportTypeAlias(transport) {
 	const raw = String(transport ?? "").trim().toLowerCase();
 	if (!raw) return "internal";
@@ -22780,15 +22839,15 @@ var init_TransportCore = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/observable/Observable.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/observable/Observable.ts
 var BaseSubscription, Observable$1, ChannelSubject, filter;
 var init_Observable = __esmMin((() => {
-	init_core$3();
+	init_TransportCore();
 	init_RequestHandler();
 	BaseSubscription = class {
+		_closed = false;
 		constructor(_unsubscribe) {
 			this._unsubscribe = _unsubscribe;
-			this._closed = false;
 		}
 		get closed() {
 			return this._closed;
@@ -22846,9 +22905,11 @@ var init_Observable = __esmMin((() => {
 		}
 	};
 	ChannelSubject = class {
+		_subs = /* @__PURE__ */ new Set();
+		_buffer = [];
+		_maxBuffer;
+		_replay;
 		constructor(options = {}) {
-			this._subs = /* @__PURE__ */ new Set();
-			this._buffer = [];
 			this._maxBuffer = options.bufferSize ?? 0;
 			this._replay = options.replayOnSubscribe ?? false;
 		}
@@ -22902,7 +22963,7 @@ var init_Observable = __esmMin((() => {
 	});
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/proxy/Invoker.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/Invoker.ts
 function detectContextType() {
 	if (typeof globalThis.Deno !== "undefined") return "deno";
 	if (typeof globalThis.process !== "undefined" && globalThis.process?.versions?.node) return "node";
@@ -22942,8 +23003,8 @@ function detectIncomingContextType(data) {
 }
 var DefaultReflect;
 var init_Invoker = __esmMin((() => {
-	init_core$3();
 	init_UnifiedChannel();
+	init_Interface();
 	init_TransportCore();
 	DefaultReflect = {
 		get: (target, prop) => Reflect.get(target, prop),
@@ -22961,7 +23022,7 @@ var init_Invoker = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/proxy/Proxy.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/Proxy.ts
 /**
 * Create a remote proxy for transparent RPC
 *
@@ -23009,16 +23070,17 @@ function wrapDescriptor(descriptor, invoker, targetChannel) {
 }
 var PROXY_MARKER, PROXY_INTERNALS, RemoteProxyHandler, makeRequestProxy;
 var init_Proxy = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Interface();
 	init_DataBase();
 	init_RequestHandler();
 	PROXY_MARKER = Symbol.for("uniform.proxy");
 	PROXY_INTERNALS = Symbol.for("uniform.proxy.internals");
 	RemoteProxyHandler = class {
+		_config;
+		_childCache = /* @__PURE__ */ new Map();
 		constructor(_invoker, config) {
 			this._invoker = _invoker;
-			this._childCache = /* @__PURE__ */ new Map();
 			this._config = {
 				channel: config.channel,
 				basePath: config.basePath ?? [],
@@ -23113,7 +23175,7 @@ var init_Proxy = __esmMin((() => {
 	makeRequestProxy = wrapDescriptor;
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/internal/ConnectionModel.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/internal/ConnectionModel.ts
 function createConnectionKey(params) {
 	return [
 		params.localChannel,
@@ -23140,10 +23202,10 @@ function queryConnections(connections, query = {}) {
 var ConnectionRegistry;
 var init_ConnectionModel = __esmMin((() => {
 	ConnectionRegistry = class {
+		_connections = /* @__PURE__ */ new Map();
 		constructor(_createId, _emitEvent) {
 			this._createId = _createId;
 			this._emitEvent = _emitEvent;
-			this._connections = /* @__PURE__ */ new Map();
 		}
 		register(params) {
 			const key = createConnectionKey(params);
@@ -23228,7 +23290,7 @@ var init_ConnectionModel = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/UnifiedChannel.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/UnifiedChannel.ts
 /**
 * Create a unified channel
 *
@@ -23269,7 +23331,7 @@ function getWorkerChannel() {
 }
 var UnifiedChannel, WORKER_CHANNEL;
 var init_UnifiedChannel = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Observable();
 	init_Interface();
 	init_DataBase();
@@ -23278,6 +23340,21 @@ var init_UnifiedChannel = __esmMin((() => {
 	init_RequestHandler();
 	init_ConnectionModel();
 	UnifiedChannel = class {
+		_name;
+		_contextType;
+		_config;
+		_transports = /* @__PURE__ */ new Map();
+		_defaultTransport = null;
+		_connectionEvents = new ChannelSubject({ bufferSize: 200 });
+		_connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._connectionEvents.next(event));
+		_pending = /* @__PURE__ */ new Map();
+		_subscriptions = [];
+		_inbound = new ChannelSubject({ bufferSize: 100 });
+		_outbound = new ChannelSubject({ bufferSize: 100 });
+		_invocations = new ChannelSubject({ bufferSize: 100 });
+		_responses = new ChannelSubject({ bufferSize: 100 });
+		_exposed = /* @__PURE__ */ new Map();
+		_proxyCache = /* @__PURE__ */ new WeakMap();
 		__getPrivate(key) {
 			return this[key];
 		}
@@ -23285,18 +23362,6 @@ var init_UnifiedChannel = __esmMin((() => {
 			this[key] = value;
 		}
 		constructor(config) {
-			this._transports = /* @__PURE__ */ new Map();
-			this._defaultTransport = null;
-			this._connectionEvents = new ChannelSubject({ bufferSize: 200 });
-			this._connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._connectionEvents.next(event));
-			this._pending = /* @__PURE__ */ new Map();
-			this._subscriptions = [];
-			this._inbound = new ChannelSubject({ bufferSize: 100 });
-			this._outbound = new ChannelSubject({ bufferSize: 100 });
-			this._invocations = new ChannelSubject({ bufferSize: 100 });
-			this._responses = new ChannelSubject({ bufferSize: 100 });
-			this._exposed = /* @__PURE__ */ new Map();
-			this._proxyCache = /* @__PURE__ */ new WeakMap();
 			const cfg = typeof config === "string" ? { name: config } : config;
 			this._name = cfg.name;
 			this._contextType = cfg.autoDetect !== false ? detectContextType() : "unknown";
@@ -23985,13 +24050,14 @@ var init_UnifiedChannel = __esmMin((() => {
 	WORKER_CHANNEL = null;
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/proxy/RequestProxy.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/proxy/RequestProxy.ts
 var init_RequestProxy = __esmMin((() => {
+	init_Interface();
 	init_UnifiedChannel();
 	init_Proxy();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/core/Alias.ts
+//#region ../../modules/projects/uniform.ts/src/newer/core/Alias.ts
 var TS;
 var init_Alias = __esmMin((() => {
 	TS = {
@@ -24007,7 +24073,6 @@ var init_Alias = __esmMin((() => {
 	};
 }));
 var init_Useful = __esmMin((() => {
-	init_core$3();
 	init_Alias();
 	[
 		typeof ArrayBuffer != TS.udf ? ArrayBuffer : null,
@@ -24025,10 +24090,9 @@ var init_Useful = __esmMin((() => {
 	].filter((E) => E != null);
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/Channels.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/Channels.ts
 var SELF_CHANNEL, CHANNEL_MAP, isReflectAction$1, RemoteChannelHelper$1, ChannelHandler$1, initChannelHandler, createHostChannel, createOrUseExistingChannel;
 var init_Channels = __esmMin((() => {
-	init_core$3();
 	init_Interface();
 	init_UnifiedChannel();
 	init_RequestHandler();
@@ -24039,6 +24103,7 @@ var init_Channels = __esmMin((() => {
 	CHANNEL_MAP = /* @__PURE__ */ new Map();
 	isReflectAction$1 = (action) => [...Object.values(WReflectAction)].includes(action);
 	RemoteChannelHelper$1 = class {
+		_channel;
 		constructor(channelName, options = {}) {
 			this.channelName = channelName;
 			this.options = options;
@@ -24059,10 +24124,11 @@ var init_Channels = __esmMin((() => {
 		}
 	};
 	ChannelHandler$1 = class {
+		_unified;
+		broadcasts = {};
 		constructor(channel, options = {}) {
 			this.channel = channel;
 			this.options = options;
-			this.broadcasts = {};
 			this._unified = createUnifiedChannel({
 				name: channel,
 				autoListen: false
@@ -24121,12 +24187,13 @@ var init_Channels = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/DataBase.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/DataBase.ts
 var handMap, wrapMap, descMap, objectToRef, $requestHandler, $descriptor, normalizeRef, storedData, registeredInPath, traverseByPath, readByPath, writeByPath, removeByPath, removeByData, hasNoPath;
 var init_DataBase = __esmMin((() => {
+	init_Interface();
 	init_RequestProxy();
 	init_Useful();
-	init_core$3();
+	init_src$4();
 	init_Channels();
 	handMap = /* @__PURE__ */ new WeakMap();
 	wrapMap = /* @__PURE__ */ new WeakMap();
@@ -24223,7 +24290,7 @@ var init_DataBase = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/core/RequestHandler.ts
+//#region ../../modules/projects/uniform.ts/src/newer/core/RequestHandler.ts
 /**
 * Execute a reflect action
 *
@@ -24398,7 +24465,7 @@ async function handleRequest(request, reqId, channelName, options) {
 }
 var isObject, defaultReflect;
 var init_RequestHandler = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Interface();
 	init_DataBase();
 	init_preload_helper();
@@ -24422,33 +24489,34 @@ var init_RequestHandler = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/Connection.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/Connection.ts
 var ChannelConnection, ConnectionPool, getConnectionPool, getConnection;
 var init_Connection = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Observable();
 	ChannelConnection = class {
+		_id = UUIDv4();
+		_state = "disconnected";
+		_inbound = new ChannelSubject({ bufferSize: 1e3 });
+		_outbound = new ChannelSubject({ bufferSize: 1e3 });
+		_stateChanges = new ChannelSubject();
+		_connectedPeers = /* @__PURE__ */ new Map();
+		_subs = [];
+		_stats = {
+			messagesSent: 0,
+			messagesReceived: 0,
+			bytesTransferred: 0,
+			latencyMs: 0,
+			uptime: 0,
+			reconnectCount: 0
+		};
+		_startTime = 0;
+		_pending = /* @__PURE__ */ new Map();
+		_buffer = [];
+		_opts;
 		constructor(_name, _transportType = "internal", options = {}) {
 			this._name = _name;
 			this._transportType = _transportType;
-			this._id = UUIDv4();
-			this._state = "disconnected";
-			this._inbound = new ChannelSubject({ bufferSize: 1e3 });
-			this._outbound = new ChannelSubject({ bufferSize: 1e3 });
-			this._stateChanges = new ChannelSubject();
-			this._connectedPeers = /* @__PURE__ */ new Map();
-			this._subs = [];
-			this._stats = {
-				messagesSent: 0,
-				messagesReceived: 0,
-				bytesTransferred: 0,
-				latencyMs: 0,
-				uptime: 0,
-				reconnectCount: 0
-			};
-			this._startTime = 0;
-			this._pending = /* @__PURE__ */ new Map();
-			this._buffer = [];
 			this._opts = {
 				timeout: 3e4,
 				autoReconnect: true,
@@ -24617,12 +24685,8 @@ var init_Connection = __esmMin((() => {
 		}
 	};
 	ConnectionPool = class ConnectionPool {
-		constructor() {
-			this._connections = /* @__PURE__ */ new Map();
-		}
-		static {
-			this._instance = null;
-		}
+		_connections = /* @__PURE__ */ new Map();
+		static _instance = null;
 		static getInstance() {
 			if (!ConnectionPool._instance) ConnectionPool._instance = new ConnectionPool();
 			return ConnectionPool._instance;
@@ -24656,13 +24720,13 @@ var init_Connection = __esmMin((() => {
 	getConnection = (name, transportType, options) => getConnectionPool().getOrCreate(name, transportType, options);
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/Transport.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/Transport.ts
 var init_Transport = __esmMin((() => {
-	init_core$3();
+	init_TransportCore();
 	init_Observable();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/Storage.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/Storage.ts
 /**
 * Get storage instance for channel
 */
@@ -24672,7 +24736,7 @@ function getChannelStorage(channelName) {
 }
 var DB_NAME$1, DB_VERSION, STORES, ChannelStorage, ChannelTransaction, _storageInstances;
 var init_Storage = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Observable();
 	DB_NAME$1 = "uniform_channels";
 	DB_VERSION = 1;
@@ -24684,12 +24748,13 @@ var init_Storage = __esmMin((() => {
 		TRANSACTIONS: "transactions"
 	};
 	ChannelStorage = class {
+		_db = null;
+		_isOpen = false;
+		_openPromise = null;
+		_channelName;
+		_messageUpdates = new ChannelSubject();
+		_exchangeUpdates = new ChannelSubject();
 		constructor(channelName) {
-			this._db = null;
-			this._isOpen = false;
-			this._openPromise = null;
-			this._messageUpdates = new ChannelSubject();
-			this._exchangeUpdates = new ChannelSubject();
 			this._channelName = channelName;
 		}
 		/**
@@ -25237,11 +25302,11 @@ var init_Storage = __esmMin((() => {
 		}
 	};
 	ChannelTransaction = class {
+		_operations = [];
+		_isCommitted = false;
+		_isRolledBack = false;
 		constructor(_storage) {
 			this._storage = _storage;
-			this._operations = [];
-			this._isCommitted = false;
-			this._isRolledBack = false;
 		}
 		/**
 		* Add put operation
@@ -25319,7 +25384,7 @@ var init_Storage = __esmMin((() => {
 	_storageInstances = /* @__PURE__ */ new Map();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/ChannelContext.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/ChannelContext.ts
 function isReflectAction(action) {
 	return [...Object.values(WReflectAction)].includes(action);
 }
@@ -25394,7 +25459,7 @@ function createChannelContext(options = {}) {
 }
 var workerCode, RemoteChannelHelper, ChannelHandler, ChannelContext, CONTEXT_REGISTRY;
 var init_ChannelContext = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Connection();
 	init_Observable();
 	init_Transport();
@@ -25407,6 +25472,8 @@ var init_ChannelContext = __esmMin((() => {
 	init_ConnectionModel();
 	workerCode = new URL("" + new URL("assets/Worker.ts", import.meta.url).href, "" + import.meta.url);
 	RemoteChannelHelper = class {
+		_connection;
+		_storage;
 		constructor(_channel, _context, _options = {}) {
 			this._channel = _channel;
 			this._context = _context;
@@ -25451,6 +25518,8 @@ var init_ChannelContext = __esmMin((() => {
 		}
 	};
 	ChannelHandler = class {
+		_connection;
+		_unified;
 		get _forResolves() {
 			return this._unified.__getPrivate("_pending");
 		}
@@ -25539,19 +25608,20 @@ var init_ChannelContext = __esmMin((() => {
 		}
 	};
 	ChannelContext = class {
+		_id = UUIDv4();
+		_hostName;
+		_host = null;
+		_endpoints = /* @__PURE__ */ new Map();
+		_unifiedByChannel = /* @__PURE__ */ new Map();
+		_unifiedConnectionSubs = /* @__PURE__ */ new Map();
+		_remoteChannels = /* @__PURE__ */ new Map();
+		_deferredChannels = /* @__PURE__ */ new Map();
+		_connectionEvents = new ChannelSubject({ bufferSize: 200 });
+		_connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._emitConnectionEvent(event));
+		_closed = false;
+		_globalSelf = null;
 		constructor(_options = {}) {
 			this._options = _options;
-			this._id = UUIDv4();
-			this._host = null;
-			this._endpoints = /* @__PURE__ */ new Map();
-			this._unifiedByChannel = /* @__PURE__ */ new Map();
-			this._unifiedConnectionSubs = /* @__PURE__ */ new Map();
-			this._remoteChannels = /* @__PURE__ */ new Map();
-			this._deferredChannels = /* @__PURE__ */ new Map();
-			this._connectionEvents = new ChannelSubject({ bufferSize: 200 });
-			this._connectionRegistry = new ConnectionRegistry(() => UUIDv4(), (event) => this._emitConnectionEvent(event));
-			this._closed = false;
-			this._globalSelf = null;
 			this._hostName = _options.name ?? `ctx-${this._id.slice(0, 8)}`;
 			if (_options.useGlobalSelf !== false) this._globalSelf = typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : null;
 		}
@@ -26092,12 +26162,13 @@ var init_ChannelContext = __esmMin((() => {
 	CONTEXT_REGISTRY = /* @__PURE__ */ new Map();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/TransportObservable.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/TransportObservable.ts
 var init_TransportObservable = __esmMin((() => {
+	init_TransportCore();
 	init_Observable();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/Worker.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/Worker.ts
 /**
 * Get or create the worker context singleton
 */
@@ -26107,16 +26178,18 @@ function getWorkerContext(config) {
 }
 var WorkerContext, WORKER_CONTEXT;
 var init_Worker = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_ChannelContext();
 	init_Observable();
 	init_Invoker();
 	WorkerContext = class {
+		_context;
+		_config;
+		_subscriptions = [];
+		_incomingConnections = new ChannelSubject({ bufferSize: 100 });
+		_channelCreated = new ChannelSubject({ bufferSize: 100 });
+		_channelClosed = new ChannelSubject();
 		constructor(config = {}) {
-			this._subscriptions = [];
-			this._incomingConnections = new ChannelSubject({ bufferSize: 100 });
-			this._channelCreated = new ChannelSubject({ bufferSize: 100 });
-			this._channelClosed = new ChannelSubject();
 			this._config = {
 				name: config.name ?? "worker",
 				workerName: config.workerName ?? `worker-${UUIDv4().slice(0, 8)}`,
@@ -26373,121 +26446,32 @@ var init_Worker = __esmMin((() => {
 	getWorkerContext({ name: "worker" });
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/observable/ChromeObservable.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/observable/ChromeObservable.ts
 var init_ChromeObservable = __esmMin((() => {
-	init_core$3();
 	init_Observable();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/observable/SocketIOObservable.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/observable/SocketIOObservable.ts
 var init_SocketIOObservable = __esmMin((() => {
-	init_core$3();
 	init_Observable();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/SharedWorkerTransport.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/SharedWorkerTransport.ts
 var init_SharedWorkerTransport = __esmMin((() => {
-	init_core$3();
 	init_Observable();
 }));
+//#endregion
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/AtomicsTransport.ts
 var init_AtomicsTransport = __esmMin((() => {
-	init_core$3();
 	init_Observable();
-	(class AtomicsRingBuffer {
-		static {
-			this.META_SIZE = 16;
-		}
-		static {
-			this.WRITE_IDX = 0;
-		}
-		static {
-			this.READ_IDX = 4;
-		}
-		static {
-			this.OVERFLOW = 8;
-		}
-		constructor(bufferOrConfig = {}) {
-			if (bufferOrConfig instanceof SharedArrayBuffer) {
-				this._buffer = bufferOrConfig;
-				this._slotCount = 64;
-				this._slotSize = (this._buffer.byteLength - AtomicsRingBuffer.META_SIZE) / this._slotCount;
-			} else {
-				this._slotSize = bufferOrConfig.slotSize ?? 1024;
-				this._slotCount = bufferOrConfig.slotCount ?? 64;
-				this._slotCount = 1 << Math.ceil(Math.log2(this._slotCount));
-				const totalSize = AtomicsRingBuffer.META_SIZE + this._slotSize * this._slotCount;
-				this._buffer = new SharedArrayBuffer(totalSize);
-			}
-			this._meta = new Int32Array(this._buffer, 0, AtomicsRingBuffer.META_SIZE / 4);
-			this._data = new Uint8Array(this._buffer, AtomicsRingBuffer.META_SIZE);
-			this._mask = this._slotCount - 1;
-		}
-		/**
-		* Write message to ring buffer (non-blocking)
-		*/
-		write(data) {
-			if (data.byteLength > this._slotSize - 4) return false;
-			const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			const readIdx = Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX);
-			if ((writeIdx + 1 & this._mask) === (readIdx & this._mask)) {
-				Atomics.add(this._meta, AtomicsRingBuffer.OVERFLOW, 1);
-				return false;
-			}
-			const slot = (writeIdx & this._mask) * this._slotSize;
-			new DataView(this._buffer, AtomicsRingBuffer.META_SIZE + slot).setUint32(0, data.byteLength, true);
-			this._data.set(data, slot + 4);
-			Atomics.store(this._meta, AtomicsRingBuffer.WRITE_IDX, writeIdx + 1);
-			Atomics.notify(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			return true;
-		}
-		/**
-		* Read message from ring buffer (non-blocking)
-		*/
-		read() {
-			const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			const readIdx = Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX);
-			if (readIdx === writeIdx) return null;
-			const slot = (readIdx & this._mask) * this._slotSize;
-			const size = new DataView(this._buffer, AtomicsRingBuffer.META_SIZE + slot).getUint32(0, true);
-			if (size === 0 || size > this._slotSize - 4) return null;
-			const data = new Uint8Array(size);
-			data.set(this._data.subarray(slot + 4, slot + 4 + size));
-			Atomics.store(this._meta, AtomicsRingBuffer.READ_IDX, readIdx + 1);
-			return data;
-		}
-		/**
-		* Wait for data to be available
-		*/
-		async waitRead(timeout) {
-			const writeIdx = Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX);
-			if (Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX) < writeIdx) return this.read();
-			if ("waitAsync" in Atomics) {
-				if (await Atomics.waitAsync(this._meta, AtomicsRingBuffer.WRITE_IDX, writeIdx, timeout ?? 1e3).value === "ok") return this.read();
-			} else {
-				await new Promise((r) => setTimeout(r, Math.min(timeout ?? 1e3, 100)));
-				return this.read();
-			}
-			return null;
-		}
-		get buffer() {
-			return this._buffer;
-		}
-		get available() {
-			return Atomics.load(this._meta, AtomicsRingBuffer.WRITE_IDX) - Atomics.load(this._meta, AtomicsRingBuffer.READ_IDX) & this._mask;
-		}
-		get overflow() {
-			return Atomics.load(this._meta, AtomicsRingBuffer.OVERFLOW);
-		}
-	});
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/RTCDataChannelTransport.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/RTCDataChannelTransport.ts
 var init_RTCDataChannelTransport = __esmMin((() => {
-	init_core$3();
 	init_Observable();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/PortTransport.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/PortTransport.ts
 /**
 * Create a MessageChannel pair with configured local transport
 */
@@ -26503,20 +26487,21 @@ function createChannelPair(channelName, config) {
 }
 var PortTransport, WindowPortConnector;
 var init_PortTransport = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Observable();
 	init_Proxy();
 	PortTransport = class {
+		_port;
+		_subs = /* @__PURE__ */ new Set();
+		_pending = /* @__PURE__ */ new Map();
+		_listening = false;
+		_cleanup = null;
+		_portId = UUIDv4();
+		_state = new ChannelSubject();
+		_keepAliveTimer = null;
 		constructor(port, _channelName, _config = {}) {
 			this._channelName = _channelName;
 			this._config = _config;
-			this._subs = /* @__PURE__ */ new Set();
-			this._pending = /* @__PURE__ */ new Map();
-			this._listening = false;
-			this._cleanup = null;
-			this._portId = UUIDv4();
-			this._state = new ChannelSubject();
-			this._keepAliveTimer = null;
 			this._port = port;
 			this._setupPort();
 			if (_config.autoStart !== false) this.start();
@@ -26650,13 +26635,13 @@ var init_PortTransport = __esmMin((() => {
 		}
 	};
 	WindowPortConnector = class {
+		_transport = null;
+		_state = new ChannelSubject();
+		_handshakeComplete = false;
 		constructor(_target, _channelName, _config = {}) {
 			this._target = _target;
 			this._channelName = _channelName;
 			this._config = _config;
-			this._transport = null;
-			this._state = new ChannelSubject();
-			this._handshakeComplete = false;
 		}
 		/**
 		* Initiate connection to target window
@@ -26726,24 +26711,22 @@ var init_PortTransport = __esmMin((() => {
 	WindowPortConnector.listen;
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/TransferableStorage.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/TransferableStorage.ts
 var init_TransferableStorage = __esmMin((() => {
-	init_core$3();
 	init_Observable();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/ServiceWorkerHost.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/ServiceWorkerHost.ts
 var init_ServiceWorkerHost = __esmMin((() => {
-	init_core$3();
 	init_Connection();
 	init_Observable();
 	init_Storage();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/transport/UnifiedTransport.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/transport/UnifiedTransport.ts
 var init_UnifiedTransport = __esmMin((() => {
-	init_core$3();
 	init_Observable();
+	init_TransportCore();
 	init_SharedWorkerTransport();
 	init_AtomicsTransport();
 	init_RTCDataChannelTransport();
@@ -26754,20 +26737,21 @@ var init_UnifiedTransport = __esmMin((() => {
 	init_ServiceWorkerHost();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/storage/Queued.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/storage/Queued.ts
 var QueuedWorkerChannel;
 var init_Queued = __esmMin((() => {
-	init_core$3();
+	init_src$4();
 	init_Channels();
 	QueuedWorkerChannel = class {
+		underlyingChannel = null;
+		isConnected = false;
+		requestQueue = [];
+		connectionPromise = null;
+		connectionResolver = null;
+		context;
 		constructor(config, onChannelReady) {
 			this.config = config;
 			this.onChannelReady = onChannelReady;
-			this.underlyingChannel = null;
-			this.isConnected = false;
-			this.requestQueue = [];
-			this.connectionPromise = null;
-			this.connectionResolver = null;
 			this.context = config.context ?? "unknown";
 		}
 		/**
@@ -26838,18 +26822,22 @@ var init_Queued = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/utils/Env.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/MessageQueue.ts
+var init_MessageQueue = __esmMin((() => {}));
+//#endregion
+//#region ../../modules/projects/uniform.ts/src/newer/next/utils/Env.ts
 var init_Env = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/uniform/newer/next/utils/Wrappers.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/utils/Wrappers.ts
 var init_Wrappers = __esmMin((() => {}));
 //#endregion
-//#region shared/fest/uniform/newer/next/utils/Utils.ts
+//#region ../../modules/projects/uniform.ts/src/newer/next/utils/Utils.ts
 var createServiceWorkerChannel, createWorkerChannel;
 var init_Utils = __esmMin((() => {
 	init_Queued();
 	init_Channels();
-	init_core$3();
+	init_src$4();
+	init_Wrappers();
 	createServiceWorkerChannel = async (config) => {
 		return {
 			async request(method, args = []) {
@@ -26896,7 +26884,7 @@ var init_Utils = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/uniform/newer/messaging/Protocol.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/Protocol.ts
 var PURPOSES$1, TYPES, DEFAULT_PURPOSE, asString, normalizePath$2, normalizeArgs, normalizeTransfer, normalizePurpose$1, inferType, inferOperation, inferProtocol, randomId$1, createProtocolEnvelope, isProtocolEnvelope, normalizeProtocolEnvelope;
 var init_Protocol = __esmMin((() => {
 	PURPOSES$1 = new Set([
@@ -27004,26 +26992,35 @@ var init_Protocol = __esmMin((() => {
 	normalizeProtocolEnvelope = (value) => isProtocolEnvelope(value) ? createProtocolEnvelope(value) : createProtocolEnvelope(value);
 }));
 //#endregion
-//#region shared/fest/uniform/newer/messaging/UnifiedMessaging.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/UnifiedMessaging.ts
 var init_UnifiedMessaging = __esmMin((() => {
 	init_Queued();
+	init_Env();
 	init_Utils();
+	init_MessageQueue();
+	init_Protocol();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/messaging/index.ts
-var init_messaging = __esmMin((() => {
-	init_UnifiedMessaging();
-	init_Protocol();
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/ServiceChannelManager.ts
+var init_ServiceChannelManager = __esmMin((() => {
 	init_Env();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/next/channel/ChannelMessageHandler.ts
+//#region ../../modules/projects/uniform.ts/src/newer/messaging/index.ts
+var init_messaging = __esmMin((() => {
+	init_MessageQueue();
+	init_UnifiedMessaging();
+	init_Protocol();
+	init_ServiceChannelManager();
+}));
+//#endregion
+//#region ../../modules/projects/uniform.ts/src/newer/next/channel/ChannelMessageHandler.ts
 var init_ChannelMessageHandler = __esmMin((() => {
-	init_core$3();
+	init_TransportCore();
 	init_RequestHandler();
 }));
 //#endregion
-//#region shared/fest/uniform/newer/index.ts
+//#region ../../modules/projects/uniform.ts/src/newer/index.ts
 var init_newer = __esmMin((() => {
 	init_Interface();
 	init_TransportCore();
@@ -27056,20 +27053,21 @@ var init_newer = __esmMin((() => {
 	init_Channels();
 	init_RequestProxy();
 	init_ChannelMessageHandler();
+	init_Env();
 }));
 //#endregion
-//#region shared/fest/uniform/index.ts
-var init_uniform = __esmMin((() => {
+//#region ../../modules/projects/uniform.ts/src/index.ts
+var init_src$1 = __esmMin((() => {
 	init_newer();
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/OPFS.uniform.worker.ts?worker
+//#region ../../modules/projects/lur.e/src/utils/opfs/OPFS.uniform.worker.ts?worker
 function WorkerWrapper(options) {
 	return new Worker("" + new URL("assets/OPFS.uniform.worker.js", import.meta.url).href, { name: options?.name });
 }
 var init_OPFS_uniform_worker = __esmMin((() => {}));
 //#endregion
-//#region shared/polyfill/showOpenFilePicker.mjs
+//#region ../../modules/subsystem/fest/polyfill/showOpenFilePicker.mjs
 var showOpenFilePicker_exports = /* @__PURE__ */ __exportAll({
 	showOpenFilePicker: () => showOpenFilePicker,
 	showSaveFilePicker: () => showSaveFilePicker
@@ -27127,7 +27125,7 @@ var init_showOpenFilePicker = __esmMin((() => {
 	});
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/OPFS.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/OPFS.ts
 async function resolveRootHandle(rootHandle, relPath = "") {
 	if (rootHandle == null || rootHandle == void 0 || rootHandle?.trim?.()?.length == 0) rootHandle = "/user/";
 	const cleanId = typeof rootHandle == "string" ? rootHandle?.trim?.()?.replace?.(/^\//, "")?.trim?.()?.split?.("/")?.filter?.((p) => !!p?.trim?.())?.at?.(0) : null;
@@ -27492,9 +27490,9 @@ async function remove(rootHandle, relPath, options = {}, logger = defaultLogger)
 }
 var workerChannel, isServiceWorker, SW_BRIDGE_CHANNEL_NAME, observers, workerInitPromise, swBridgeChannel, swBridgeRequestCounter, ensureSwBridgeChannel, postViaSwBridge, ensureWorker, directHandlers, post, getDir, imageImportDesc, generalFileImportDesc, mappedRoots, currentHandleMap, mountAsRoot, unmountAsRoot, hasFileExtension, directoryCacheMap, mayNotPromise, openImageFilePicker, downloadFile, provide, getLeast, dropFile, uploadDirectory, uploadFile, ghostImage, attachFile, dropAsTempFile, clearAllInDirectory, copyFromOneHandlerToAnother, handleIncomingEntries;
 var init_OPFS = __esmMin((() => {
-	init_core$3();
-	init_object();
-	init_uniform();
+	init_src$4();
+	init_src$2();
+	init_src$1();
 	init_OPFS_uniform_worker();
 	init_preload_helper();
 	workerChannel = null;
@@ -27809,7 +27807,7 @@ var init_OPFS = __esmMin((() => {
 			showSaveFilePicker: self?.showSaveFilePicker?.bind?.(window)
 		})) : __vitePreload(() => import(
 			/* @vite-ignore */
-			"fest/polyfill/showOpenFilePicker.mjs"
+			"../../../../../subsystem/fest/polyfill/showOpenFilePicker.mjs"
 ), [], import.meta.url));
 		if (window?.showSaveFilePicker) {
 			const writableFileStream = await (await fx?.showSaveFilePicker?.({ suggestedName: filename })?.catch?.(console.warn.bind(console)))?.createWritable?.({ keepExistingData: true })?.catch?.(console.warn.bind(console));
@@ -28026,7 +28024,7 @@ var init_OPFS = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/file-utils.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/file-utils.ts
 /**
 * Check if a file is a markdown file
 */
@@ -28215,7 +28213,7 @@ var init_file_utils = __esmMin((() => {
 	init_OPFS();
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/Base64Data.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/Base64Data.ts
 function canUseFromBase64() {
 	return typeof Uint8Array.fromBase64 === "function";
 }
@@ -28492,7 +28490,7 @@ var init_Base64Data = __esmMin((() => {
 	DATA_URL_RE = /^data:(?<mime>[^;,]+)?(?<params>(?:;[^,]*)*?),(?<data>[\s\S]*)$/i;
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/OPFSMod.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/OPFSMod.ts
 /**
 * Walk a directory tree inside OPFS, apply a transform to every JSON-like file,
 * and optionally perform a dry run without writing changes.
@@ -28625,10 +28623,10 @@ var init_OPFSMod = __esmMin((() => {
 	init_jsox();
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/FileOps.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/FileOps.ts
 var bindDropToDir, writeFilesToDir, openPickerAndWrite, downloadByPath;
 var init_FileOps = __esmMin((() => {
-	init_lure();
+	init_src();
 	bindDropToDir = (host, dir) => {
 		const onDragOver = (ev) => {
 			ev.preventDefault();
@@ -28701,7 +28699,7 @@ var init_FileOps = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/WriteFileSmart-v2.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/WriteFileSmart-v2.ts
 function dedupeArray(items, opts) {
 	const keys = Array.isArray(opts.arrayKey) ? opts.arrayKey : opts.arrayKey ? [opts.arrayKey] : DEFAULT_ARRAY_KEYS;
 	const result = [];
@@ -28783,7 +28781,7 @@ var init_WriteFileSmart_v2 = __esmMin((() => {
 	init_preload_helper();
 	lureFsPromise$1 = null;
 	getLureFs = () => {
-		if (!lureFsPromise$1) lureFsPromise$1 = __vitePreload(() => Promise.resolve().then(() => (init_lure(), lure_exports)).then((m) => ({
+		if (!lureFsPromise$1) lureFsPromise$1 = __vitePreload(() => Promise.resolve().then(() => (init_src(), src_exports)).then((m) => ({
 			readFile: m.readFile,
 			writeFile: m.writeFile
 		})), void 0, import.meta.url);
@@ -28891,7 +28889,7 @@ var init_WriteFileSmart_v2 = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/FsWatch.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/FsWatch.ts
 var matchPath, channel, watchers, stopAllWatchers, watchFsDirectory, getMarkDownFromFile, getJSONFromFile, parseJsonSafely;
 var init_FsWatch = __esmMin((() => {
 	matchPath = (path = "", dir = "") => {
@@ -28952,7 +28950,7 @@ var init_FsWatch = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/utils/opfs/FileHandling.ts
+//#region ../../modules/projects/lur.e/src/utils/opfs/FileHandling.ts
 /**
 * Utility function to create a file handler with default options
 */
@@ -28993,8 +28991,9 @@ async function extractTextFromDataTransfer(dt) {
 var FileHandler;
 var init_FileHandling = __esmMin((() => {
 	FileHandler = class {
+		options;
+		dragOverElements = /* @__PURE__ */ new Set();
 		constructor(options) {
-			this.dragOverElements = /* @__PURE__ */ new Set();
 			this.options = { ...options };
 		}
 		/**
@@ -29297,7 +29296,7 @@ var init_FileHandling = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region shared/fest/lure/interactive/modules/LazyLoader.ts
+//#region ../../modules/projects/lur.e/src/interactive/modules/LazyLoader.ts
 /**
 * Lazy load a component and its CSS
 */
@@ -29362,8 +29361,8 @@ var init_LazyLoader = __esmMin((() => {
 	componentCache = /* @__PURE__ */ new Map();
 }));
 //#endregion
-//#region shared/fest/lure/index.ts
-var lure_exports = /* @__PURE__ */ __exportAll({
+//#region ../../modules/projects/lur.e/src/index.ts
+var src_exports = /* @__PURE__ */ __exportAll({
 	$behavior: () => $behavior,
 	$createElement: () => $createElement,
 	$mapped: () => $mapped,
@@ -29854,7 +29853,7 @@ var lure_exports = /* @__PURE__ */ __exportAll({
 	writeImage: () => writeImage,
 	writeText: () => writeText
 });
-var init_lure = __esmMin((() => {
+var init_src = __esmMin((() => {
 	init_Bindings();
 	init_Switched();
 	init_Mapped();
@@ -30579,7 +30578,7 @@ var init_Names = __esmMin((() => {
 	ROUTE_HASHES.WORKCENTER, ROUTE_HASHES.SETTINGS, ROUTE_HASHES.MARKDOWN_VIEWER, ROUTE_HASHES.FILE_EXPLORER, ROUTE_HASHES.PRINT, ROUTE_HASHES.HISTORY, ROUTE_HASHES.MARKDOWN_EDITOR;
 }));
 //#endregion
-//#region src/shared/channel/UniformInterop.ts
+//#region ../../modules/projects/subsystem/src/routing/channel/UniformInterop.ts
 var PROTOCOL_ALIASES, TRANSPORT_ALIASES, PURPOSES, randomId, normalizePurpose, normalizeInteropProtocolName, normalizeInteropTransportName, createInteropEnvelope;
 var init_UniformInterop = __esmMin((() => {
 	init_Names();
@@ -30687,7 +30686,7 @@ var init_UniformInterop = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region src/shared/native/cws-bridge.ts
+//#region src/shared/routing/native/cws-bridge.ts
 var cws_bridge_exports = /* @__PURE__ */ __exportAll({
 	CwsBridge: () => CwsBridge,
 	getNativeUnifiedSettings: () => getNativeUnifiedSettings,
@@ -30826,7 +30825,7 @@ async function patchNativeUnifiedSettings(appSettings) {
 var CwsBridgeWeb, CwsBridge, bridgeInitDone, normalizeBridgeEnvelope, normalizeInvokeResultEnvelope, isCapacitorCwsNativeShell, isElectronCwsNativeShell, isCwsNativeIpcAvailable;
 var init_cws_bridge = __esmMin((() => {
 	init_dist$1();
-	init_uniform();
+	init_src$1();
 	init_UniformInterop();
 	CwsBridgeWeb = class extends WebPlugin {
 		async getShellInfo() {
@@ -30914,7 +30913,7 @@ var init_cws_bridge = __esmMin((() => {
 	};
 }));
 //#endregion
-//#region src/shared/config/Settings.ts
+//#region src/shared/other/config/Settings.ts
 var Settings_exports = /* @__PURE__ */ __exportAll({
 	DB_NAME: () => DB_NAME,
 	SETTINGS_KEY: () => SETTINGS_KEY,
@@ -30952,7 +30951,7 @@ var SETTINGS_KEY, splitPath, getByPath, slugify, DB_NAME, STORE, createWebDavCli
 var init_Settings = __esmMin((() => {
 	init_jsox();
 	init_SettingsTypes();
-	init_lure();
+	init_src();
 	init_preload_helper();
 	SETTINGS_KEY = "rs-settings";
 	splitPath = (path) => path.split(".");
@@ -31412,7 +31411,7 @@ var init_Settings = __esmMin((() => {
 	};
 	lureFsPromise = null;
 	loadLureFs = () => {
-		if (!lureFsPromise) lureFsPromise = __vitePreload(() => Promise.resolve().then(() => (init_lure(), lure_exports)).then((m) => ({
+		if (!lureFsPromise) lureFsPromise = __vitePreload(() => Promise.resolve().then(() => (init_src(), src_exports)).then((m) => ({
 			getDirectoryHandle: m.getDirectoryHandle,
 			readFile: m.readFile
 		})), void 0, import.meta.url);
@@ -31579,7 +31578,7 @@ var init_Settings = __esmMin((() => {
 	}
 }));
 //#endregion
-//#region src/shared/config/RuntimeSettings.ts
+//#region src/shared/other/config/RuntimeSettings.ts
 async function getDefaultProvider() {
 	if (defaultProvider) return defaultProvider;
 	const { loadSettings } = await __vitePreload(async () => {
@@ -32173,7 +32172,7 @@ var init_dist = __esmMin((() => {
 	DEFAULT_DELIMITER = DELIMITERS.comma;
 }));
 //#endregion
-//#region src/shared/utils/Runtime.ts
+//#region src/shared/other/utils/Runtime.ts
 var getRuntimeLocation, getRuntimeLocationOrigin, canParseURL;
 var init_Runtime = __esmMin((() => {
 	getRuntimeLocation = () => globalThis?.location;
@@ -32450,7 +32449,7 @@ Expected output structure:
 `;
 }));
 //#endregion
-//#region src/shared/document/AIResponseParser.ts
+//#region src/shared/other/document/AIResponseParser.ts
 var JSON_EXTRACTION_PATTERNS, cleanRawText, attemptJSONRecovery, tryParseJSON, extractJSONFromAIResponse, STRICT_JSON_INSTRUCTIONS;
 var init_AIResponseParser = __esmMin((() => {
 	init_jsox();
@@ -35645,7 +35644,7 @@ var executionCore = new ExecutionCore();
 init_RuntimeSettings();
 init_Settings();
 init_SettingsTypes();
-init_lure();
+init_src();
 /** Known field names for file uploads */
 var FILE_FIELD_NAMES = [
 	"files",
@@ -35988,8 +35987,8 @@ var processShareTargetWithExecutionCore = async (shareData, sessionId) => {
 	}
 };
 //#endregion
-//#region src/shared/channel/LogSanitizer.ts
-init_lure();
+//#region ../../modules/projects/subsystem/src/routing/channel/LogSanitizer.ts
+init_src();
 var DEFAULT_OPTIONS = {
 	maxStringLength: 180,
 	maxArrayLength: 8,
@@ -36072,7 +36071,7 @@ var summarizeForLog = (value, partialOptions = {}) => {
 //#endregion
 //#region src/pwa/sw.ts
 init_Names();
-init_core$3();
+init_src$4();
 /**
 * Service Worker Content Association Registry
 */
@@ -36546,7 +36545,7 @@ async function broadcastToClients(type, data) {
 		console.warn("[SW-Broadcast] Failed to broadcast to clients:", error);
 	}
 }
-var manifest = [{"revision":"402b66900e731ca748771b6fc5e7a068","url":"registerSW.js"},{"revision":"52ff6546e60243cf2f2ba4fc18839dc8","url":"index.js"},{"revision":"c599b8fc1ea8675dc6d4456af68bad6f","url":"workers/opfs/OPFS.uniform.worker.js"},{"revision":"962f2997c11e5cd0ca2cea8c0b0c8547","url":"views/workcenter4.js"},{"revision":"96fca28f90c0cd02e6e4d518c93ae54e","url":"views/workcenter3.js"},{"revision":"865f4aac76324fe9ccd34fa9325470cc","url":"views/workcenter2.js"},{"revision":"88d8896586eb020164df39d681fdeef6","url":"views/workcenter.js"},{"revision":"5efaf0ba117ac0737abb63d02059959b","url":"views/viewer.js"},{"revision":"46c745f354c8272f73150983aaacf9f6","url":"views/settings.js"},{"revision":"c09a3c9be6d3c8ec3ad4f43d1fb2bfbc","url":"views/home.js"},{"revision":"043833c08d21e31df4301fe98a2e3d21","url":"views/history.js"},{"revision":"dc0e9410dc6896a598b4e740ea514ec7","url":"views/explorer.js"},{"revision":"297aea8d27da53553f27c50e38fca52c","url":"views/editor2.js"},{"revision":"6daabb70ea5fa83bf766bdefca9883f4","url":"views/editor.js"},{"revision":"b94815b78b24a0e1c450404452f28e15","url":"views/apis.js"},{"revision":"24ad2381e8c3dc125f02c74b1213949e","url":"views/airpad4.js"},{"revision":"a491b2aeda0149034a3dc24f911f8398","url":"views/airpad3.js"},{"revision":"04b05b44d2d765685cd44381cc9b44eb","url":"views/airpad2.js"},{"revision":"bfbc6b1a22ab204c8c1f39cff1429898","url":"views/airpad.js"},{"revision":"3e0d26d4d596eea355d493565040adf7","url":"vendor/marked.js"},{"revision":"5698bd498ed7272ba9d539bc3debb926","url":"vendor/lodash-es.js"},{"revision":"f52c0bd5c7eb5784eabbb89edf25187c","url":"vendor/katex2.js"},{"revision":"15d483d89ea0c60bfaf59df890c13e2f","url":"vendor/katex.js"},{"revision":"6a5e3243da297a99f4b881140bc2d092","url":"vendor/jsox.js"},{"revision":"cc5189cd52b9b50e75c06d99cbcbcb4f","url":"vendor/dompurify.js"},{"revision":"d868500d09d6e54c0e6eb24e7fc2e703","url":"vendor/@toon-format_toon.js"},{"revision":"2e60c7f8cc04a70a6c668aa04e3191f2","url":"vendor/@capacitor_core.js"},{"revision":"524687e46ae8d1623a85d01665b11024","url":"shells/minimal.js"},{"revision":"81eea3e826002194b4199461ca64ea6c","url":"shells/core-shell-elements.js"},{"revision":"096acd066277b6c4188b9350d64c78e6","url":"shells/content-index.js"},{"revision":"698ae43e550a6eb169efbedc6f49f19c","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"ab55b9092821d83564a4e013f961c580","url":"fest/veela.js"},{"revision":"79552a2b69405229a8ba21e25573e85a","url":"fest/uniform.js"},{"revision":"e0cea6c31d9eeeb7551bee3ce9038875","url":"fest/object.js"},{"revision":"d100af05cde75c2ef32b9fe910a0a27f","url":"fest/icon.js"},{"revision":"71b39be2c610f804fa067c2e8b780b82","url":"fest/dom.js"},{"revision":"0f2644ab24bc1e732006746741d44a38","url":"com/app7.js"},{"revision":"1c580124cd39697d10a3647d13793090","url":"com/app6.js"},{"revision":"94aeb31b18da98f94d41a0b15936eb14","url":"com/app5.js"},{"revision":"10f246b933851d8e9244906727b80ee9","url":"com/app4.js"},{"revision":"57739b0d89fad54cb7ffab087796864a","url":"com/app3.js"},{"revision":"3f2f3440c521bf2693af8fd281485044","url":"com/app2.js"},{"revision":"b9647f1ee65bb76aca74f9af03606870","url":"com/app.js"},{"revision":"b1bee18bcfbebc02771f0eb3818b7043","url":"chunks/views2.js"},{"revision":"945b2c40874b63e7b8ab49281cce3333","url":"chunks/views.js"},{"revision":"43dc830ec50dece10314980b0127a0fd","url":"chunks/utils.js"},{"revision":"931bcd928a4e5c56b2abfc2ec225e656","url":"chunks/unified.js"},{"revision":"7519db553093058c1593117d57850c8e","url":"chunks/types.js"},{"revision":"0f84b4ea337ac95767de77818d011c6e","url":"chunks/templates.js"},{"revision":"496ec9fdb85f880a10faef3c15fb65f9","url":"chunks/sw-handling.js"},{"revision":"9ce9f07d28700fe2c7de45da4a2fdb84","url":"chunks/showOpenFilePicker.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"241fa175ef28c18e07c8a6ca5c5d0696","url":"chunks/registry2.js"},{"revision":"50cd290f8df78217f320b0b30f595842","url":"chunks/registry.js"},{"revision":"748ca7760cee712ebf09998fd29583e7","url":"chunks/hub-socket-boot.js"},{"revision":"37213ff4554815f6840b2acd5b0766ab","url":"chunks/core.js"},{"revision":"d84b834110fc86bc456c4c88728fa0e5","url":"chunks/clipboard-device.js"},{"revision":"c0ab54ae04bdc3c72cc5c7d4d24c48b4","url":"chunks/channel-unknown.js"},{"revision":"bad1cff2e1ce340787072ee4942b0e2f","url":"chunks/UniformViewTransport.js"},{"revision":"8ab2bba2313421bde8b839273b942221","url":"chunks/UniformInterop.js"},{"revision":"580db0c6fbcefd771005c97457ed5de5","url":"chunks/UnifiedMessaging.js"},{"revision":"476c51470ae40bcacbc2d43167626de2","url":"chunks/Theme.js"},{"revision":"13cf277cd1bab65c6f3150e0b6fe8d9b","url":"chunks/StateStorage.js"},{"revision":"722cde068ab69253948869a581883ade","url":"chunks/ShareTargetGateway.js"},{"revision":"bed8a7570af6f9fae698d1104463e10e","url":"chunks/SettingsTypes.js"},{"revision":"aa9a2c077a93db88ce849bfa7e2bdbc3","url":"chunks/Settings.js"},{"revision":"434634149a37692fb62a8547a7edf75b","url":"chunks/RuntimeSettings.js"},{"revision":"e60082355196ac83b1d103a8f62f9b9f","url":"chunks/Runtime.js"},{"revision":"1cffda4f904747be037d8c2fecc3525e","url":"chunks/LogSanitizer.js"},{"revision":"45d9848d8ffc3f14143aac27de5d22e2","url":"chunks/DocxExport.js"},{"revision":"9e52a0caadb4e7cb57f4fa64e863546d","url":"chunks/CustomInstructions.js"},{"revision":"cd8a5a89d130af515c6367a884cec91b","url":"chunks/BootLoader.js"},{"revision":"f29b8dbac4f3635818599b458f0206e9","url":"chunks/AIResponseParser.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
+var manifest = [{"revision":"402b66900e731ca748771b6fc5e7a068","url":"registerSW.js"},{"revision":"7a3bae52eb05cb514b643a4422f99214","url":"index.js"},{"revision":"fb79332403ca81b55ce45f638750bc82","url":"workers/opfs/OPFS.uniform.worker.js"},{"revision":"200e2294bcd2c2362352e895ae39ad18","url":"views/viewer.js"},{"revision":"b18af82b0d2c3e600842ff3e525542b7","url":"views/airpad.js"},{"revision":"3e0d26d4d596eea355d493565040adf7","url":"vendor/marked.js"},{"revision":"bbaec8928c21cd700626494e33dc4381","url":"vendor/marked-katex-extension.js"},{"revision":"df6bded9f3513fc483d8fb300ff38f12","url":"vendor/lodash-es.js"},{"revision":"f41363b85242eae40cbf4fe71a7c4def","url":"vendor/katex2.js"},{"revision":"36ba6fdacbcd6cbedc1b2ccc19744270","url":"vendor/katex.js"},{"revision":"f724fdcdf5e7eabbff0c155d07061cbd","url":"vendor/jsox.js"},{"revision":"cc5189cd52b9b50e75c06d99cbcbcb4f","url":"vendor/dompurify.js"},{"revision":"180d80d1795a9c4b361232dc9161244f","url":"vendor/@toon-format_toon.js"},{"revision":"f17122b807ca6522b1ef8c324b0eefef","url":"vendor/@capacitor_core.js"},{"revision":"f482be8d93e4fb7f6b79e98fb6b4b289","url":"shells/boot-index.js"},{"revision":"021efbeb91ff7932c9586d2a4d309576","url":"shells/base.js"},{"revision":"733d0c14b462e41bd7c9c9723e68ecea","url":"pwa/src/pwa/manifest.json"},{"revision":"664ad09cbf9e859856bf6e15f35bff5b","url":"pwa/icons/src/pwa/icons/icon.svg"},{"revision":"780272bf97ad25d055226439ce5f3ae1","url":"pwa/icons/src/pwa/icons/icon.png"},{"revision":"a5c15014c24bcb372510443bba7163c0","url":"fest/veela.js"},{"revision":"6f22424adf5859f7bc7e7c17198dc2f9","url":"fest/uniform.js"},{"revision":"19e1b867b6e0ff2855e223560ee0b154","url":"fest/object.js"},{"revision":"fc46d2de0a1fb98f5c0bfbd8e384e1aa","url":"fest/icon.js"},{"revision":"416517811c725470a769d590122269da","url":"fest/dom.js"},{"revision":"91660b205bcdf87a46e7b68a38eba968","url":"fest/core.js"},{"revision":"44bb1949124ea9c0560afec375a1a4d9","url":"com/app3.js"},{"revision":"1c580124cd39697d10a3647d13793090","url":"com/app2.js"},{"revision":"26c64c5bbff037414436502e484a3324","url":"com/app.js"},{"revision":"d0ce1a2b484018b32ac6f440295f52d4","url":"chunks/window.js"},{"revision":"1f2ebedbb2751a29f6d484c902e1394b","url":"chunks/websocket.js"},{"revision":"e5a491e9fea397113d50ddd086f9f5c9","url":"chunks/views.js"},{"revision":"43dc830ec50dece10314980b0127a0fd","url":"chunks/utils.js"},{"revision":"2295f224a11948053f4c2e27921905fd","url":"chunks/unified.js"},{"revision":"0f84b4ea337ac95767de77818d011c6e","url":"chunks/templates.js"},{"revision":"6f8fd4623552ccc81830b3a82d541b2b","url":"chunks/sw-handling.js"},{"revision":"db61667989ccc4349167003bb1997c65","url":"chunks/src9.js"},{"revision":"4121262713df437aa0ebf4bc1d5ddb0c","url":"chunks/src8.js"},{"revision":"9765c5e6c6d4d5b4ed0a895f759e26a5","url":"chunks/src7.js"},{"revision":"e5a7b7de67bbf39800848686685b2138","url":"chunks/src6.js"},{"revision":"25e731ab682a218dfea64308f6418d30","url":"chunks/src5.js"},{"revision":"cd2955874a34edb14ec8d7cb5d30d063","url":"chunks/src4.js"},{"revision":"422a5ed62338fcfe73e2e5748605ef04","url":"chunks/src3.js"},{"revision":"faa235e848f3f3f3461afec809e281e4","url":"chunks/src2.js"},{"revision":"753de9ea8b9cfdd4bbe1829155063707","url":"chunks/src.js"},{"revision":"f9c4c0c90c2dfce3afd3906098e04df9","url":"chunks/showOpenFilePicker.js"},{"revision":"57a2c6fb5f0b6575d7321f3751095c11","url":"chunks/shells.js"},{"revision":"4cd68cb07d625dc283b5a2ee9acc2b0d","url":"chunks/rolldown-runtime.js"},{"revision":"bcbd181dd6ecf8cf1d54e6c62a26819a","url":"chunks/registry.js"},{"revision":"b615ea73c696210ce33536a3dbc41da3","url":"chunks/preview.js"},{"revision":"9920b6809ce5ea2d944523d14fa5a5e2","url":"chunks/main.js"},{"revision":"eb03dab8be8b35abca368ca78ea4c053","url":"chunks/hub-socket-boot.js"},{"revision":"6816842fc92749a376be4fb7ee617c47","url":"chunks/environment.js"},{"revision":"fb419c49218f8a75e9155708e116dd39","url":"chunks/decorate.js"},{"revision":"37213ff4554815f6840b2acd5b0766ab","url":"chunks/core.js"},{"revision":"870f7b3e6ea082b599b191ac26ce35e9","url":"chunks/config.js"},{"revision":"a9a1301e40c8459beca5553ee4f2e5f7","url":"chunks/clipboard-device.js"},{"revision":"2be4226c2bdecfba46b712e0c58f3617","url":"chunks/channel-unknown.js"},{"revision":"e763b02f9ffba4ad1114c362d7c3108e","url":"chunks/channel-actions.js"},{"revision":"a585a13f35330fa0b858b1925ceab5b2","url":"chunks/WorkCenterState.js"},{"revision":"7b3a6cb9455c3bb4f870381fc8f58994","url":"chunks/WorkCenterDataProcessing.js"},{"revision":"0cc51ab85ed1cc01190450e63ad00945","url":"chunks/WorkCenter.js"},{"revision":"a7952067eeac56bb402567dd5a9c3afb","url":"chunks/UniformInterop.js"},{"revision":"b8b7e8e56c1875d3fd46d9a7838e3371","url":"chunks/UnifiedMessaging.js"},{"revision":"42532c6cbd5808fb5e66d5be7ff4e630","url":"chunks/Theme.js"},{"revision":"7759337c5320aae961e324ac00fb3cc2","url":"chunks/StateStorage.js"},{"revision":"36219bbdd65f86329d5f0054a2d3a226","url":"chunks/ShareTargetGateway.js"},{"revision":"e49542e6cd4bd54fdb8bada532024850","url":"chunks/SettingsTypes.js"},{"revision":"39510738748514a748820e72f02ecb40","url":"chunks/Settings.js"},{"revision":"acfde81559df4398471a07f0b6e99cb8","url":"chunks/RuntimeSettings.js"},{"revision":"cdbbdb96b1873680e761cd3a9ba271fd","url":"chunks/Runtime.js"},{"revision":"bdbcd52b987c484e9dbc2ef6ee7c7f6d","url":"chunks/MarkdownEditor.js"},{"revision":"f6beffd8c442a06243e88742a26714a3","url":"chunks/LogSanitizer.js"},{"revision":"34dc27d33c2b8b37c8eebc92ea8f8ba3","url":"chunks/DocxExport.js"},{"revision":"59a9900f6f1815152c444d567823618e","url":"chunks/DocTools.js"},{"revision":"9e52a0caadb4e7cb57f4fa64e863546d","url":"chunks/CustomInstructions.js"},{"revision":"18a4b0dfb447f6cd4a97272aa30ee3ae","url":"chunks/Clipboard.js"},{"revision":"335c1ed3383a4575fc4c9c91e4eac973","url":"chunks/BootLoader.js"},{"revision":"7d7538438c346de167b2b5cae3a3f48a","url":"chunks/AIResponseParser.js"},{"revision":null,"url":"assets/crossword.css"},{"revision":null,"url":"assets/OPFS.uniform.worker.js"}];
 cleanupOutdatedCaches();
 if (manifest && true) precacheAndRoute(manifest.filter((entry) => {
 	const url = typeof entry === "string" ? entry : String(entry?.url || "");

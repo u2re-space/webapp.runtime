@@ -1,6 +1,5 @@
 import { a as __toESM, i as __toCommonJS, n as __esmMin, r as __exportAll, t as __commonJSMin } from "../chunks/rolldown-runtime.js";
-import { q as H } from "../com/app.js";
-import "../fest/icon.js";
+import { P as H } from "./jsox.js";
 //#region ../../node_modules/lodash-es/_freeGlobal.js
 var freeGlobal;
 var init__freeGlobal = __esmMin((() => {
@@ -29055,14 +29054,13 @@ var import_quill = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expo
 	exports.default = _core.default;
 })))(), 1);
 //#endregion
-//#region src/frontend/views/editor/editors/QuillEditor.ts
+//#region ../../modules/views/editor-view/src/ts/QuillEditor.ts
 var QuillEditor = class {
-	options;
-	quill = null;
-	container = null;
-	autoSaveTimeout = null;
-	content = "";
 	constructor(options = {}) {
+		this.quill = null;
+		this.container = null;
+		this.autoSaveTimeout = null;
+		this.content = "";
 		this.options = {
 			initialContent: "",
 			placeholder: "Start writing...",

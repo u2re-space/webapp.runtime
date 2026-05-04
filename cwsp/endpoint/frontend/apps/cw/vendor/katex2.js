@@ -1,4 +1,4 @@
-import { r as katex } from "./katex.js";
+import { t as katex } from "./katex.js";
 //#region ../../node_modules/katex/dist/contrib/auto-render.mjs
 var findEndOfMath = function findEndOfMath(delimiter, text, startIndex) {
 	var index = startIndex;
