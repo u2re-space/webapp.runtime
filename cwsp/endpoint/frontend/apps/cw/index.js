@@ -1,6 +1,6 @@
 import { c as ensureServiceWorkerRegistered, i as initReceivers, n as ensureAppCss, o as setupLaunchQueueConsumer, r as handleShareTarget, t as checkPendingShareData } from "./chunks/sw-handling.js";
 import { p as loadAsAdopted } from "./fest/dom.js";
-import { _ as pickEnabledView } from "./chunks/Theme.js";
+import { h as pickEnabledView } from "./shells/preference.js";
 import { l as initializeLayers } from "./chunks/BootLoader.js";
 import { a as loadSubAppWithShell, i as getShellFromQuery, n as VALID_VIEWS, r as getSavedShellPreference, t as ensureAppLayers } from "./shells/boot-index.js";
 import { t as views_default } from "./chunks/views.js";
@@ -208,10 +208,7 @@ var ServiceWorkerUpdateManager = class {
 		if (!("serviceWorker" in navigator) || isExtension$1() || !isServiceWorkerAllowedContext()) return null;
 		try {
 			this.registration = await ensureServiceWorkerRegistered();
-			if (!this.registration) {
-				console.warn("[SW] Service worker registration skipped: no valid script candidate");
-				return null;
-			}
+			if (!this.registration) return null;
 			this.setupUpdateListeners();
 			this.startPeriodicUpdates();
 			navigator.serviceWorker.ready.catch(() => void 0);

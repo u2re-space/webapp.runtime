@@ -2,12 +2,8 @@ import { r as __exportAll } from "./rolldown-runtime.js";
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterState.ts
 var WorkCenterState_exports = /* @__PURE__ */ __exportAll({ WorkCenterStateManager: () => WorkCenterStateManager });
 var WorkCenterStateManager = class {
-	static {
-		this.STORAGE_KEY = "rs-workcenter-state";
-	}
-	static {
-		this.TEMPLATES_STORAGE_KEY = "rs-workcenter-templates";
-	}
+	static STORAGE_KEY = "rs-workcenter-state";
+	static TEMPLATES_STORAGE_KEY = "rs-workcenter-templates";
 	static createDefaultState() {
 		return {
 			files: [],

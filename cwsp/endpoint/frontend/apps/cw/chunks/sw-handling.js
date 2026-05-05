@@ -8,7 +8,17 @@ import { t as summarizeForLog } from "./LogSanitizer.js";
 //#region src/shared/routing/pwa/sw-url.ts
 var isLikelyJavaScriptContentType = (contentType) => {
 	const ct = (contentType || "").toLowerCase();
-	return ct.includes("javascript") || ct.includes("ecmascript") || ct.includes("module");
+	return ct.includes("javascript") || ct.includes("ecmascript") || ct.includes("module") || ct.includes("text/javascript");
+};
+var isLikelyHtmlContentType = (contentType) => {
+	const ct = (contentType || "").toLowerCase();
+	return ct.includes("text/html") || ct.includes("application/xhtml");
+};
+/** SPA / proxy fallbacks often return 200 + HTML for unknown paths — never call `register()` in that case (MIME SecurityError spam). */
+var bodyLooksLikeHtmlDocument = (snippet) => {
+	const head = snippet.trimStart().slice(0, 400);
+	if (!head) return false;
+	return head.startsWith("<!") || /^<\s*html[\s>]/i.test(head) || head.startsWith("<!--");
 };
 var PROBE_TIMEOUT_MS = 8e3;
 var probeScriptUrl = async (url) => {
@@ -22,11 +32,45 @@ var probeScriptUrl = async (url) => {
 			signal: ac.signal
 		});
 		const contentType = res.headers.get("content-type");
-		return {
-			ok: res.ok && isLikelyJavaScriptContentType(contentType),
+		const status = res.status;
+		if (!res.ok) return {
+			ok: false,
 			url,
 			contentType,
-			status: res.status
+			status
+		};
+		if (isLikelyHtmlContentType(contentType)) return {
+			ok: false,
+			url,
+			contentType,
+			status
+		};
+		if (isLikelyJavaScriptContentType(contentType)) return {
+			ok: true,
+			url,
+			contentType,
+			status
+		};
+		try {
+			const sample = (await res.clone().text()).trimStart().slice(0, 2048);
+			if (bodyLooksLikeHtmlDocument(sample)) return {
+				ok: false,
+				url,
+				contentType,
+				status
+			};
+			if (/^\s*(?:\/\/|\/\*|import\s|export\s|self\.|'use strict'|"use strict")/m.test(sample) || /\b(?:addEventListener|serviceWorker|workbox|skipWaiting|caches\.|navigator\.serviceWorker)\b/.test(sample)) return {
+				ok: true,
+				url,
+				contentType,
+				status
+			};
+		} catch {}
+		return {
+			ok: false,
+			url,
+			contentType,
+			status
 		};
 	} catch {
 		return {
@@ -37,15 +81,83 @@ var probeScriptUrl = async (url) => {
 		clearTimeout(timer);
 	}
 };
+/** Vite base (e.g. `/` or `/apps/cw/`) — normalized with trailing slash. */
+var viteBasePrefix = () => {
+	const raw = String("./");
+	if (raw === "/" || raw === "") return "/";
+	return raw.endsWith("/") ? raw : `${raw}/`;
+};
+/**
+* When the dev build used `base: "/"` but the app is opened under a subpath (reverse proxy or
+* `/apps/cw/`), `import.meta.env.BASE_URL` is wrong and SW probes miss the real `…/dev-sw.js?dev-sw`.
+*/
+var inferMountBaseFromPathname = () => {
+	try {
+		const m = String(globalThis?.location?.pathname || "").match(/^(\/apps\/cw)(?:\/|$)/);
+		if (m?.[1]) {
+			const p = m[1];
+			return p.endsWith("/") ? p : `${p}/`;
+		}
+	} catch {}
+	return null;
+};
+/** Collect distinct URL prefixes (vite BASE_URL + path inference) for SW script candidates. */
+var serviceWorkerPathBases = () => {
+	const primary = viteBasePrefix();
+	const inferred = inferMountBaseFromPathname();
+	const out = [];
+	const push = (b) => {
+		const n = b === "" ? "/" : b.endsWith("/") ? b : `${b}/`;
+		if (!out.includes(n)) out.push(n);
+	};
+	push(primary);
+	if (inferred && inferred !== primary) push(inferred);
+	return out;
+};
+/**
+* Default SW scope for a script URL (browser allows at most the script’s directory).
+* `/sw.js` → `/` ; `/apps/cw/sw.js` → `/apps/cw/`
+*/
+var scopeForServiceWorkerScript = (swUrl) => {
+	try {
+		const origin = typeof globalThis !== "undefined" && globalThis.location?.origin ? String(globalThis.location.origin) : "https://invalid.invalid";
+		const path = new URL(swUrl, `${origin}/`).pathname;
+		const slash = path.lastIndexOf("/");
+		return slash <= 0 ? "/" : path.slice(0, slash + 1);
+	} catch {
+		return "/";
+	}
+};
 var getServiceWorkerCandidates = () => {
-	if (Boolean({
+	const isDev = Boolean({
 		"BASE_URL": "./",
 		"DEV": false,
 		"MODE": "production",
 		"PROD": true,
 		"SSR": false
-	}?.DEV)) return ["/dev-sw.js?dev-sw", "/sw.js"];
-	return ["/sw.js", "/apps/cw/sw.js"];
+	}?.DEV);
+	const bases = serviceWorkerPathBases();
+	const perBaseDev = [];
+	const perBaseProd = [];
+	for (const b of bases) {
+		perBaseDev.push(`${b}dev-sw.js?dev-sw`);
+		if (b !== "/") {
+			perBaseDev.push(`${b}sw.js`);
+			perBaseProd.push(`${b}sw.js`);
+		}
+	}
+	const devFallbacks = ["/dev-sw.js?dev-sw", "/sw.js"];
+	let prod = ["/sw.js", "/apps/cw/sw.js"];
+	try {
+		const p = String(globalThis?.location?.pathname || "");
+		if (p === "/apps/cw" || p.startsWith("/apps/cw/")) prod = ["/apps/cw/sw.js", "/sw.js"];
+	} catch {}
+	const merged = isDev ? [
+		...perBaseDev,
+		...devFallbacks,
+		...perBaseProd
+	] : [...new Set([...perBaseProd, ...prod])];
+	return [...new Set(merged)];
 };
 var ensureServiceWorkerRegistered = async () => {
 	if (typeof window === "undefined") return null;
@@ -53,14 +165,30 @@ var ensureServiceWorkerRegistered = async () => {
 	const protocol = (globalThis?.location?.protocol || "").toLowerCase();
 	if (protocol === "chrome-extension:" || protocol === "file:" || protocol === "about:") return null;
 	if (protocol !== "https:" && protocol !== "http:") return null;
+	const tryGet = async (clientUrl) => {
+		if (!clientUrl) return void 0;
+		try {
+			return await navigator.serviceWorker.getRegistration(clientUrl) ?? void 0;
+		} catch {
+			return;
+		}
+	};
 	try {
-		const existing = await navigator.serviceWorker.getRegistration("/");
+		let existing = await tryGet(typeof globalThis !== "undefined" ? globalThis.location?.href : "");
+		if (!existing?.active && !existing?.waiting && !existing?.installing) {
+			const origin = typeof globalThis !== "undefined" && globalThis.location?.origin ? String(globalThis.location.origin) : "";
+			const base = viteBasePrefix();
+			if (origin && base !== "/") existing = await tryGet(new URL(base, origin).href);
+		}
+		if (!existing?.active && !existing?.waiting && !existing?.installing) {
+			const origin = typeof globalThis !== "undefined" && globalThis.location?.origin ? String(globalThis.location.origin) : "";
+			if (origin) existing = await tryGet(new URL("/", origin).href);
+		}
 		if (existing?.active || existing?.waiting || existing?.installing) return existing;
 	} catch {}
 	const candidates = getServiceWorkerCandidates();
-	const scope = "/";
-	for (const url of candidates) {
-		if (!(await probeScriptUrl(url)).ok) continue;
+	const tryRegister = async (url) => {
+		const scope = scopeForServiceWorkerScript(url);
 		try {
 			return await navigator.serviceWorker.register(url, {
 				scope,
@@ -68,24 +196,22 @@ var ensureServiceWorkerRegistered = async () => {
 				updateViaCache: "none"
 			});
 		} catch (e) {
-			if (url.includes("/dev-sw.js?dev-sw")) {
-				console.warn("[SW] Module registration failed for dev worker", url, e);
-				continue;
-			}
+			if (url.includes("/dev-sw.js?dev-sw")) return null;
 			try {
 				return await navigator.serviceWorker.register(url, {
 					scope,
 					updateViaCache: "none"
 				});
 			} catch (e2) {
-				console.warn("[SW] Registration attempt failed for", url, e, e2);
+				return null;
 			}
 		}
+	};
+	for (const url of candidates) {
+		if (!(await probeScriptUrl(url)).ok) continue;
+		const reg = await tryRegister(url);
+		if (reg) return reg;
 	}
-	try {
-		const probes = await Promise.all(candidates.map(probeScriptUrl));
-		console.warn("[SW] No valid service worker script found. Probes:", probes);
-	} catch {}
 	return null;
 };
 //#endregion
@@ -954,10 +1080,6 @@ var initServiceWorker = async (_options = _swOptions) => {
 		}
 		try {
 			const registration = await ensureServiceWorkerRegistered();
-			if (!registration) {
-				console.error("[PWA] Service worker registration failed: no valid sw.js found");
-				return null;
-			}
 			const viteEnv = {
 				"BASE_URL": "./",
 				"DEV": false,
@@ -965,6 +1087,11 @@ var initServiceWorker = async (_options = _swOptions) => {
 				"PROD": true,
 				"SSR": false
 			};
+			if (!registration) {
+				if (viteEnv?.DEV) console.warn("[PWA] Service worker not registered (dev): probe failed for dev-sw/sw.js — check Vite BASE_URL matches vite-plugin-pwa dev worker path.");
+				else console.error("[PWA] Service worker registration failed: no valid sw.js found");
+				return null;
+			}
 			bindControllerChangeReload();
 			try {
 				if (_swOptions?.immediate === true && registration.waiting) activateWaitingWorker(registration, "initial");

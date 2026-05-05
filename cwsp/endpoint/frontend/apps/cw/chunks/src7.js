@@ -1,14 +1,16 @@
 import { a as HomeChannelAction } from "./channel-actions.js";
 //#region ../../modules/views/home-view/src/index.ts
 var HomeView = class {
-	constructor(options = {}) {
-		this.id = "home";
-		this.name = "Home";
-		this.icon = "house";
+	id = "home";
+	name = "Home";
+	icon = "house";
+	options;
+	shellContext;
+	element = null;
+	lifecycle = { onUnmount: () => {
 		this.element = null;
-		this.lifecycle = { onUnmount: () => {
-			this.element = null;
-		} };
+	} };
+	constructor(options = {}) {
 		this.options = options;
 		this.shellContext = options.shellContext;
 	}

@@ -1,8 +1,9 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
 import { p as loadAsAdopted } from "../fest/dom.js";
-import { _ as pickEnabledView, c as ShellRegistry, d as defaultTheme, f as initializeRegistries, g as isEnabledView, p as lightTheme, r as LS_BOOT_SHELL_LAST_ACTIVE, t as applyTheme, u as darkTheme, v as startImplicitViewMessagingBridge, y as serviceChannels } from "./Theme.js";
+import { _ as serviceChannels, c as darkTheme, d as lightTheme, g as startImplicitViewMessagingBridge, h as pickEnabledView, l as defaultTheme, m as isEnabledView, o as ShellRegistry, t as LS_BOOT_SHELL_LAST_ACTIVE, u as initializeRegistries } from "../shells/preference.js";
 import { n as DEFAULT_SETTINGS } from "./SettingsTypes.js";
 import { n as loadSettings } from "./Settings.js";
+import { n as applyTheme } from "./Theme.js";
 import { n as core_default, t as scss_default } from "../fest/veela.js";
 import { n as initCwsNativeBridge } from "../vendor/@capacitor_core.js";
 import { t as applyHubSocketFromSettings } from "./hub-socket-boot.js";
@@ -583,10 +584,10 @@ async function loadStyleSystem(styleId) {
 * Boot Loader - Shell/Style Initialization System
 * 
 * Manages the boot sequence for the CrossWord application:
-* 1. Load style system (Veela CSS or Minimal)
-* 2. Initialize shell (frame/layout/environment)
-* 3. Load view/component/module
-* 4. Connect uniform channels
+* 1. Load settings and apply document theme (`:root` / color-scheme before Veela paints)
+* 2. Load style system (Veela CSS or Minimal)
+* 3. Initialize shell (frame/layout/environment)
+* 4. Load view/component/module and connect uniform channels
 * 
 * Shell/Style Matrix:
 * | Shells/Styles: | Faint | Minimal | Raw |
@@ -702,20 +703,22 @@ var BootLoader = class BootLoader {
 			}
 			initializeLayers();
 			initCwsNativeBridge().catch(() => {});
-			const [persistedSettings] = await Promise.all([loadSettings().catch((error) => {
+			const persistedSettings = await loadSettings().catch((error) => {
 				console.warn("[BootLoader] Failed to load settings:", error);
 				return null;
-			}), this.loadStyles(config.styleSystem)]);
+			});
 			if (persistedSettings) applyHubSocketFromSettings(persistedSettings).catch(() => void 0);
+			applyTheme(persistedSettings ?? DEFAULT_SETTINGS);
+			await this.loadStyles(config.styleSystem);
 			const persistedTheme = this.resolveThemeFromSettings(persistedSettings);
 			const shell = await this.loadShell(config.shell, container);
 			shell.setTheme(config.theme || persistedTheme);
-			applyTheme(persistedSettings ?? DEFAULT_SETTINGS);
 			await shell.mount(container);
 			this.implicitBridgeCleanup?.();
 			this.implicitBridgeCleanup = startImplicitViewMessagingBridge();
 			if (config.channels && config.channels.length > 0) await this.initChannels(config.channels, config.channelPriorityId);
-			await shell.navigate(config.defaultView);
+			if (config.skipInitialNavigate) this.dismissShellLoadingSpinner(shell);
+			else await shell.navigate(config.defaultView);
 			this.setPhase("ready");
 			if (config.rememberChoice) this.savePreferences(config);
 			console.log("[BootLoader] Boot complete");
@@ -734,6 +737,13 @@ var BootLoader = class BootLoader {
 		if (theme === "dark") return darkTheme;
 		if (theme === "light") return lightTheme;
 		return defaultTheme;
+	}
+	/** Hide immersive/minimal shell loading row when skipping {@link Shell.navigate}. */
+	dismissShellLoadingSpinner(shell) {
+		try {
+			const loading = shell.getElement().shadowRoot?.querySelector(".app-shell__loading");
+			if (loading) loading.hidden = true;
+		} catch {}
 	}
 	/**
 	* Load style system
@@ -957,7 +967,7 @@ async function bootEnvironment(container, view = "home") {
 /**
 * Boot with Minimal shell
 */
-async function bootMinimal(container, view = "viewer") {
+async function bootMinimal(container, view = "viewer", options) {
 	const defaultView = pickEnabledView(view, "viewer");
 	/** Minimal shell: init only the active view's channel — others register on first navigate (see ShellBase.loadView). */
 	const channels = isEnabledView(defaultView) ? [defaultView] : ["viewer"];
@@ -968,7 +978,8 @@ async function bootMinimal(container, view = "viewer") {
 		defaultView,
 		channels,
 		channelPriorityId,
-		rememberChoice: true
+		rememberChoice: options?.rememberChoice ?? true,
+		skipInitialNavigate: options?.skipInitialNavigate ?? false
 	});
 }
 async function bootWindow(container, view = "home") {
@@ -1005,8 +1016,8 @@ async function bootBase(container, view = "viewer") {
 		rememberChoice: false
 	});
 }
-async function bootContent(container, view = "home") {
-	const channels = [
+async function bootContent(container, view = "home", options) {
+	const defaultChannels = [
 		"workcenter",
 		"settings",
 		"viewer",
@@ -1016,21 +1027,23 @@ async function bootContent(container, view = "home") {
 		"airpad",
 		"home"
 	].filter((channelId) => isEnabledView(channelId));
+	const channels = options?.channels !== void 0 ? options.channels : defaultChannels;
 	const defaultView = pickEnabledView(view, "home");
-	const channelPriorityId = channels.find((c) => c === defaultView) ?? channels[0];
+	const channelPriorityId = channels.length > 0 ? channels.find((c) => c === defaultView) ?? channels[0] : void 0;
 	return bootLoader.boot(container, {
 		styleSystem: "vl-basic",
 		shell: "content",
 		defaultView,
 		channels,
 		channelPriorityId,
-		rememberChoice: true
+		rememberChoice: options?.rememberChoice ?? true,
+		skipInitialNavigate: options?.skipInitialNavigate ?? false
 	});
 }
 /**
 * Immersive (chromeless): extension side panels / fullscreen single-view contexts.
 */
-async function bootImmersive(container, view = "viewer") {
+async function bootImmersive(container, view = "viewer", options) {
 	const defaultView = pickEnabledView(view, "viewer");
 	const channels = isEnabledView(defaultView) ? [defaultView] : ["viewer"];
 	const channelPriorityId = channels[0];
@@ -1040,7 +1053,8 @@ async function bootImmersive(container, view = "viewer") {
 		defaultView,
 		channels,
 		channelPriorityId,
-		rememberChoice: true
+		rememberChoice: options?.rememberChoice ?? true,
+		skipInitialNavigate: options?.skipInitialNavigate ?? false
 	});
 }
 //#endregion

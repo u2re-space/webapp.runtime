@@ -22,8 +22,13 @@ import { t as WorkCenterDataProcessing } from "./WorkCenterDataProcessing.js";
 */
 /** View-composition facade for the Work Center feature. */
 var WorkCenterUI = class {
+	container = null;
+	deps;
+	attachments;
+	prompts;
+	results;
+	history;
 	constructor(dependencies, attachments, prompts, results, history) {
-		this.container = null;
 		this.deps = dependencies;
 		this.attachments = attachments;
 		this.prompts = prompts;
@@ -294,6 +299,7 @@ var WorkCenterUI = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterFileOps.ts
 var WorkCenterFileOps = class {
+	deps;
 	constructor(dependencies) {
 		this.deps = dependencies;
 	}
@@ -505,6 +511,8 @@ var WorkCenterFileOps = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterShareTarget.ts
 var WorkCenterShareTarget = class {
+	deps;
+	_fileOps;
 	constructor(dependencies, fileOps) {
 		this.deps = dependencies;
 		this._fileOps = fileOps;
@@ -755,9 +763,11 @@ var WorkCenterShareTarget = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterTemplates.ts
 var WorkCenterTemplates = class {
+	deps;
+	/** Cached custom instructions from settings */
+	cachedInstructions = [];
+	cachedActiveInstructionId = "";
 	constructor(dependencies) {
-		this.cachedInstructions = [];
-		this.cachedActiveInstructionId = "";
 		this.deps = dependencies;
 	}
 	/** Load custom instructions from app settings */
@@ -968,8 +978,9 @@ var WorkCenterTemplates = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterVoice.ts
 var WorkCenterVoice = class {
+	deps;
+	voiceTimeout = null;
 	constructor(dependencies) {
-		this.voiceTimeout = null;
 		this.deps = dependencies;
 	}
 	async startVoiceRecording(state) {
@@ -2010,6 +2021,13 @@ var executionCore = new ExecutionCore();
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterActions.ts
 var WorkCenterActions = class {
+	deps;
+	ui;
+	fileOps;
+	dataProcessing;
+	results;
+	history;
+	templates;
 	constructor(dependencies, ui, fileOps, dataProcessing, results, history, templates) {
 		this.deps = dependencies;
 		this.ui = ui;
@@ -2207,9 +2225,20 @@ var WorkCenterActions = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterEvents.ts
 var WorkCenterEvents = class {
+	deps;
+	ui;
+	fileOps;
+	actions;
+	templates;
+	voice;
+	shareTarget;
+	history;
+	attachments;
+	prompts;
+	state;
+	container = null;
+	isHandlingPaste = false;
 	constructor(dependencies, ui, fileOps, actions, templates, voice, shareTarget, history, attachments, prompts, state) {
-		this.container = null;
-		this.isHandlingPaste = false;
 		this.deps = dependencies;
 		this.ui = ui;
 		this.fileOps = fileOps;
@@ -2679,8 +2708,10 @@ var WorkCenterEvents = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterResults.ts
 var WorkCenterResults = class {
+	container = null;
+	deps;
+	dataProcessing;
 	constructor(dependencies, dataProcessing) {
-		this.container = null;
 		this.deps = dependencies;
 		this.dataProcessing = dataProcessing;
 	}
@@ -2831,9 +2862,11 @@ var WorkCenterResults = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterAttachments.ts
 var WorkCenterAttachments = class {
+	container = null;
+	deps;
+	fileOps;
+	previewUrlCache = /* @__PURE__ */ new WeakMap();
 	constructor(dependencies, fileOps) {
-		this.container = null;
-		this.previewUrlCache = /* @__PURE__ */ new WeakMap();
 		this.deps = dependencies;
 		this.fileOps = fileOps;
 	}
@@ -3201,8 +3234,11 @@ var WorkCenterAttachments = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterPrompts.ts
 var WorkCenterPrompts = class {
+	container = null;
+	deps;
+	templates;
+	voice;
 	constructor(dependencies, templates, voice) {
-		this.container = null;
 		this.deps = dependencies;
 		this.templates = templates;
 		this.voice = voice;
@@ -3356,8 +3392,9 @@ var WorkCenterPrompts = class {
 //#endregion
 //#region ../../modules/views/workcenter-view/src/ts/WorkCenterHistory.ts
 var WorkCenterHistory = class {
+	container = null;
+	deps;
 	constructor(dependencies) {
-		this.container = null;
 		this.deps = dependencies;
 	}
 	setContainer(container) {
@@ -3699,8 +3736,22 @@ g?.use?.(src_default({
 	return restore(katexNode.innerHTML);
 } } });
 var WorkCenterManager = class {
+	state;
+	deps;
+	ui;
+	fileOps;
+	shareTarget;
+	templates;
+	voice;
+	actions;
+	dataProcessing;
+	attachments;
+	prompts;
+	results;
+	history;
+	events;
+	processedMessageIds = /* @__PURE__ */ new Set();
 	constructor(dependencies) {
-		this.processedMessageIds = /* @__PURE__ */ new Set();
 		this.deps = dependencies;
 		this.state = WorkCenterStateManager.createDefaultState();
 		this.dataProcessing = new WorkCenterDataProcessing();

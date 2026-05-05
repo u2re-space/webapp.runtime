@@ -10,15 +10,21 @@ var Settings_exports = /* @__PURE__ */ __exportAll({
 	currentWebDav: () => currentWebDav,
 	default: () => WebDavSync,
 	didPersistShellMaintainHubSocket: () => didPersistShellMaintainHubSocket,
+	getByPath: () => getByPath,
 	idbGetSettings: () => idbGetSettings,
 	idbPutSettings: () => idbPutSettings,
 	loadSettings: () => loadSettings,
 	normalizeCoreEndpointOrigin: () => normalizeCoreEndpointOrigin,
 	saveSettings: () => saveSettings,
 	shouldDeferCrxHubSocketBootstrap: () => shouldDeferCrxHubSocketBootstrap,
+	slugify: () => slugify,
+	splitPath: () => splitPath,
 	updateWebDavSettings: () => updateWebDavSettings
 });
 var SETTINGS_KEY = "rs-settings";
+var splitPath = (path) => path.split(".");
+var getByPath = (source, path) => splitPath(path).reduce((acc, key) => acc == null ? acc : acc[key], source);
+var slugify = (value) => value.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
 var DB_NAME = "req-store";
 var STORE = "settings";
 var createWebDavClient = null;

@@ -1,5 +1,5 @@
 import { x as fixOrientToScreen } from "../fest/dom.js";
-import { _ as pickEnabledView, g as isEnabledView, h as ENABLED_VIEW_IDS, i as coerceShellForBootViewport, m as DEFAULT_VIEW_ID, o as normalizeBootShellId, s as readLastActiveBootShell } from "../chunks/Theme.js";
+import { a as readLastActiveBootShell, f as DEFAULT_VIEW_ID, h as pickEnabledView, i as normalizeBootShellId, m as isEnabledView, n as coerceShellForBootViewport, p as ENABLED_VIEW_IDS } from "./preference.js";
 import "../chunks/Settings.js";
 import { a as bootImmersive, c as bootWindow, i as bootEnvironment, n as bootBase, o as bootMinimal, r as bootContent, s as bootTabbed } from "../chunks/BootLoader.js";
 import "../vendor/@capacitor_core.js";
@@ -94,7 +94,7 @@ function getSavedShellPreference() {
 			return coerceShellForBootViewport(normalized);
 		}
 		const lastActive = readLastActiveBootShell();
-		if (lastActive) return coerceShellForBootViewport(lastActive);
+		if (lastActive && lastActive !== "immersive" && lastActive !== "content") return coerceShellForBootViewport(lastActive);
 	} catch {}
 	return null;
 }

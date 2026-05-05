@@ -243,6 +243,19 @@ var AIRPAD_CANDIDATE_PARALLEL = 3;
 var AIRPAD_VERBOSE_QUERY_KEY = "CWS_AIRPAD_VERBOSE_QUERY";
 /** Coordinator ask/act wait — was 12s, tighter for snappier UI. */
 var AIRPAD_COORDINATOR_TIMEOUT_MS = 8e3;
+/** CWSP v2 transport / route hint query keys (canonical `cwsp_*`; see network stack spec). */
+var CWSP_ROUTE_QUERY = {
+	via: "cwsp_via",
+	localEndpoint: "cwsp_local_endpoint",
+	route: "cwsp_route",
+	routeTarget: "cwsp_route_target",
+	hop: "cwsp_hop",
+	host: "cwsp_host",
+	target: "cwsp_target",
+	targetPort: "cwsp_target_port",
+	viaPort: "cwsp_via_port",
+	protocol: "cwsp_protocol"
+};
 /**
 * Chrome/Edge MV3: content-script XHR (Engine.IO polling) to LAN often fails with
 * `xhr poll error` / `unsafeHeaders` / `net::ERR_FAILED` while `wss:` still works.
@@ -659,6 +672,11 @@ function stripWireEndpointIdPrefix(host) {
 	const t = host.trim();
 	return /^l-/i.test(t) ? t.slice(2).trim() : t;
 }
+/** Loopback labels that are invalid as CWSP route hints when dialing a LAN page origin. */
+function isLoopbackHost(host) {
+	const b = stripWireEndpointIdPrefix(host.trim()).toLowerCase();
+	return b === "localhost" || b === "127.0.0.1" || b === "::1";
+}
 function isPrivateOrLocalTarget(host) {
 	if (!host) return false;
 	const bare = stripWireEndpointIdPrefix(host);
@@ -1063,7 +1081,12 @@ function connectWS() {
 	const primaryProtocol = inferProtocol();
 	const rawProbeHost = rawProbeHostEarly;
 	const probeHost = stripWireEndpointIdPrefix(rawProbeHost) || rawProbeHost;
-	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${remotePort || (primaryProtocol === "https" ? "8443" : "8080")}`, probeHost);
+	const probePort = remotePort || (primaryProtocol === "https" ? "8443" : "8080");
+	tryRequestLocalNetworkPermission(`${primaryProtocol}://${probeHost}:${probePort}`, probeHost);
+	if (pageHost && isLoopbackHost(probeHost) && !isLoopbackHost(pageHost) && isPrivateOrLocalTarget(pageHost)) {
+		const pageProbeHost = stripWireEndpointIdPrefix(pageHost) || pageHost;
+		tryRequestLocalNetworkPermission(`${primaryProtocol}://${pageProbeHost}:${probePort}`, pageProbeHost);
+	}
 	const fallbackProtocol = primaryProtocol === "https" ? "http" : "https";
 	const defaultPortsByProtocol = {
 		http: ["8080", "80"],
@@ -1229,9 +1252,17 @@ function connectWS() {
 		queryParams.archetype = getAirPadHandshakeArchetype();
 		queryParams[CWSP_ROUTE_QUERY.via] = !isSameAsTargetHost() ? "tunnel" : candidate.source || "unknown";
 		queryParams[CWSP_ROUTE_QUERY.localEndpoint] = isSameAsTargetHost() ? "1" : "0";
-		if (resolvedRouteTarget) {
-			queryParams[CWSP_ROUTE_QUERY.route] = resolvedRouteTarget;
-			queryParams[CWSP_ROUTE_QUERY.routeTarget] = routeTarget || targetHost || resolvedRouteTarget;
+		let effectiveRoute = resolvedRouteTarget;
+		let effectiveRouteTarget = routeTarget || targetHost || resolvedRouteTarget;
+		const candBare = stripWireEndpointIdPrefix(candidate.host || "").trim();
+		const pageBare = stripWireEndpointIdPrefix(pageHost || "").trim();
+		if (candidate.source === "page" && candBare && pageBare && candBare.toLowerCase() === pageBare.toLowerCase() && isLoopbackHost(effectiveRoute)) {
+			effectiveRoute = candBare;
+			effectiveRouteTarget = candBare;
+		}
+		if (effectiveRoute) {
+			queryParams[CWSP_ROUTE_QUERY.route] = effectiveRoute;
+			queryParams[CWSP_ROUTE_QUERY.routeTarget] = effectiveRouteTarget;
 		}
 		if (shouldUseVerboseAirpadQuery()) {
 			queryParams[CWSP_ROUTE_QUERY.hop] = candidate.host || remoteHost || "unknown";

@@ -1,8 +1,9 @@
 import { h as preloadStyle, m as loadInlineStyle } from "../fest/dom.js";
 import { c as ref } from "../fest/object.js";
-import { a as initBootShellWindowActivity, g as isEnabledView, h as ENABLED_VIEW_IDS, l as ViewRegistry, n as syncBrowserChromeTheme, t as applyTheme, y as serviceChannels } from "./Theme.js";
+import { _ as serviceChannels, m as isEnabledView, p as ENABLED_VIEW_IDS, r as initBootShellWindowActivity, s as ViewRegistry } from "../shells/preference.js";
 import { x as dynamicTheme } from "../vendor/jsox.js";
 import { n as loadSettings, r as saveSettings } from "./Settings.js";
+import { i as syncBrowserChromeTheme, n as applyTheme, r as resyncThemeAfterAdoptedViewSheet } from "./Theme.js";
 import { a as ensureStyleSheet } from "../fest/icon.js";
 //#region ../../modules/projects/subsystem/src/boot/toast.ts
 var DEFAULT_CONFIG = {
@@ -376,6 +377,8 @@ function scheduleViewModulePrefetch(currentViewId) {
 var ShellHost = class extends HTMLElement {
 	mountShellLayout(layout) {
 		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
+		this.style.display = "block";
+		this.style.boxSizing = "border-box";
 		this.shadowRoot.replaceChildren(layout);
 	}
 };
@@ -428,6 +431,9 @@ var ShellBase = class {
 	themeCycleIcon = null;
 	themeAttrObserver = null;
 	shellActivityDispose = null;
+	/** When `colorScheme` is `auto`, re-run `applyTheme` on OS light/dark changes. */
+	systemColorSchemeMq = null;
+	systemColorSchemeHandler = null;
 	async mount(container) {
 		if (this.mounted) {
 			console.warn(`[${this.id}] Shell already mounted`);
@@ -461,8 +467,9 @@ var ShellBase = class {
 		this.rootElement.style.alignSelf = "stretch";
 		this.rootElement.style.justifySelf = "stretch";
 		this.rootElement.style.minInlineSize = "0";
-		this.rootElement.style.minBlockSize = "0";
-		this.rootElement.style.pointerEvents = "auto";
+		if (this.id !== "immersive" && this.id !== "content") this.rootElement.style.minBlockSize = "0";
+		else this.rootElement.style.minBlockSize = "";
+		this.rootElement.style.pointerEvents = this.id === "content" ? "none" : "auto";
 		this.contentContainer = shellLayout.querySelector("[data-shell-content]") || shellLayout;
 		this.toolbarContainer = shellLayout.querySelector("[data-shell-toolbar]");
 		this.statusContainer = shellLayout.querySelector("[data-shell-status]");
@@ -472,8 +479,9 @@ var ShellBase = class {
 		this.bindThemeAttrObserver();
 		container.replaceChildren(this.rootElement);
 		this.mounted = true;
-		this.shellActivityDispose = initBootShellWindowActivity(this.id);
+		this.shellActivityDispose = this.id === "immersive" || this.id === "content" ? null : initBootShellWindowActivity(this.id);
 		this.syncNavigationFromUrl();
+		this.reconcileBootShellQueryParam();
 		try {
 			globalThis.__LURE_DYNAMIC_THEME_PRIORITY__ = true;
 			dynamicTheme(document.documentElement);
@@ -507,6 +515,24 @@ var ShellBase = class {
 		this.currentView.value = resolved;
 		this.navigationState.viewHistory = [resolved];
 	}
+	/**
+	* If the address bar carries `?shell=` from another host/tab (e.g. immersive) while this
+	* instance is content/minimal/…, fix the hint so routing and mental model match reality.
+	*/
+	reconcileBootShellQueryParam() {
+		if (typeof globalThis.window === "undefined") return;
+		try {
+			const raw = (globalThis.location?.search || "").replace(/^\?/, "");
+			const params = new URLSearchParams(raw);
+			const qs = (params.get("shell") || "").trim().toLowerCase();
+			if (!qs) return;
+			if (qs === String(this.id)) return;
+			params.set("shell", this.id);
+			const search = params.toString();
+			const next = globalThis.location.pathname + (search ? `?${search}` : "");
+			globalThis.history?.replaceState?.(globalThis.history.state ?? null, "", next);
+		} catch {}
+	}
 	unmount() {
 		if (!this.mounted) return;
 		this.shellActivityDispose?.();
@@ -527,6 +553,10 @@ var ShellBase = class {
 		this.mounted = false;
 		this.themeAttrObserver?.disconnect();
 		this.themeAttrObserver = null;
+		this.teardownSystemColorSchemeListener();
+		try {
+			delete document.documentElement.dataset.activeView;
+		} catch {}
 		console.log(`[${this.id}] Shell unmounted`);
 	}
 	async navigate(viewId, params) {
@@ -547,8 +577,8 @@ var ShellBase = class {
 		this.currentView.value = viewId;
 		if (typeof window !== "undefined" && typeof window != "undefined") {
 			const searchParams = new URLSearchParams(params || {});
+			searchParams.set("shell", this.id);
 			const isPathRoutedShell = this.id === "base" || this.id === "minimal" || this.id === "immersive";
-			if (isPathRoutedShell) searchParams.set("shell", this.id);
 			const search = searchParams.toString() ? "?" + searchParams.toString() : "";
 			const newPathAndSearch = (isPathRoutedShell ? `/${String(viewId || "home").replace(/^\/+/, "")}` : "/") + search;
 			try {
@@ -686,6 +716,11 @@ var ShellBase = class {
 		element.hidden = false;
 		if (!this.contentContainer.contains(element)) this.contentContainer.appendChild(element);
 		this.currentViewElement = element;
+		try {
+			const vid = this.currentView.value;
+			document.documentElement.dataset.activeView = vid;
+			if (this.rootElement) this.rootElement.dataset.activeView = vid;
+		} catch {}
 	}
 	/**
 	* Render a view with a View Transition animation.
@@ -728,6 +763,26 @@ var ShellBase = class {
 		this.rootElement.style.colorScheme = resolved;
 		syncBrowserChromeTheme(resolved, theme.colorScheme);
 		if (theme.cssVariables) for (const [key, value] of Object.entries(theme.cssVariables)) this.rootElement.style.setProperty(key, value);
+		this.syncSystemColorSchemeListener();
+	}
+	teardownSystemColorSchemeListener() {
+		if (this.systemColorSchemeMq && this.systemColorSchemeHandler) this.systemColorSchemeMq.removeEventListener("change", this.systemColorSchemeHandler);
+		this.systemColorSchemeMq = null;
+		this.systemColorSchemeHandler = null;
+	}
+	/** Keep shell + document chrome aligned when settings use `auto` and the OS scheme changes. */
+	syncSystemColorSchemeListener() {
+		this.teardownSystemColorSchemeListener();
+		if (typeof globalThis.matchMedia !== "function") return;
+		if (this.getThemeRefValue().colorScheme !== "auto") return;
+		const mq = globalThis.matchMedia("(prefers-color-scheme: dark)");
+		const handler = () => {
+			if (!this.mounted || this.getThemeRefValue().colorScheme !== "auto") return;
+			this.applyTheme(this.getThemeRefValue());
+		};
+		this.systemColorSchemeMq = mq;
+		this.systemColorSchemeHandler = handler;
+		mq.addEventListener("change", handler);
 	}
 	getThemeRefValue() {
 		return this.theme?.value;
@@ -923,12 +978,19 @@ var ShellBase = class {
 	}
 	invokeCurrentViewOnShow() {
 		const entry = this.loadedViews.get(this.currentView.value);
-		if (!entry?.view?.lifecycle?.onShow) return;
-		try {
+		if (entry?.view?.lifecycle?.onShow) try {
 			entry.view.lifecycle.onShow();
 		} catch (error) {
 			console.warn(`[${this.id}] View ${this.currentView.value} onShow error:`, error);
 		}
+		if (this.currentView.value === "settings") this.resyncDocumentThemeAfterSettingsShown();
+	}
+	/**
+	* Re-run theme bridge + token consumers after Settings view adopts its document stylesheet.
+	* WHY: Fixes hybrid light chrome / dark content on first paint when deep-linking to /settings.
+	*/
+	resyncDocumentThemeAfterSettingsShown() {
+		resyncThemeAfterAdoptedViewSheet();
 	}
 	/**
 	* Get view ID from current pathname

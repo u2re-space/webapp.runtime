@@ -16,26 +16,33 @@ var history_default = "@layer view.history{:is(html,body):has([data-view=history
 */
 var STORAGE_KEY = "rs-history";
 var HistoryView = class {
+	id = "history";
+	name = "History";
+	icon = "clock-counter-clockwise";
+	options;
+	shellContext;
+	element = null;
+	entries = observe([]);
+	_sheet = null;
+	lifecycle = {
+		onUnmount: () => {
+			try {
+				if (this._sheet) removeAdopted(this._sheet);
+			} catch {}
+			this._sheet = null;
+		},
+		onShow: () => {
+			this._sheet ??= loadAsAdopted(history_default);
+			this.loadHistory();
+		},
+		onHide: () => {
+			try {
+				if (this._sheet) removeAdopted(this._sheet);
+			} catch {}
+			this._sheet = null;
+		}
+	};
 	constructor(options = {}) {
-		this.id = "history";
-		this.name = "History";
-		this.icon = "clock-counter-clockwise";
-		this.element = null;
-		this.entries = observe([]);
-		this._sheet = null;
-		this.lifecycle = {
-			onMount: () => {
-				this.loadHistory();
-				this._sheet ??= loadAsAdopted(history_default);
-			},
-			onUnmount: () => {
-				removeAdopted(this._sheet);
-			},
-			onShow: () => {
-				this._sheet ??= loadAsAdopted(history_default);
-				this.loadHistory();
-			}
-		};
 		this.options = options;
 		this.shellContext = options.shellContext;
 	}
@@ -47,7 +54,6 @@ var HistoryView = class {
 			};
 			this.shellContext = options.shellContext || this.shellContext;
 		}
-		this._sheet = loadAsAdopted(history_default);
 		this.loadHistory();
 		this.element = H`
             <div class="view-history">

@@ -29056,11 +29056,12 @@ var import_quill = /* @__PURE__ */ __toESM((/* @__PURE__ */ __commonJSMin(((expo
 //#endregion
 //#region ../../modules/views/editor-view/src/ts/QuillEditor.ts
 var QuillEditor = class {
+	options;
+	quill = null;
+	container = null;
+	autoSaveTimeout = null;
+	content = "";
 	constructor(options = {}) {
-		this.quill = null;
-		this.container = null;
-		this.autoSaveTimeout = null;
-		this.content = "";
 		this.options = {
 			initialContent: "",
 			placeholder: "Start writing...",
