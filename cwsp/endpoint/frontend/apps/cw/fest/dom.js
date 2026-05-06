@@ -1,4 +1,5 @@
 import { B as normalizePrimitive, C as camelToKebab, H as tryStringAsNumber, I as isVal, O as hasValue, R as isValueUnit, k as isArrayOrIterable, y as $avoidTrigger, z as kebabToCamel } from "./object.js";
+import { i as normalizeGridLayout, o as resolveLocalPointToGridCell } from "./core.js";
 //#region ../../modules/projects/dom.ts/src/agate/Properties.ts
 var __registeredCssProperties = /* @__PURE__ */ new Set();
 [
@@ -184,13 +185,13 @@ var __registeredCssProperties = /* @__PURE__ */ new Set();
 	},
 	{
 		name: "--cell-x",
-		syntax: "<number>",
+		syntax: "<integer>",
 		inherits: false,
 		initialValue: "0"
 	},
 	{
 		name: "--cell-y",
-		syntax: "<number>",
+		syntax: "<integer>",
 		inherits: false,
 		initialValue: "0"
 	}
@@ -244,6 +245,9 @@ var makeRAFCycle = () => {
 		}
 	})();
 	return control;
+};
+var RAFBehavior = (shed = makeRAFCycle()) => {
+	return (cb) => shed.shedule(cb);
 };
 typeof document != "undefined" && document?.documentElement;
 var setAttributesIfNull = (element, attrs = {}) => {
@@ -326,6 +330,13 @@ function addEvent(target, type, cb, opts = passiveOpts$1) {
 	const wr = typeof target == "object" || typeof target == "function" && !target?.deref ? new WeakRef(target) : target;
 	return () => wr?.deref?.()?.removeEventListener?.(type, cb, opts);
 }
+function removeEvent(target, type, cb, opts = passiveOpts$1) {
+	target?.removeEventListener?.(type, cb, opts);
+}
+var addEvents = (root, handlers) => {
+	root = root instanceof WeakRef ? root.deref() : root;
+	return [...Object.entries(handlers)]?.map?.(([name, cb]) => Array.isArray(cb) ? addEvent(root, name, ...cb) : addEvent(root, name, cb));
+};
 var addEventsList = (el, events) => {
 	if (events) {
 		let entries = events;
@@ -400,6 +411,11 @@ var zoomOf = (element = document.documentElement) => {
 };
 var fixedClientZoom = (element = document.documentElement) => {
 	return (element?.currentCSSZoom != null ? 1 : zoomOf(element)) || 1;
+};
+var orientOf = (element = document.documentElement) => {
+	const container = (element?.matches?.("[orient], [data-mixin=\"ui-orientbox\"]") ? element : null) || element?.closest?.("[orient], [data-mixin=\"ui-orientbox\"]") || element;
+	if (container?.hasAttribute?.("orient")) return parseInt(container?.getAttribute?.("orient") || "0") || 0;
+	return container?.orient || 0;
 };
 //#endregion
 //#region ../../modules/projects/dom.ts/src/agate/Viewport.ts
@@ -512,6 +528,41 @@ var fixOrientToScreen = (element) => {
 	}
 };
 new OffscreenCanvas(1, 1).getContext("2d");
+//#endregion
+//#region ../../modules/projects/dom.ts/src/agate/LauncherGrid.ts
+/** Read `data-grid-columns` / `data-grid-rows` with optional JS override. */
+var readLauncherLayoutFromElement = (el, layoutOverride) => {
+	const c = parseInt(el.getAttribute("data-grid-columns") || "", 10);
+	const r = parseInt(el.getAttribute("data-grid-rows") || "", 10);
+	const base = normalizeGridLayout(layoutOverride ?? [4, 8]);
+	return [Number.isFinite(c) && c > 0 ? c : base[0], Number.isFinite(r) && r > 0 ? r : base[1]];
+};
+/**
+* Map viewport client coordinates to grid cell `[col, row]` (collision-aware via `redirectCell`).
+* `gridSystem` should live under a `ui-orientbox` (or carry `orient`) so `orientOf` is correct.
+*/
+var resolveGridCellFromClientPoint = (gridSystem, clientPoint, args, mode = "floor") => {
+	if (!gridSystem) return [0, 0];
+	const rect = gridSystem.getBoundingClientRect?.();
+	if (!rect) return [0, 0];
+	const layout = readLauncherLayoutFromElement(gridSystem, args?.layout);
+	const orient = orientOf(gridSystem);
+	const cs = globalThis.getComputedStyle?.(gridSystem);
+	const pl = parseFloat(cs?.paddingLeft) || 0;
+	const pt = parseFloat(cs?.paddingTop) || 0;
+	const pr = parseFloat(cs?.paddingRight) || 0;
+	const pb = parseFloat(cs?.paddingBottom) || 0;
+	const contentW = Math.max(1, (rect.width || gridSystem.clientWidth || 1) - pl - pr);
+	const contentH = Math.max(1, (rect.height || gridSystem.clientHeight || 1) - pt - pb);
+	return resolveLocalPointToGridCell([(clientPoint?.[0] || 0) - rect.left - pl, (clientPoint?.[1] || 0) - rect.top - pt], [contentW, contentH], layout, orient, {
+		mode,
+		redirect: {
+			item: args?.item,
+			list: args?.list,
+			items: args?.items
+		}
+	});
+};
 //#endregion
 //#region ../../modules/projects/dom.ts/src/mixin/Observer.ts
 var unwrapFromQuery = (element) => {
@@ -1648,4 +1699,4 @@ new JunctionSelectMixin();
 new JunctionDragMixin();
 new JunctionResizeMixin();
 //#endregion
-export { isInFocus as A, MOCElement as C, createElementVanilla as D, containsOrSelf as E, setIdleInterval as F, makeRAFCycle as M, setAttributesIfNull as N, indexOf as O, setChecked as P, fixedClientZoom as S, addEventsList as T, setStyleProperty as _, handleStyleChange as a, observeBySelector as b, reflectMixins as c, getAdoptedStyleRule as d, getPadding as f, removeAdopted as g, preloadStyle as h, handleProperty as i, isValidParent as j, isElement as k, reflectStores as l, loadInlineStyle as m, handleDataset as n, DOMMixin as o, loadAsAdopted as p, handleHidden as r, addRoot as s, handleAttribute as t, reflectBehaviors as u, observeAttribute as v, addEvent as w, fixOrientToScreen as x, observeAttributeBySelector as y };
+export { addEventsList as A, setAttributesIfNull as B, getCorrectOrientation as C, RAFBehavior as D, MOCElement as E, isElement as F, setIdleInterval as H, isInFocus as I, isValidParent as L, createElementVanilla as M, hasParent as N, addEvent as O, indexOf as P, makeRAFCycle as R, fixOrientToScreen as S, fixedClientZoom as T, setChecked as V, setStyleProperty as _, handleStyleChange as a, observeBySelector as b, reflectMixins as c, getAdoptedStyleRule as d, getPadding as f, removeAdopted as g, preloadStyle as h, handleProperty as i, containsOrSelf as j, addEvents as k, reflectStores as l, loadInlineStyle as m, handleDataset as n, DOMMixin as o, loadAsAdopted as p, handleHidden as r, addRoot as s, handleAttribute as t, reflectBehaviors as u, observeAttribute as v, orientationNumberMap as w, resolveGridCellFromClientPoint as x, observeAttributeBySelector as y, removeEvent as z };

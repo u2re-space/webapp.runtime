@@ -95,6 +95,18 @@ var looksLikeConnectUrl = (value) => {
 var joinUniqueUrls = (...values) => {
 	return Array.from(new Set(values.map((entry) => normalizeOriginUrl(entry)).filter(Boolean))).join(", ");
 };
+/** If AirPad storage says `https://<this-host>:8443` but the app tab is `https://<this-host>/` (443), use tab origin. */
+var rewriteEndpointToMatchHttpsTab = (originLike) => {
+	const trimmed = toTrimmedString(originLike);
+	if (!trimmed || typeof globalThis.location === "undefined" || !globalThis.location.hostname) return trimmed;
+	try {
+		const raw = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+		const u = new URL(raw.endsWith("/") ? raw : `${raw.replace(/\/+$/, "")}/`);
+		const tab = globalThis.location;
+		if (u.hostname === tab.hostname && u.protocol === "https:" && u.port === "8443" && tab.protocol === "https:" && (tab.port === "" || tab.port === "443")) return normalizeOriginUrl(tab.origin);
+	} catch {}
+	return trimmed;
+};
 function loadStoredRemoteConfig() {
 	try {
 		const raw = globalThis?.localStorage?.getItem?.(STORAGE_KEY);
@@ -201,8 +213,8 @@ function hydrateFromStored(stored) {
 	const endpointUrl = normalizeOriginUrl(stored.endpointUrl) || (legacyRouteTarget ? normalizeOriginUrl(legacyHost) : "");
 	const directUrl = normalizeOriginUrl(stored.directUrl) || (!legacyRouteTarget ? normalizeOriginUrl(legacyHost) : "");
 	const quickConnectValue = toTrimmedString(stored.quickConnectValue);
-	remoteConfig.endpointUrl = endpointUrl;
-	remoteConfig.directUrl = directUrl;
+	remoteConfig.endpointUrl = rewriteEndpointToMatchHttpsTab(endpointUrl);
+	remoteConfig.directUrl = rewriteEndpointToMatchHttpsTab(directUrl);
 	remoteConfig.accessToken = toTrimmedString(stored.accessToken) || toTrimmedString(stored.authToken) || "";
 	remoteConfig.destinationId = toTrimmedString(stored.destinationId) || legacyRouteTarget;
 	remoteConfig.quickConnectValue = quickConnectValue || remoteConfig.destinationId || remoteConfig.directUrl;
@@ -294,7 +306,7 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	(socket?.protocolLanesJson || "").trim();
 	const input = {};
 	if (core?.endpointUrl?.trim()) {
-		const origin = endpointUrlToAirpadConnectHost(core.endpointUrl.trim());
+		const origin = endpointUrlToAirpadConnectHost(rewriteEndpointToMatchHttpsTab(core.endpointUrl.trim()));
 		if (origin) input.endpointUrl = origin;
 	}
 	if (Object.keys(input).length) applyAirpadRemoteConfig(input, { persist: false });

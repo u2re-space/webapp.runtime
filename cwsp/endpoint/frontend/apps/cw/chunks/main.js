@@ -1,6 +1,6 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
 import { a as initServiceWorker } from "./sw-handling.js";
-import { P as H } from "../vendor/jsox.js";
+import { Z as H } from "../com/app.js";
 import { n as loadSettings } from "./Settings.js";
 import { A as invalidateAirpadTransportCredentials, D as reloadAirpadRemoteConfigFromStorage, E as isShellRemoteClipboardBridgeEnabled, O as setAccessToken, a as attachAirpadCrossTabConfigSync, d as getAirPadQuickConnectTarget, k as setAirPadQuickConnectTarget, n as REL_ORIENT_DEADZONE, o as getAccessToken, r as REL_ORIENT_SMOOTH, v as getRemoteHost, y as getRemoteProtocol } from "./config.js";
 import { C as getClipboardPreviewEl, D as queryAirpad, E as log, O as setAirpadDomRoot, S as getBtnPaste, T as getVoiceTextEl, _ as getAirpadDomRoot, a as onServerClipboardUpdate, b as getBtnCopy, c as sendCoordinatorAct, f as getAiButton, g as getAirStatusEl, h as getAirNeighborButton, i as isWSConnected, l as sendCoordinatorAsk, m as getAirButton, n as disconnectWS, o as onVoiceResult, p as getAiStatusEl, r as initWebSocket, s as onWSConnectionChange, t as connectWS, u as sendCoordinatorRequest, v as getAirpadOwnerDocument, w as getVkStatusEl, x as getBtnCut, y as getBtnConnect } from "./websocket.js";

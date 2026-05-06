@@ -1,4 +1,34 @@
-//#region ../../modules/projects/subsystem/src/boot/views.scss?inline
-var views_default = "@layer layer.view.common, layer.view.viewer;@layer layer.view.common{:where([data-cw-view-host=true]){background-color:var(--view-bg,var(--color-surface,canvas));block-size:100%;box-sizing:border-box;color:var(--view-fg,var(--color-on-surface,canvasText));color-scheme:light dark;display:block;inline-size:100%;isolation:isolate;min-block-size:0;min-inline-size:0;position:relative;z-index:0}}@layer layer.view.viewer{.cw-view-viewer-shell{display:flex;flex-direction:column;max-block-size:none;min-block-size:max(100%,100cqb)}.cw-view-viewer-shell,.view-viewer{block-size:100%;inline-size:100%;min-inline-size:0}.view-viewer{background:var(--view-bg,var(--color-surface,light-dark(#f4f6fa,#060d17)));color:var(--view-fg,var(--color-on-surface,light-dark(#1a1a1a,#e5e7eb)));display:grid;flex:1 1 0%;grid-template-rows:[toolbar-row] max-content [content-row] minmax(0,1fr);min-block-size:0}.view-viewer__content{grid-row:content-row;min-block-size:0;min-inline-size:0;overflow:auto;padding:0;position:relative}}";
+//#region src/shared/routing/core/views.ts
+var VIEW_ENABLED_VIEWER = "viewer";
+var VIEW_ENABLED_EDITOR = "editor";
+var VIEW_ENABLED_WORKCENTER = "workcenter";
+var VIEW_ENABLED_EXPLORER = "explorer";
+var VIEW_ENABLED_AIRPAD = "airpad";
+var VIEW_ENABLED_SETTINGS = "settings";
+var VIEW_ENABLED_HISTORY = "history";
+var VIEW_ENABLED_HOME = "home";
+var VIEW_ENABLED_PRINT = "print";
+var DEFAULT_VIEW_ID = "viewer";
+var VIEW_FLAGS = {
+	viewer: VIEW_ENABLED_VIEWER,
+	editor: VIEW_ENABLED_EDITOR,
+	workcenter: VIEW_ENABLED_WORKCENTER,
+	explorer: VIEW_ENABLED_EXPLORER,
+	airpad: VIEW_ENABLED_AIRPAD,
+	settings: VIEW_ENABLED_SETTINGS,
+	history: VIEW_ENABLED_HISTORY,
+	home: VIEW_ENABLED_HOME,
+	print: VIEW_ENABLED_PRINT
+};
+var ENABLED_VIEW_IDS = Object.entries(VIEW_FLAGS).filter(([, enabled]) => Boolean(enabled)).map(([viewId]) => viewId);
+var isEnabledView = (viewId) => {
+	return Boolean(VIEW_FLAGS[viewId]);
+};
+var pickEnabledView = (preferred = DEFAULT_VIEW_ID, fallback = DEFAULT_VIEW_ID) => {
+	if (isEnabledView(preferred)) return preferred;
+	if (isEnabledView(fallback)) return fallback;
+	if (ENABLED_VIEW_IDS.length > 0) return ENABLED_VIEW_IDS[0];
+	return "viewer";
+};
 //#endregion
-export { views_default as t };
+export { VIEW_ENABLED_EXPLORER as a, VIEW_ENABLED_PRINT as c, VIEW_ENABLED_WORKCENTER as d, isEnabledView as f, VIEW_ENABLED_EDITOR as i, VIEW_ENABLED_SETTINGS as l, ENABLED_VIEW_IDS as n, VIEW_ENABLED_HISTORY as o, pickEnabledView as p, VIEW_ENABLED_AIRPAD as r, VIEW_ENABLED_HOME as s, DEFAULT_VIEW_ID as t, VIEW_ENABLED_VIEWER as u };

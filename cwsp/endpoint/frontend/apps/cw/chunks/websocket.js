@@ -1097,6 +1097,8 @@ function connectWS() {
 		]
 	};
 	const locationPort = location.port?.trim?.() || "";
+	/** Default 443/80 when `location.port` is empty — used to prefer same-origin WS on unified HTTPS entrypoints. */
+	const pageEffectivePort = locationPort || (location.protocol === "https:" ? "443" : location.protocol === "http:" ? "80" : "");
 	const protocolOrder = remoteProtocol === "http" ? ["http"] : remoteProtocol === "https" ? ["https"] : [primaryProtocol, fallbackProtocol];
 	const isLikelyHttpsPort = (port) => port === "443" || port === "8443" || port === "8444";
 	const isLikelyHttpPort = (port) => port === "80" || port === "8080";
@@ -1157,7 +1159,8 @@ function connectWS() {
 	const skipPageOriginForDirectLan = Boolean(pageHost) && normalizedRemoteHosts.size > 0 && hasPrivateOrLocalTransportHost() && !isLocalPageHost && !normalizedRemoteHosts.has(pageHostnameLower);
 	if (location.hostname && !skipPageOriginForDirectLan) hostEntries.push({
 		host: location.hostname,
-		source: "page"
+		source: "page",
+		...pageEffectivePort ? { preferPort: pageEffectivePort } : {}
 	});
 	const uniqueHostEntries = /* @__PURE__ */ new Map();
 	for (const entry of hostEntries) if (entry.host && !uniqueHostEntries.has(entry.host)) uniqueHostEntries.set(entry.host, entry);
@@ -1171,7 +1174,7 @@ function connectWS() {
 		const hostList = protocol === "https" ? httpsOrderedHostEntries : candidateHostEntries;
 		for (const hostEntry of hostList) {
 			const { host, source, preferPort } = hostEntry;
-			const hostPortOverride = preferPort;
+			const hostPortOverride = pageHost && host === pageHost && pageEffectivePort ? pageEffectivePort : preferPort;
 			for (const port of getPortsForProtocol(protocol, hostPortOverride)) {
 				const hostBare = stripWireEndpointIdPrefix(host).trim() || host.trim();
 				const hostLooksPrivate = isIpv4Literal(hostBare) && isPrivateIp(hostBare);

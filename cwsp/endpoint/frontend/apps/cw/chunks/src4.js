@@ -1,6 +1,6 @@
 import { g as removeAdopted, p as loadAsAdopted } from "../fest/dom.js";
 import { c as ref } from "../fest/object.js";
-import { P as H } from "../vendor/jsox.js";
+import { Z as H } from "../com/app.js";
 import { t as createViewState } from "./types.js";
 import { n as EditorChannelAction } from "./channel-actions.js";
 //#region ../../modules/views/editor-view/src/editor.scss?inline

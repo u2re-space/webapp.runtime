@@ -1,378 +1,13 @@
+import { f as isEnabledView } from "./views.js";
 import { h as preloadStyle, m as loadInlineStyle } from "../fest/dom.js";
 import { c as ref } from "../fest/object.js";
-import { _ as serviceChannels, m as isEnabledView, p as ENABLED_VIEW_IDS, r as initBootShellWindowActivity, s as ViewRegistry } from "../shells/preference.js";
-import { x as dynamicTheme } from "../vendor/jsox.js";
+import { x as dynamicTheme } from "../com/app.js";
 import { n as loadSettings, r as saveSettings } from "./Settings.js";
+import { n as ViewRegistry, u as serviceChannels } from "./registry.js";
+import { n as getTransitionDirection, r as withViewTransition, t as scheduleViewModulePrefetch } from "../views/prefetch.js";
 import { i as syncBrowserChromeTheme, n as applyTheme, r as resyncThemeAfterAdoptedViewSheet } from "./Theme.js";
 import { a as ensureStyleSheet } from "../fest/icon.js";
-//#region ../../modules/projects/subsystem/src/boot/toast.ts
-var DEFAULT_CONFIG = {
-	containerId: "rs-toast-layer",
-	position: "bottom",
-	maxToasts: 5,
-	zIndex: 2147483647
-};
-var DEFAULT_DURATION = 3e3;
-var TRANSITION_DURATION = 200;
-/** Suppress the same toast repeating within this window (main thread + broadcast). */
-var DEDUPE_WINDOW_MS = 400;
-var lastToastFingerprint = "";
-var lastToastFingerprintAt = 0;
-var toastFingerprint = (opts) => `${opts.kind || "info"}\0${opts.position || DEFAULT_CONFIG.position}\0${opts.message}`;
-var hasVisibleDuplicate = (layer, message, kind) => {
-	for (const el of Array.from(layer?.children ?? [])) if (el instanceof HTMLElement && el.classList.contains("rs-toast") && el.getAttribute("data-kind") === kind && el.textContent === message) return true;
-	return false;
-};
-var TOAST_STYLES = `
-@layer viewer-toast {
-    .rs-toast-layer {
-        position: fixed;
-        z-index: var(--shell-toast-z, 2147483647);
-        pointer-events: none;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 1rem;
-        gap: 0.5rem;
-        max-block-size: 80dvb;
-        overflow: hidden;
-        box-sizing: border-box;
-    }
-
-    .rs-toast-layer[data-position="bottom"],
-    .rs-toast-layer:not([data-position]) {
-        inset-block-end: 10dvb;
-        inset-inline: 0;
-        justify-content: flex-end;
-    }
-
-    .rs-toast-layer[data-position="top"] {
-        inset-block-start: 10dvb;
-        inset-inline: 0;
-        justify-content: flex-start;
-    }
-
-    .rs-toast-layer[data-position="top-left"] {
-        inset-block-start: 10dvb;
-        inset-inline-start: 0;
-        align-items: flex-start;
-    }
-
-    .rs-toast-layer[data-position="top-right"] {
-        inset-block-start: 10dvb;
-        inset-inline-end: 0;
-        align-items: flex-end;
-    }
-
-    .rs-toast-layer[data-position="bottom-left"] {
-        inset-block-end: 10dvb;
-        inset-inline-start: 0;
-        align-items: flex-start;
-    }
-
-    .rs-toast-layer[data-position="bottom-right"] {
-        inset-block-end: 10dvb;
-        inset-inline-end: 0;
-        align-items: flex-end;
-    }
-
-    .rs-toast {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.5rem 1rem;
-        max-inline-size: min(90vw, 32rem);
-        inline-size: fit-content;
-
-        border-radius: var(--toast-radius, 0.5rem);
-        background-color: var(--toast-bg, light-dark(#fafbfc, #1e293b));
-        box-shadow: var(--toast-shadow, 0 6px 14px rgba(0, 0, 0, 0.45));
-        backdrop-filter: blur(12px) saturate(140%);
-        color: var(--toast-text, light-dark(#000000, #ffffff));
-
-        font-family: var(--toast-font-family, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-        font-size: var(--toast-font-size, 0.875rem);
-        font-weight: var(--toast-font-weight, 500);
-        letter-spacing: 0.01em;
-        line-height: 1.4;
-        white-space: pre-wrap;
-        overflow-wrap: anywhere;
-        word-break: break-word;
-
-        pointer-events: auto;
-        user-select: none;
-        cursor: default;
-
-        opacity: 0;
-        transform: translateY(100%) scale(0.9);
-        transition:
-            opacity 160ms ease-out,
-            transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
-            background-color 100ms ease;
-    }
-
-    .rs-toast[data-visible] {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-
-    .rs-toast:active {
-        transform: scale(0.98);
-    }
-
-    .rs-toast[data-kind="success"] {
-        --toast-bg: var(--color-success, var(--color-success, #22c55e));
-    }
-
-    .rs-toast[data-kind="warning"] {
-        --toast-bg: var(--color-warning, var(--color-warning, #f59e0b));
-    }
-
-    .rs-toast[data-kind="error"] {
-        --toast-bg: var(--color-error, var(--color-error, #ef4444));
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .rs-toast,
-        .rs-toast[data-visible] {
-            transition-duration: 0ms;
-            transform: none;
-        }
-    }
-
-    @media print {
-        .rs-toast-layer, .rs-toast {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-            position: absolute !important;
-            inset: 0 !important;
-            z-index: -1 !important;
-            inline-size: 0 !important;
-            block-size: 0 !important;
-            max-inline-size: 0 !important;
-            max-block-size: 0 !important;
-            min-inline-size: 0 !important;
-            min-block-size: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            border: none !important;
-            overflow: hidden !important;
-        }
-    }
-}
-`;
-var injectedDocs = /* @__PURE__ */ new WeakSet();
-var toastLayers = /* @__PURE__ */ new Map();
-/**
-* Ensure styles are injected into the document
-*/
-var ensureStyles = (doc = document) => {
-	if (injectedDocs.has(doc)) return;
-	const style = doc.createElement("style");
-	style.id = "__rs-toast-styles__";
-	style.textContent = TOAST_STYLES;
-	(doc.head || doc.documentElement).appendChild(style);
-	injectedDocs.add(doc);
-};
-/**
-* Get or create a toast layer container
-*/
-var getToastLayer = (config, doc = document) => {
-	const key = `${config.containerId}-${config.position}`;
-	if (toastLayers.has(key)) {
-		const existing = toastLayers.get(key);
-		if (existing.isConnected) return existing;
-		toastLayers.delete(key);
-	}
-	ensureStyles(doc);
-	let layer = doc.getElementById(config.containerId);
-	if (!layer) {
-		layer = doc.createElement("div");
-		layer.id = config.containerId;
-		layer.className = "rs-toast-layer";
-		layer.setAttribute("aria-live", "polite");
-		layer.setAttribute("aria-atomic", "true");
-		(doc.body || doc.documentElement).appendChild(layer);
-	}
-	layer.setAttribute("data-position", config.position);
-	layer.style.setProperty("--shell-toast-z", String(config.zIndex));
-	toastLayers.set(key, layer);
-	return layer;
-};
-/**
-* Broadcast toast to all clients (for service worker context)
-*/
-var broadcastToast = (options) => {
-	try {
-		const channel = new BroadcastChannel("rs-toast");
-		channel.postMessage({
-			type: "show-toast",
-			options
-		});
-		channel.close();
-	} catch (e) {
-		console.warn("[Toast] Broadcast failed:", e);
-	}
-};
-/**
-* Create and show a toast notification
-*
-* @param options - Toast options object or message string
-* @returns The created toast element, or null if in service worker context
-*/
-var showToast = (options) => {
-	const opts = typeof options === "string" ? { message: options } : options;
-	const { message, kind = "info", duration = DEFAULT_DURATION, persistent = false, position = DEFAULT_CONFIG.position, onClick } = opts;
-	if (!message) return null;
-	const fp = toastFingerprint(opts);
-	const now = Date.now();
-	if (fp === lastToastFingerprint && now - lastToastFingerprintAt < DEDUPE_WINDOW_MS) return null;
-	if (typeof document === "undefined") {
-		lastToastFingerprint = fp;
-		lastToastFingerprintAt = now;
-		broadcastToast(opts);
-		return null;
-	}
-	const config = {
-		...DEFAULT_CONFIG,
-		position
-	};
-	const layer = getToastLayer(config);
-	if (hasVisibleDuplicate(layer, message, kind)) {
-		lastToastFingerprint = fp;
-		lastToastFingerprintAt = now;
-		return null;
-	}
-	lastToastFingerprint = fp;
-	lastToastFingerprintAt = now;
-	while (layer.children.length >= config.maxToasts) layer.firstChild?.remove();
-	const toast = document.createElement("div");
-	toast.className = "rs-toast";
-	toast.setAttribute("data-kind", kind);
-	toast.setAttribute("role", kind === "error" || kind === "warning" ? "alert" : "status");
-	toast.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
-	toast.textContent = message;
-	layer.appendChild(toast);
-	globalThis?.requestAnimationFrame?.(() => {
-		toast.setAttribute("data-visible", "");
-	});
-	let hideTimer = null;
-	const removeToast = () => {
-		if (hideTimer !== null) {
-			globalThis.clearTimeout(hideTimer);
-			hideTimer = null;
-		}
-		toast.removeAttribute("data-visible");
-		globalThis?.setTimeout?.(() => {
-			toast.remove();
-			if (!layer.childElementCount) {
-				const key = `${config.containerId}-${config.position}`;
-				toastLayers.delete(key);
-			}
-		}, TRANSITION_DURATION);
-	};
-	if (!persistent) hideTimer = globalThis?.setTimeout?.(removeToast, duration);
-	toast.addEventListener("click", () => {
-		onClick?.();
-		removeToast();
-	});
-	toast.addEventListener("pointerdown", () => {
-		if (hideTimer !== null) {
-			globalThis.clearTimeout(hideTimer);
-			hideTimer = null;
-		}
-		removeToast();
-	}, { once: true });
-	return toast;
-};
-//#endregion
-//#region ../../modules/projects/subsystem/src/routing/core/view-transitions.ts
-/**
-* Canonical view order used to determine navigation direction.
-* Earlier index = "back", later index = "forward".
-*/
-var VIEW_ORDER = [
-	"home",
-	"viewer",
-	"editor",
-	"explorer",
-	"workcenter",
-	"airpad",
-	"history",
-	"settings",
-	"print"
-];
-/** `true` when `document.startViewTransition` is available (Chrome 111+). */
-var supportsViewTransitions = () => typeof document !== "undefined" && "startViewTransition" in document;
-/**
-* Compute navigation direction based on the ordered view list.
-*
-* Unknown view IDs fall back to `"fade"` (no slide animation).
-*/
-function getTransitionDirection(from, to) {
-	const fi = VIEW_ORDER.indexOf(from);
-	const ti = VIEW_ORDER.indexOf(to);
-	if (fi === -1 || ti === -1 || fi === ti) return "fade";
-	return fi < ti ? "forward" : "backward";
-}
-/**
-* Wrap a DOM mutation in a View Transition, with a transparent fallback.
-*
-* Before starting the transition, `data-vt-direction` is set on `:root` so
-* CSS `::view-transition-old/new(active-view)` can select the right keyframe
-* animation via inherited CSS custom properties.
-*
-* If a transition is already running, the browser will abort the previous one
-* and start the new one — this is intentional and handled gracefully.
-*/
-async function withViewTransition(update, options = {}) {
-	if (!supportsViewTransitions()) {
-		await update();
-		return;
-	}
-	const { direction = "fade", types } = options;
-	document.documentElement.dataset.vtDirection = direction;
-	const doc = document;
-	const transition = types?.length ? doc.startViewTransition({
-		update,
-		types
-	}) : doc.startViewTransition(update);
-	try {
-		await (transition.updateCallbackDone ?? transition.finished);
-	} catch {} finally {
-		delete document.documentElement.dataset.vtDirection;
-	}
-	transition.finished.catch(() => {});
-}
-//#endregion
-//#region src/shared/routing/core/view-prefetch.ts
-/**
-* Low-priority prefetch of view chunks after the focused view is interactive.
-*/
-function scheduleIdle(fn, timeoutMs) {
-	if (typeof globalThis.requestIdleCallback === "function") globalThis.requestIdleCallback(fn, { timeout: timeoutMs });
-	else globalThis.setTimeout?.(fn, 32);
-}
-/**
-* Stagger dynamic imports for non-current views so the next navigation is faster
-* without competing with the active view's work.
-*/
-function scheduleViewModulePrefetch(currentViewId) {
-	const others = ENABLED_VIEW_IDS.filter((id) => id !== currentViewId);
-	if (others.length === 0) return;
-	let index = 0;
-	const step = () => {
-		const id = others[index++];
-		if (!id) return;
-		ViewRegistry.prefetchModule(id);
-		scheduleIdle(step, 6e3);
-	};
-	scheduleIdle(step, 2500);
-}
-//#endregion
+import { r as initBootShellWindowActivity } from "../shells/preference.js";
 //#region ../../modules/projects/subsystem/src/boot/shell-elements.ts
 var ShellHost = class extends HTMLElement {
 	mountShellLayout(layout) {
@@ -604,7 +239,15 @@ var ShellBase = class {
 		} catch (error) {
 			console.error(`[${this.id}] Failed to load view ${viewId}:`, error);
 			this.showMessage(`Failed to load ${viewId}`);
+			this.hideShellLoadingPlaceholder();
 		}
+	}
+	/** Dismiss shell chrome loading row after a failed navigation (avoids infinite spinner). */
+	hideShellLoadingPlaceholder() {
+		try {
+			const loading = this.contentContainer?.querySelector(".app-shell__loading");
+			if (loading) loading.hidden = true;
+		} catch {}
 	}
 	async loadView(viewId, params) {
 		let initialData;
@@ -673,9 +316,11 @@ var ShellBase = class {
 		this.syncThemeToolbarControls();
 	}
 	getContext() {
+		const navigateFn = (viewId, params) => this.navigate(viewId, params);
 		return {
 			shellId: this.id,
-			navigate: (viewId, params) => this.navigate(viewId, params),
+			navigate: navigateFn,
+			openView: navigateFn,
 			goBack: () => this.goBack(),
 			showMessage: (msg, duration) => this.showMessage(msg, duration),
 			navigationState: this.navigationState,

@@ -1,5 +1,5 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
-import { I as JSOX, i as writeFileSmart } from "../vendor/jsox.js";
+import { T as JSOX, i as writeFileSmart } from "../com/app.js";
 import { n as DEFAULT_SETTINGS } from "./SettingsTypes.js";
 //#region src/shared/other/config/Settings.ts
 var Settings_exports = /* @__PURE__ */ __exportAll({
@@ -492,7 +492,7 @@ var safeTime = (v) => {
 /** Lazy `fest/lure` — keeps content scripts / lightweight callers from pulling lure + UI CSS. */
 var lureFsPromise = null;
 var loadLureFs = () => {
-	if (!lureFsPromise) lureFsPromise = import("../vendor/jsox.js").then((n) => n.t).then((m) => ({
+	if (!lureFsPromise) lureFsPromise = import("../com/app.js").then((n) => n.t).then((m) => ({
 		getDirectoryHandle: m.getDirectoryHandle,
 		readFile: m.readFile
 	}));

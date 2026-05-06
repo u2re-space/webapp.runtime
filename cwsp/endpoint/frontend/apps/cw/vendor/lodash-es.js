@@ -1,5 +1,5 @@
 import { a as __toESM, i as __toCommonJS, n as __esmMin, r as __exportAll, t as __commonJSMin } from "../chunks/rolldown-runtime.js";
-import { P as H } from "./jsox.js";
+import { Z as H } from "../com/app.js";
 //#region ../../node_modules/lodash-es/_freeGlobal.js
 var freeGlobal;
 var init__freeGlobal = __esmMin((() => {

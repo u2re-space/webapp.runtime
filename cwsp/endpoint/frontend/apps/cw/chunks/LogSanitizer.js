@@ -1,4 +1,4 @@
-import { c as parseDataUrl, o as isBase64Like } from "../vendor/jsox.js";
+import { c as parseDataUrl, o as isBase64Like } from "../com/app.js";
 //#region ../../modules/projects/subsystem/src/routing/channel/LogSanitizer.ts
 var DEFAULT_OPTIONS = {
 	maxStringLength: 180,

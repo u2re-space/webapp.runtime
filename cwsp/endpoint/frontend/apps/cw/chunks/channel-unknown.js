@@ -1,11 +1,11 @@
 import { p as loadAsAdopted } from "../fest/dom.js";
 import { i as BROADCAST_CHANNELS, u as getBroadcastChannelForDestination } from "./UniformInterop.js";
 import { a as initializeComponent, f as unifiedMessaging, i as hasPendingMessages, n as createMessageWithOverrides, o as processInitialContent, r as enqueuePendingMessage, s as registerComponent } from "./UnifiedMessaging.js";
-import { i as fetchSwCachedEntries } from "./ShareTargetGateway.js";
-import { C as getSpeechPrompt, P as H, S as createTemplateManager, n as getCachedComponent, r as createFileHandler } from "../vendor/jsox.js";
+import { C as getSpeechPrompt, S as createTemplateManager, Z as H, n as getCachedComponent, r as createFileHandler } from "../com/app.js";
 import { n as loadSettings } from "./Settings.js";
-import { t as views_default } from "./views.js";
+import { i as fetchSwCachedEntries } from "./ShareTargetGateway.js";
 import { a as ensureStyleSheet, c as clearAllCache, n as debugIconSystem, o as reinitializeRegistry, r as testIconRacing, t as clearIconCaches } from "../fest/icon.js";
+import { t as views_default } from "./views2.js";
 //#region src/shared/routing/core/channel-unknown.ts
 var CHANNELS = {
 	SHARE_TARGET: BROADCAST_CHANNELS.SHARE_TARGET,
@@ -886,7 +886,7 @@ var mountShellApp = (mountElement, options = {}) => {
     </div>`;
 		content.append(loadingElement);
 		try {
-			const historyManager = (await getCachedComponent("history-manager", () => import("../vendor/jsox.js").then((n) => n.T), { componentName: "HistoryManager" })).component.createHistoryManager();
+			const historyManager = (await getCachedComponent("history-manager", () => import("../com/app.js").then((n) => n.E), { componentName: "HistoryManager" })).component.createHistoryManager();
 			if (state.history.length === 0) state.history = historyManager.getAllEntries();
 			const historyElement = historyManager.createHistoryView((entry) => {
 				if (state.view === "workcenter") getCachedComponent("workcenter", () => import("./WorkCenter.js").then((m) => m.WorkCenterManager), { componentName: "WorkCenter" }).then(() => {
@@ -1174,7 +1174,7 @@ var mountShellApp = (mountElement, options = {}) => {
 			const renderer = {
 				"settings": async () => {
 					content.innerHTML = "<div class=\"component-loading\"><div class=\"loading-spinner\"></div><span>Loading Settings...</span></div>";
-					const settingsEl = (await loadComponent("settings", () => import("./src8.js"), { componentName: "Settings" })).component.createSettingsView({
+					const settingsEl = (await loadComponent("settings", () => import("./src7.js"), { componentName: "Settings" })).component.createSettingsView({
 						isExtension: isLikelyExtension(),
 						onTheme: (t) => applyTheme(root, t)
 					});

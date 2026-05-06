@@ -1,8 +1,8 @@
 import { c as ROUTE_HASHES } from "./UniformInterop.js";
 import { a as initializeComponent, s as registerComponent, u as sendMessage } from "./UnifiedMessaging.js";
-import { n as consumeCachedShareTargetPayload, r as fetchCachedShareFiles } from "./ShareTargetGateway.js";
-import { P as H, c as parseDataUrl, o as isBase64Like, s as normalizeDataAsset } from "../vendor/jsox.js";
+import { Z as H, c as parseDataUrl, o as isBase64Like, s as normalizeDataAsset } from "../com/app.js";
 import { t as summarizeForLog } from "./LogSanitizer.js";
+import { n as consumeCachedShareTargetPayload, r as fetchCachedShareFiles } from "./ShareTargetGateway.js";
 import { t as renderMathInElement } from "../vendor/katex2.js";
 import { t as g } from "../vendor/marked.js";
 import { t as src_default } from "../vendor/marked-katex-extension.js";
@@ -47,7 +47,7 @@ var WorkCenterUI = class {
 	}
 	/** Render the top-level Work Center layout and wire child modules to the new container. */
 	renderWorkCenterView(state) {
-		const container = H`<div class="workcenter-view">
+		const container = H`<div class="workcenter-view" data-view="workcenter">
       <div class="workcenter-header">
         <h2>AI Work Center</h2>
         <div class="header-controls" aria-label="AI work center output and processing options">

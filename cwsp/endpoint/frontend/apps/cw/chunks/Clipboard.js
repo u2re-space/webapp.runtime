@@ -1,1 +1,1 @@
-import "../vendor/jsox.js";
+import "../com/app.js";

@@ -1,10 +1,10 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
 import { h as viewBroadcastChannelName, i as BROADCAST_CHANNELS, p as normalizeDestination } from "./UniformInterop.js";
 import { d as sendProtocolMessage, f as unifiedMessaging, r as enqueuePendingMessage } from "./UnifiedMessaging.js";
-import { a as storeShareTargetPayloadToCache$1, n as consumeCachedShareTargetPayload$1, t as buildShareDataFromCachedPayload } from "./ShareTargetGateway.js";
-import { D as initClipboardReceiver, E as copy } from "../vendor/jsox.js";
-import { n as loadSettings } from "./Settings.js";
+import { R as copy, z as initClipboardReceiver } from "../com/app.js";
 import { t as summarizeForLog } from "./LogSanitizer.js";
+import { n as loadSettings } from "./Settings.js";
+import { a as storeShareTargetPayloadToCache$1, n as consumeCachedShareTargetPayload$1, t as buildShareDataFromCachedPayload } from "./ShareTargetGateway.js";
 //#region src/shared/routing/pwa/sw-url.ts
 var isLikelyJavaScriptContentType = (contentType) => {
 	const ct = (contentType || "").toLowerCase();
@@ -1266,7 +1266,7 @@ var routeToTransferView = async (shareData, source, hint, pending = false) => {
 	}
 	if (!silentRoute && currentPath !== resolved.routePath) {
 		if (delivered) try {
-			const { bootLoader } = await import("./BootLoader.js").then((n) => n.t);
+			const { bootLoader } = await import("./BootLoader.js").then((n) => n.n);
 			const shell = bootLoader.getShell();
 			if (shell && ![
 				"window",
