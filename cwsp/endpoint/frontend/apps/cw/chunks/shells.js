@@ -529,7 +529,10 @@ var ShellBase = class {
 		const navToken = ++this.navigationToken;
 		if (!navOptions?.force && viewId === this.currentView.value && this.sameRouteParams(params, this.navigationState.params)) {
 			const entry = this.loadedViews.get(viewId);
-			if (entry?.element.isConnected && (this.contentContainer?.contains(entry.element) || this.rootElement?.contains(entry.element)) && !entry.element.hidden) return;
+			if (entry?.element.isConnected && (this.contentContainer?.contains(entry.element) || this.rootElement?.contains(entry.element)) && !entry.element.hidden) {
+				this.hideShellLoadingPlaceholder();
+				return;
+			}
 		}
 		const previousView = this.navigationState.currentView;
 		this.navigationState.previousView = previousView;
@@ -562,9 +565,15 @@ var ShellBase = class {
 		}
 		try {
 			const element = await this.loadView(viewId, params);
-			if (navToken !== this.navigationToken) return;
+			if (navToken !== this.navigationToken) {
+				this.hideShellLoadingPlaceholder();
+				return;
+			}
 			await this.renderViewWithTransition(element);
-			if (navToken !== this.navigationToken) return;
+			if (navToken !== this.navigationToken) {
+				this.hideShellLoadingPlaceholder();
+				return;
+			}
 			scheduleViewModulePrefetch(viewId);
 			this.hideShellLoadingPlaceholder();
 		} catch (error) {

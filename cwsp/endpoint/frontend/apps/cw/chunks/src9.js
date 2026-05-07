@@ -333,6 +333,7 @@ var WorkCenterView = class WorkCenterView extends UIElement {
 		const activeViewMarker = currentElement.getAttribute("data-view");
 		if (activeViewMarker) next.setAttribute("data-view", activeViewMarker);
 		next.hidden = currentElement.hidden;
+		if (currentElement.hasAttribute("slot")) next.slot = currentElement.slot;
 		parent.replaceChild(next, currentElement);
 		this.element = next;
 		this.syncPromptInputFromState();
