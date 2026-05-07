@@ -1915,6 +1915,9 @@ var CwViewViewer = createViewConstructor(TAG, (Base) => {
 			const sourceMeta = meta && typeof meta.source === "string" ? meta.source : "";
 			const routeMeta = meta && typeof meta.route === "string" ? String(meta.route) : "";
 			const fromLaunchQueue = sourceMeta.includes("launch-queue") || routeMeta.includes("launch-queue");
+			/** Share-target and SW metadata envelopes can duplicate title/url as stale `text` while `files[]` holds the doc. */
+			const fromShareTarget = sourceMeta.includes("share-target") || routeMeta.includes("share-target") || meta && typeof meta === "object" && !Array.isArray(meta) && String(meta.shareTarget ?? "") === "1";
+			const preferAuthoritativeTextFile = fromLaunchQueue || fromShareTarget || msg.type === "share-target-input";
 			const hintName = typeof msg.data?.filename === "string" && msg.data.filename.trim().length > 0 ? msg.data.filename.trim() : typeof msg.data?.hint?.filename === "string" ? String(msg.data.hint.filename).trim() : void 0;
 			let fileEarly = msg.data?.file instanceof File ? msg.data.file : null;
 			if (Array.isArray(msg.data?.files) && msg.data.files.some((f) => f instanceof File)) fileEarly = pickAuthoritativeTransferFiles(msg.data.files.filter((f) => f instanceof File), {
@@ -1928,9 +1931,9 @@ var CwViewViewer = createViewConstructor(TAG, (Base) => {
 					fileEarly = null;
 				}
 			}
-			/** Launch-queue merges can retain stale inline text; prefer a text-like File when present. */
-			const textLikeLaunchFile = fromLaunchQueue && !!fileEarly && this.isTextLikeFile(fileEarly);
-			if (fileEarly && this.isTextLikeFile(fileEarly) && (fromLaunchQueue || msg.type === "content-load" || msg.type === "content-view" || msg.type === "markdown-content") && fileEarly) try {
+			/** Launch-queue / share merges can retain stale inline text; prefer a text-like File when present. */
+			const textLikeMergedEnvelopeFile = preferAuthoritativeTextFile && !!fileEarly && this.isTextLikeFile(fileEarly);
+			if (fileEarly && this.isTextLikeFile(fileEarly) && (preferAuthoritativeTextFile || msg.type === "content-load" || msg.type === "content-view" || msg.type === "markdown-content") && fileEarly) try {
 				const text = await fileEarly.text();
 				if (this.viewIngressSupersededAfterAsync(meta)) return;
 				const sourcePath = msg.data?.source || msg.data?.src || msg.data?.path || fileEarly.name;
@@ -1938,13 +1941,13 @@ var CwViewViewer = createViewConstructor(TAG, (Base) => {
 				return;
 			} catch (error) {
 				console.warn("[Viewer] Failed to read prioritized file payload, falling back to inline/url:", error);
-				if (fromLaunchQueue) {
+				if (preferAuthoritativeTextFile) {
 					const sourcePath = msg.data?.source || msg.data?.src || msg.data?.path || fileEarly.name;
 					this.setContent(`> Failed to read transferred file:\n> ${fileEarly.name}`, msg.data?.filename || fileEarly.name, sourcePath);
 					return;
 				}
 			}
-			if (!textLikeLaunchFile && (msg.data?.text || msg.data?.content)) {
+			if (!textLikeMergedEnvelopeFile && (msg.data?.text || msg.data?.content)) {
 				const content = msg.data.text || msg.data.content || "";
 				const source = msg.data.source || msg.data.src || msg.data.path;
 				this.ingestOpenedMarkdownBody(content, msg.data.filename, source);

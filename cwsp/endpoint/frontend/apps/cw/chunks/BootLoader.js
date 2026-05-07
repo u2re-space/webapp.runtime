@@ -264,6 +264,12 @@ var BootLoader = class BootLoader {
 			});
 			if (persistedSettings) applyHubSocketFromSettings(persistedSettings).catch(() => void 0);
 			applyTheme(persistedSettings ?? DEFAULT_SETTINGS);
+			try {
+				const { initIngressPWA } = await import("./sw-handling.js").then((n) => n.s);
+				await initIngressPWA();
+			} catch (e) {
+				console.warn("[BootLoader] Share-target / service worker ingress failed (non-fatal):", e);
+			}
 			await this.loadStyles(config.styleSystem);
 			const persistedTheme = this.resolveThemeFromSettings(persistedSettings);
 			const shell = await this.loadShell(config.shell, container);

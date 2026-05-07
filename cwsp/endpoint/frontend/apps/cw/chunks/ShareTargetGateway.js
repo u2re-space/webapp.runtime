@@ -111,7 +111,18 @@ var consumeCachedShareTargetPayload = async (opts = {}) => {
 var buildShareDataFromCachedPayload = (payload) => {
 	const meta = payload?.meta || {};
 	const files = Array.isArray(payload?.files) ? payload.files : [];
-	return {
+	const fileMeta = Array.isArray(payload?.fileMeta) ? payload.fileMeta : [];
+	const manifestName = typeof fileMeta[0]?.name === "string" && fileMeta[0].name.trim().length > 0 ? fileMeta[0].name.trim() : void 0;
+	const rawHint = meta.hint;
+	const baseHint = rawHint && typeof rawHint === "object" && !Array.isArray(rawHint) ? { ...rawHint } : {};
+	let hintOut = Object.keys(baseHint).length > 0 ? { ...baseHint } : void 0;
+	if (manifestName && !files.length) {
+		if (!(typeof baseHint.filename === "string" ? String(baseHint.filename).trim() : "")) hintOut = {
+			...hintOut || baseHint,
+			filename: manifestName
+		};
+	}
+	const out = {
 		...meta,
 		title: typeof meta.title === "string" ? meta.title : void 0,
 		text: typeof meta.text === "string" ? meta.text : void 0,
@@ -124,6 +135,8 @@ var buildShareDataFromCachedPayload = (payload) => {
 		fileCount: files.length || Number(meta.fileCount || 0),
 		imageCount: Number(meta.imageCount || files.filter((file) => (file?.type || "").toLowerCase().startsWith("image/")).length)
 	};
+	if (hintOut !== void 0) out.hint = hintOut;
+	return out;
 };
 /** Read the service worker's advertised cached content entries through the HTTP bridge. */
 var fetchSwCachedEntries = async () => {

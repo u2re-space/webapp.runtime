@@ -189,22 +189,23 @@ var ensureServiceWorkerRegistered = async () => {
 	const candidates = getServiceWorkerCandidates();
 	const tryRegister = async (url) => {
 		const scope = scopeForServiceWorkerScript(url);
+		const isDevVirtualWorker = url.includes("/dev-sw.js?dev-sw");
 		try {
 			return await navigator.serviceWorker.register(url, {
 				scope,
-				type: "module",
 				updateViaCache: "none"
 			});
-		} catch (e) {
-			if (url.includes("/dev-sw.js?dev-sw")) return null;
-			try {
+		} catch (eClassic) {
+			if (isDevVirtualWorker) try {
 				return await navigator.serviceWorker.register(url, {
 					scope,
+					type: "module",
 					updateViaCache: "none"
 				});
-			} catch (e2) {
+			} catch (eModule) {
 				return null;
 			}
+			return null;
 		}
 	};
 	for (const url of candidates) {
@@ -810,19 +811,61 @@ var cleanupPWAClipboard = () => {
 };
 //#endregion
 //#region ../../modules/projects/subsystem/src/routing/channel/ViewTransferRouting.ts
+/**
+* Canonical classification for share-target / launch-queue files (extension often beats flaky MIME).
+* Viewer-first routing treats `markdown` + `text`; other kinds stay on Work Center or sibling sinks.
+*/
+var classifyIngressFile = (file) => {
+	const name = String(file?.name || "").toLowerCase();
+	const mime = String(file?.type || "").toLowerCase();
+	if (mime.startsWith("image/")) return "image";
+	const mdTail = /\.(?:md|markdown|mdown|mkd|mkdn|mdtxt|mdtext)(?:$|[?#])/i;
+	if (mime === "text/markdown" || mdTail.test(name)) return "markdown";
+	if (mime.startsWith("text/")) return "text";
+	if (mime === "application/json" || mime === "application/xml" || mime === "application/xhtml+xml" || mime === "application/javascript" || mime === "application/typescript" || mime === "application/x-typescript") return "text";
+	if (/\.(?:txt|text|html|htm|css|scss|sass|less|json|csv|xml|yaml|yml|log|ini|env|toml|graphql|svg|tsx?|jsx?|mts|cts|cjs|mjs|vue|svelte|rst)(?:$|[?#])/i.test(name)) return mdTail.test(name) ? "markdown" : "text";
+	if (!mime || mime === "application/octet-stream") {
+		if (mdTail.test(name)) return "markdown";
+	}
+	if (/\.(?:png|jpe?g|gif|webp|bmp)(?:$|[?#])/i.test(name)) return "image";
+	return "file";
+};
+/** Filename-only classification when blobs are still in Cache Storage (`fileCount` but `files=[]`). */
+var classifyIngressFromBasename = (raw) => {
+	const t = raw.trim().replace(/\\/g, "/");
+	const cut = Math.max(t.lastIndexOf("/"), t.lastIndexOf("\\"));
+	const nameOnly = ((cut >= 0 ? t.slice(cut + 1) : t) || "").trim();
+	if (!nameOnly) return "file";
+	try {
+		return classifyIngressFile(new File([], nameOnly, { type: "application/octet-stream" }));
+	} catch {
+		return "file";
+	}
+};
 var getContentType = (payload) => {
-	if (payload.hint?.contentType) return String(payload.hint.contentType);
 	const files = Array.isArray(payload.files) ? payload.files : [];
 	const text = String(payload.text || "").trim();
 	const url = String(payload.url || "").trim();
+	const meta = payload.metadata && typeof payload.metadata === "object" && !Array.isArray(payload.metadata) ? payload.metadata : {};
+	const expectedFileCount = Math.max(Number(meta.fileCount) || 0, Number(payload.fileCount) || 0);
+	/** Android share-target often ships a `content:`/`https:` URL together with attachments; blobs may hydrate later. */
+	const filesStillPending = files.length === 0 && expectedFileCount > 0;
+	if (payload.hint?.contentType && !filesStillPending) return String(payload.hint.contentType);
 	if (files.length > 0) {
-		const file = files[0];
-		const name = String(file?.name || "").toLowerCase();
-		const mime = String(file?.type || "").toLowerCase();
-		if (mime.startsWith("image/")) return "image";
-		if (mime === "text/markdown" || name.endsWith(".md") || name.endsWith(".markdown")) return "markdown";
-		if (mime.startsWith("text/")) return "text";
+		const kind = classifyIngressFile(files[0]);
+		if (kind === "image") return "image";
+		if (kind === "markdown") return "markdown";
+		if (kind === "text") return "text";
 		return "file";
+	}
+	/** SW metadata row often beats File[] hydration (`fileCount` only) — classify from title/filename hint. */
+	const nameProbe = typeof payload.hint?.filename === "string" && payload.hint.filename.trim() || typeof payload.title === "string" && payload.title.trim() || "";
+	if (!text && nameProbe && (!url || filesStillPending)) {
+		const nk = classifyIngressFromBasename(nameProbe);
+		if (nk === "markdown") return "markdown";
+		if (nk === "text") return "text";
+		if (nk === "image") return "image";
+		if (filesStillPending && nk === "file") return "file";
 	}
 	if (url) {
 		const normalized = url.split("#")[0].split("?")[0].toLowerCase();
@@ -833,11 +876,12 @@ var getContentType = (payload) => {
 	return "other";
 };
 var pickDestination = (payload, contentType) => {
-	if (payload.hint?.destination) return payload.hint.destination;
 	if (payload.hint?.action === "save") return "explorer";
+	/** Readable docs should win over stale `hint.destination` from cached/share envelopes. */
+	if (contentType === "markdown" || contentType === "text") return "viewer";
+	if (payload.hint?.destination) return payload.hint.destination;
 	if (payload.hint?.action === "process" || payload.hint?.action === "attach") return "workcenter";
 	if (payload.hint?.action === "open") return "viewer";
-	if (contentType === "markdown" || contentType === "text") return "viewer";
 	if (contentType === "url") return "workcenter";
 	if (contentType === "image" || contentType === "file") return "workcenter";
 	return "workcenter";
@@ -942,7 +986,7 @@ var dispatchViewTransfer = async (payload) => {
 		...message,
 		purpose: ["deliver", "mail"],
 		protocol: "window",
-		op: resolved.hint?.action === "open" ? "invoke" : "deliver",
+		op: payload.hint?.action === "open" ? "invoke" : "deliver",
 		srcChannel: message.source,
 		dstChannel: normalizeDestination(resolved.destination)
 	});
@@ -1009,6 +1053,7 @@ var sw_handling_exports = /* @__PURE__ */ __exportAll({
 	consumeCachedShareTargetPayload: () => consumeCachedShareTargetPayload,
 	ensureAppCss: () => ensureAppCss,
 	handleShareTarget: () => handleShareTarget,
+	initIngressPWA: () => initIngressPWA,
 	initReceivers: () => initReceivers,
 	initServiceWorker: () => initServiceWorker,
 	processShareTargetData: () => processShareTargetData,
@@ -1032,6 +1077,7 @@ var _swInitPromise = null;
 var _swControllerReloadBound = false;
 var _swReloadPending = false;
 var _swUpdateInterval = null;
+var _swVisibilityUpdateBound = false;
 var _swOptions = {
 	immediate: false,
 	onRegistered: () => {
@@ -1058,6 +1104,19 @@ var activateWaitingWorker = (registration, reason) => {
 	console.log(`[PWA] Activating waiting service worker (${reason})`);
 	waiting.postMessage({ type: "SKIP_WAITING" });
 	return true;
+};
+/** Re-fetch `sw.js` from network; helps when CDN/proxy cache or long-lived tabs hide updates. */
+var probeServiceWorkerUpdate = async (registration) => {
+	if (!registration?.update) return;
+	await registration.update().catch((e) => console.warn("[PWA] registration.update failed:", e));
+};
+var bindServiceWorkerLifecycleUpdateChecks = (registration) => {
+	if (_swVisibilityUpdateBound || typeof document === "undefined") return;
+	_swVisibilityUpdateBound = true;
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState !== "visible") return;
+		probeServiceWorkerUpdate(registration);
+	});
 };
 /**
 * Initialize PWA service worker early in the page lifecycle
@@ -1093,6 +1152,9 @@ var initServiceWorker = async (_options = _swOptions) => {
 				return null;
 			}
 			bindControllerChangeReload();
+			await probeServiceWorkerUpdate(registration);
+			bindServiceWorkerLifecycleUpdateChecks(registration);
+			if (viteEnv?.DEV && registration.waiting) activateWaitingWorker(registration, "initial");
 			try {
 				if (_swOptions?.immediate === true && registration.waiting) activateWaitingWorker(registration, "initial");
 			} catch (e) {
@@ -1127,7 +1189,7 @@ var initServiceWorker = async (_options = _swOptions) => {
 			}
 			if (!viteEnv?.DEV) _swUpdateInterval = globalThis?.setInterval?.(() => {
 				registration?.update?.().catch?.(console.warn);
-			}, 1800 * 1e3);
+			}, 300 * 1e3);
 			console.log("[PWA] Service worker registered successfully");
 			return registration;
 		} catch (error) {
@@ -1148,24 +1210,36 @@ var inferShareContentType = (shareData) => {
 	const text = String(shareData.text || "").trim();
 	const url = String(shareData.url || shareData.sharedUrl || "").trim();
 	if (files.length > 0) {
-		const file = files[0];
-		const name = String(file?.name || "").toLowerCase();
-		const mime = String(file?.type || "").toLowerCase();
-		if (mime.startsWith("image/")) return "image";
-		if (mime === "text/markdown" || name.endsWith(".md") || name.endsWith(".markdown") || name.endsWith(".mdown")) return "markdown";
-		if (mime.startsWith("text/")) return "text";
+		const kind = classifyIngressFile(files[0]);
+		if (kind === "image") return "image";
+		if (kind === "markdown") return "markdown";
+		if (kind === "text") return "text";
 		return "file";
+	}
+	const fcEarly = Number(shareData.fileCount ?? 0);
+	/**
+	* Match {@link getContentType}: sidecar `url` must not block basename classification while blobs hydrate.
+	* WHY: empty `probe` must fall through — previously we returned `"file"` and never reached `url` / `text`.
+	*/
+	if (fcEarly > 0) {
+		const probe = typeof shareData.hint?.filename === "string" && shareData.hint.filename.trim() || typeof shareData.title === "string" && shareData.title.trim() || "";
+		if (probe) {
+			const bk = classifyIngressFromBasename(probe);
+			if (bk === "markdown") return "markdown";
+			if (bk === "text") return "text";
+			if (bk === "image") return "image";
+			return "file";
+		}
 	}
 	if (text) return "text";
 	if (url) return "url";
+	if (fcEarly > 0) return "file";
 	return "other";
 };
+/** Read textual file body for hydrate + launch-queue staging ({@link classifyIngressFile}). */
 var isTextLikeFile = (file) => {
-	const name = String(file?.name || "").toLowerCase();
-	const mime = String(file?.type || "").toLowerCase();
-	if (mime === "text/markdown" || mime === "text/plain" || mime === "text/html") return true;
-	if (mime.startsWith("text/")) return true;
-	return name.endsWith(".md") || name.endsWith(".markdown") || name.endsWith(".mdown") || name.endsWith(".txt") || name.endsWith(".html") || name.endsWith(".htm");
+	const k = classifyIngressFile(file);
+	return k === "markdown" || k === "text";
 };
 var hydrateTextPayloadFromFiles = async (shareData) => {
 	const files = Array.isArray(shareData.files) ? shareData.files.filter((f) => f instanceof File) : [];
@@ -1173,7 +1247,7 @@ var hydrateTextPayloadFromFiles = async (shareData) => {
 	const existingInline = String(shareData.text || "").trim();
 	/** OS launch-queue merges / pending payloads can retain old `text` while `files[]` is the real doc. */
 	const sourceKey = String(shareData.source || "");
-	if (!(sourceKey === "launch-queue" || sourceKey === "cached-bootstrap" || !existingInline)) return shareData;
+	if (!(sourceKey === "launch-queue" || sourceKey === "cached-bootstrap" || sourceKey === "share-target" || !existingInline)) return shareData;
 	const firstTextFile = files.find(isTextLikeFile);
 	if (!firstTextFile) return shareData;
 	try {
@@ -1207,6 +1281,84 @@ var hydrateTransferPayloadFromCache = async (opts = {}) => {
 	if (!cachedPayload) return null;
 	return buildShareDataFromCachedPayload(cachedPayload);
 };
+/**
+* WHY: `/share-target?shared=1` can run before SW finishes persisting blobs; routing on metadata alone
+* sent markdown/text shares to Work Center on mobile (`files=[]`, inferred type=`other`/`file`).
+*/
+var awaitHydratedSharePayloadWithRetries = async (base, maxAttempts = 12) => {
+	let merged = { ...base };
+	if (Number(merged.fileCount ?? 0) > 0 && !merged.files?.length) for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			const hydrated = await hydrateTransferPayloadFromCache({ clear: false });
+			if (hydrated?.files?.length) {
+				merged = {
+					...merged,
+					...hydrated,
+					files: hydrated.files
+				};
+				break;
+			}
+		} catch {}
+		await new Promise((resolve) => globalThis.setTimeout(resolve, 80 * attempt));
+	}
+	return merged;
+};
+/**
+* Merge lightweight URL entry (`/share-target?shared=1&title=…`) with Cache Storage payload.
+* WHY: `extractShareContent` can see a title "handle" and skip the cache branch while `File[]` only lives in the cache.
+*/
+var mergeUrlParamsShareWithCache = async (fromUrl) => {
+	if (!("caches" in globalThis)) return {
+		...fromUrl,
+		source: "share-target"
+	};
+	try {
+		const response = await (await caches.open("share-target-data")).match("/share-target-data");
+		if (!response) return {
+			...fromUrl,
+			source: "share-target"
+		};
+		const row = await response.json().catch(() => null);
+		if (!row) return {
+			...fromUrl,
+			source: "share-target"
+		};
+		const hydrated = await awaitHydratedSharePayloadWithRetries(row);
+		const hFiles = Array.isArray(hydrated.files) ? hydrated.files.filter((f) => f instanceof File) : [];
+		const uFiles = Array.isArray(fromUrl.files) ? fromUrl.files.filter((f) => f instanceof File) : [];
+		const files = hFiles.length > 0 ? hFiles : uFiles;
+		const fc = Math.max(Number(hydrated.fileCount ?? 0), Number(fromUrl.fileCount ?? 0), files.length);
+		const hintA = typeof fromUrl.hint === "object" && fromUrl.hint !== null ? { ...fromUrl.hint } : {};
+		const hintB = typeof hydrated.hint === "object" && hydrated.hint !== null ? { ...hydrated.hint } : {};
+		const hint = Object.keys({
+			...hintB,
+			...hintA
+		}).length > 0 ? {
+			...hintB,
+			...hintA,
+			filename: hintA.filename || hintB.filename || files[0]?.name
+		} : files[0]?.name ? { filename: files[0].name } : void 0;
+		return {
+			...fromUrl,
+			...hydrated,
+			title: hydrated.title || fromUrl.title,
+			text: hydrated.text ?? fromUrl.text,
+			url: hydrated.url || fromUrl.url,
+			sharedUrl: hydrated.sharedUrl || fromUrl.sharedUrl,
+			files: files.length ? files : void 0,
+			fileCount: fc > 0 ? fc : hydrated.fileCount ?? fromUrl.fileCount,
+			imageCount: hydrated.imageCount ?? fromUrl.imageCount,
+			...hint ? { hint } : {},
+			source: "share-target"
+		};
+	} catch (error) {
+		console.warn("[ShareTarget] mergeUrlParamsShareWithCache failed:", error);
+		return {
+			...fromUrl,
+			source: "share-target"
+		};
+	}
+};
 var routeToTransferView = async (shareData, source, hint, pending = false) => {
 	await waitForIngressPipelineSlot();
 	const preparedData = await hydrateTextPayloadFromFiles(shareData);
@@ -1224,15 +1376,17 @@ var routeToTransferView = async (shareData, source, hint, pending = false) => {
 		timestamp: preparedData.timestamp
 	}));
 	const forceAttachToWorkCenter = await shouldForceWorkCenterAttachment(preparedData);
+	const mergedViewerHint = (inferShareContentType(preparedData) === "markdown" || inferShareContentType(preparedData) === "text") && !forceAttachToWorkCenter ? {
+		...hint,
+		destination: "viewer",
+		action: "open",
+		filename: hint?.filename || files[0]?.name
+	} : void 0;
 	const resolvedHint = forceAttachToWorkCenter ? {
 		destination: "workcenter",
 		action: "attach",
 		...hint || {}
-	} : hint || (inferShareContentType(preparedData) === "markdown" || inferShareContentType(preparedData) === "text" ? {
-		destination: "viewer",
-		action: "open",
-		filename: files[0]?.name
-	} : void 0);
+	} : mergedViewerHint ?? hint;
 	console.log("[ViewTransfer] Hint resolution:", {
 		forceAttachToWorkCenter,
 		inputHint: summarizeForLog(hint),
@@ -1245,6 +1399,7 @@ var routeToTransferView = async (shareData, source, hint, pending = false) => {
 		text: preparedData.text,
 		url: preparedData.url || preparedData.sharedUrl,
 		files,
+		fileCount: preparedData.fileCount ?? files.length,
 		hint: resolvedHint,
 		pending,
 		metadata: {
@@ -1637,35 +1792,32 @@ var handleShareTarget = () => {
 			"sharedUrl"
 		].forEach((p) => cleanUrl.searchParams.delete(p));
 		globalThis?.history?.replaceState?.({}, "", cleanUrl.pathname + cleanUrl.hash);
-		const { content, type } = extractShareContent(shareFromParams);
-		console.log("[ShareTarget] Extracted from URL params:", {
-			content: content?.substring(0, 50),
-			type
-		});
-		if (content || type === "file") {
-			console.log("[ShareTarget] Processing from URL params");
-			routeToTransferView(shareFromParams, "share-target", extractTransferHint(shareFromParams), true).catch((error) => {
-				console.warn("[ShareTarget] Route transfer failed, falling back to processing:", error);
-				processShareTargetData(shareFromParams, true);
+		(async () => {
+			const transferPayload = await mergeUrlParamsShareWithCache(shareFromParams);
+			const { content, type } = extractShareContent(transferPayload);
+			const pendingFiles = Number(transferPayload.fileCount ?? 0) > 0;
+			console.log("[ShareTarget] After cache merge:", summarizeForLog({
+				title: transferPayload.title,
+				text: transferPayload.text,
+				url: transferPayload.url,
+				fileCount: transferPayload.fileCount,
+				filesLen: transferPayload.files?.length
+			}));
+			console.log("[ShareTarget] Extracted (merged):", {
+				content: content?.substring(0, 50),
+				type
 			});
-			return;
-		} else console.log("[ShareTarget] No processable content in URL params, checking cache");
-		if ("caches" in globalThis) caches.open("share-target-data").then((cache) => cache?.match?.("/share-target-data")).then((response) => response?.json?.()).then(async (data) => {
-			if (data) {
-				let transferPayload = data;
-				if ((data.fileCount ?? 0) > 0 && !data.files?.length) try {
-					const cachedTransferPayload = await hydrateTransferPayloadFromCache({ clear: false });
-					if (cachedTransferPayload) transferPayload = {
-						...cachedTransferPayload,
-						...data
-					};
-				} catch (cacheError) {
-					console.warn("[ShareTarget] Failed to hydrate cached share files from URL flow:", cacheError);
+			if (content || type === "file" || pendingFiles) {
+				console.log("[ShareTarget] Routing merged share payload");
+				try {
+					if (!await routeToTransferView(transferPayload, "share-target", extractTransferHint(transferPayload), true)) await processShareTargetData(transferPayload, true);
+				} catch (error) {
+					console.warn("[ShareTarget] Route transfer failed, falling back to processing:", error);
+					await processShareTargetData(transferPayload, true);
 				}
-				console.log("[ShareTarget] Retrieved cached data:", summarizeForLog(transferPayload));
-				if (!await routeToTransferView(transferPayload, "share-target", extractTransferHint(transferPayload), true)) await processShareTargetData(transferPayload, true);
-			} else console.log("[ShareTarget] No cached share data found");
-		}).catch((e) => console.warn("[ShareTarget] Cache retrieval failed:", e));
+			} else console.log("[ShareTarget] Nothing to route after merge");
+		})().catch((e) => console.warn("[ShareTarget] shared=1 async flow failed:", e));
+		return;
 	} else if (shared === "test") {
 		showToast({
 			message: "Share target route working",
@@ -1746,22 +1898,11 @@ var handleShareTarget = () => {
 					aiEnabled: msgData.aiEnabled,
 					source: msgData.source
 				});
-				let transferPayload = msgData;
-				if ((msgData.fileCount ?? 0) > 0 && !msgData.files?.length) try {
-					const cachedTransferPayload = await hydrateTransferPayloadFromCache({ clear: false });
-					if (cachedTransferPayload) {
-						transferPayload = {
-							...cachedTransferPayload,
-							...msgData
-						};
-						showToast({
-							message: `Received ${cachedTransferPayload.files?.length || msgData.fileCount || 0} shared file(s)`,
-							kind: "info"
-						});
-					}
-				} catch (cacheError) {
-					console.warn("[ShareTarget] Failed to hydrate cached share files:", cacheError);
-				}
+				let transferPayload = await awaitHydratedSharePayloadWithRetries(msgData);
+				if (!(Array.isArray(msgData.files) && msgData.files.some((f) => f instanceof File)) && Array.isArray(transferPayload.files) && transferPayload.files.some((f) => f instanceof File)) showToast({
+					message: `Received ${transferPayload.files.filter((f) => f instanceof File).length || msgData.fileCount || 0} shared file(s)`,
+					kind: "info"
+				});
 				if (transferPayload.files?.length || transferPayload.text || transferPayload.url || transferPayload.title || (transferPayload.fileCount ?? 0) > 0) {
 					console.log("[ShareTarget] Processing broadcasted share data");
 					if (!await routeToTransferView(transferPayload, "share-target", extractTransferHint(transferPayload), true)) await processShareTargetData(transferPayload, true);
@@ -1805,7 +1946,6 @@ var setupLaunchQueueConsumer = async () => {
 			console.log(`[LaunchQueue] Processing ${$files.length} file handle(s)`);
 			const files = [];
 			const failedHandles = [];
-			let hasMarkdownFile = false;
 			(async () => {
 				for (const fileHandle of $files) try {
 					console.log("[LaunchQueue] Processing file handle:", {
@@ -1833,7 +1973,6 @@ var setupLaunchQueueConsumer = async () => {
 						const file = await fileHandle.getFile();
 						console.log("[LaunchQueue] Got file from handle:", file.name, file.type, file.size);
 						files.push(file);
-						if (file.type === "text/markdown" || file.name.toLowerCase().endsWith(".md")) hasMarkdownFile = true;
 					} catch (permError) {
 						console.warn("[LaunchQueue] Permission or access error for file handle:", permError, fileHandle);
 						failedHandles.push(fileHandle);
@@ -1841,7 +1980,6 @@ var setupLaunchQueueConsumer = async () => {
 					else if (fileHandle instanceof File) {
 						console.log("[LaunchQueue] File handle is already a File object:", fileHandle.name, fileHandle.type);
 						files.push(fileHandle);
-						if (fileHandle.type === "text/markdown" || fileHandle.name.toLowerCase().endsWith(".md")) hasMarkdownFile = true;
 					} else {
 						console.warn("[LaunchQueue] Unknown file handle type:", fileHandle.constructor.name);
 						failedHandles.push(fileHandle);
@@ -1862,7 +2000,7 @@ var setupLaunchQueueConsumer = async () => {
 					return;
 				}
 				if (files.length > 0) {
-					const hint = hasMarkdownFile && files.length === 1 ? {
+					const hint = files.length === 1 && isTextLikeFile(files[0]) ? {
 						destination: "viewer",
 						action: "open",
 						filename: files[0]?.name
@@ -1946,6 +2084,41 @@ var checkPendingShareData = async () => {
 		console.warn("[ShareTarget] Failed to process pending share data:", error);
 		return null;
 	}
+};
+var _ingressPwaPromise = null;
+/**
+* Single entry for page boot: SW registration, share-target URL/cache pipeline, clipboard receivers, launch queue.
+* Called from {@link BootLoader} so share-target is not dead code and runs after settings but before shell paint-heavy work.
+*/
+var initIngressPWA = async () => {
+	if (_ingressPwaPromise) return _ingressPwaPromise;
+	_ingressPwaPromise = (async () => {
+		if (typeof globalThis === "undefined" || typeof window === "undefined") return;
+		try {
+			/**
+			* Always `immediate: false` here — dev + `immediate: true` caused `controllerchange` → `location.reload()`
+			* mid-boot before shell/styles mounted (blank white screen).
+			*
+			* Dev still calls `activateWaitingWorker` inside `initServiceWorker` when a `waiting` worker exists so
+			* Vite/asset routes update without forcing an early hard reload on every visitor.
+			*/
+			await initServiceWorker({ immediate: false });
+		} catch (error) {
+			console.warn("[PWA] Service worker registration failed:", error);
+		}
+		try {
+			initReceivers();
+		} catch (error) {
+			console.warn("[PWA] initReceivers failed:", error);
+		}
+		try {
+			handleShareTarget();
+		} catch (error) {
+			console.warn("[PWA] handleShareTarget failed:", error);
+		}
+		setupLaunchQueueConsumer().catch((error) => console.warn("[PWA] setupLaunchQueueConsumer failed:", error));
+	})();
+	return _ingressPwaPromise;
 };
 //#endregion
 export { initServiceWorker as a, ensureServiceWorkerRegistered as c, initReceivers as i, ensureAppCss as n, setupLaunchQueueConsumer as o, handleShareTarget as r, sw_handling_exports as s, checkPendingShareData as t };
