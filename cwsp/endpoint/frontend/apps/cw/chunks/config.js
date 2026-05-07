@@ -96,6 +96,43 @@ var joinUniqueUrls = (...values) => {
 	return Array.from(new Set(values.map((entry) => normalizeOriginUrl(entry)).filter(Boolean))).join(", ");
 };
 /** If AirPad storage says `https://<this-host>:8443` but the app tab is `https://<this-host>/` (443), use tab origin. */
+/**
+* Detect public (non-loopback) tab origins so we can ignore dev-only loopback remote URLs in stored settings.
+*/
+var isBrowserPublicOrigin = () => {
+	if (typeof globalThis.location === "undefined") return false;
+	const h = String(globalThis.location.hostname || "").toLowerCase();
+	if (!h || h === "localhost" || h === "127.0.0.1" || h === "[::1]") return false;
+	return true;
+};
+var urlHostIsLoopback = (urlStr) => {
+	const trimmed = toTrimmedString(urlStr);
+	if (!trimmed) return false;
+	try {
+		const raw = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+		const h = new URL(raw.endsWith("/") ? raw : `${raw.replace(/\/+$/, "")}/`).hostname.toLowerCase();
+		return h === "localhost" || h === "127.0.0.1" || h === "[::1]";
+	} catch {
+		return false;
+	}
+};
+/**
+* When the tab is on a real deployed host but every configured remote URL is loopback-only,
+* use {@link globalThis.location.origin} at read-time instead so websocket probes reach this deployment.
+* Does not rewrite IndexedDB / AirPad localStorage.
+*/
+var sanitizeLoopbackRemoteOnPublicOrigin = (value) => {
+	const trimmed = value.trim();
+	if (!trimmed || !isBrowserPublicOrigin()) return trimmed;
+	const parts = trimmed.split(",").map((p) => p.trim()).filter(Boolean);
+	if (!parts.length) return trimmed;
+	if (!parts.every(urlHostIsLoopback)) return trimmed;
+	try {
+		return normalizeOriginUrl(globalThis.location.origin);
+	} catch {
+		return trimmed;
+	}
+};
 var rewriteEndpointToMatchHttpsTab = (originLike) => {
 	const trimmed = toTrimmedString(originLike);
 	if (!trimmed || typeof globalThis.location === "undefined" || !globalThis.location.hostname) return trimmed;
@@ -373,7 +410,7 @@ function isPreferNativeWebsocketEnabled() {
 	return shellPreferNativeWebsocket !== false;
 }
 function getRemoteHost() {
-	return remoteHost;
+	return sanitizeLoopbackRemoteOnPublicOrigin(remoteHost);
 }
 function getAirPadEndpointUrl() {
 	if (remoteConfig.endpointUrl.trim()) return remoteConfig.endpointUrl.trim();
