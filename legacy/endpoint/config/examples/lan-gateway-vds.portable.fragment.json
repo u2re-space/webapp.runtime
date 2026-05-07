@@ -1,0 +1,38 @@
+{
+  "launcherEnv": {
+    "CWS_ASSOCIATED_ID": "L-192.168.0.200",
+    "CWS_ASSOCIATED_TOKEN": "REPLACE_WITH_GATEWAY_SECRET",
+    "CWS_ROUTE_LOG": "0",
+    "CWS_SOCKET_TRACE": "0",
+    "CWS_TUNNEL_DEBUG": "0"
+  },
+  "endpoint": {
+    "endpointIDs": {
+      "L-192.168.0.200": {
+        "origins": [
+          "https://192.168.0.200:8443",
+          "https://45.147.121.152:8443"
+        ],
+        "tokens": ["REPLACE_WITH_GATEWAY_SECRET"],
+        "flags": { "gateway": true },
+        "forward": [{ "id": "L-192.168.0.110" }],
+        "allowedForwards": ["L-192.168.0.110", "L-45.150.9.153"]
+      },
+      "L-192.168.0.110": {
+        "origins": ["https://192.168.0.110:8443", "https://192.168.0.110"],
+        "tokens": ["REPLACE_WITH_WINDOWS_CWSP_TOKEN"]
+      },
+      "L-45.150.9.153": {
+        "origins": ["https://45.150.9.153:8443"],
+        "tokens": ["VDS-client"],
+        "flags": { "mobile": true }
+      }
+    },
+    "network": {
+      "networkAliases": {
+        "l-192.168.0.110": "l-192.168.0.110",
+        "l-45.150.9.153": "l-45.150.9.153"
+      }
+    }
+  }
+}
