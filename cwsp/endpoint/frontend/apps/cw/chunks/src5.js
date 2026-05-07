@@ -5,8 +5,8 @@ import { B as initGlobalClipboard, J as GLitElement, Q as bindWith, X as propert
 import { a as persistSpeedDialItems, i as ensureSpeedDialMeta, o as persistSpeedDialMeta, r as createEmptySpeedDialItem, s as speedDialItems, t as addSpeedDialItem } from "./StateStorage.js";
 import { a as ensureStyleSheet } from "../fest/icon.js";
 import { t as __decorate } from "./decorate.js";
-import { t as createViewConstructor } from "./registry.js";
-import { r as ExplorerChannelAction } from "./channel-actions.js";
+import { t as createViewConstructor } from "./registry2.js";
+import { n as ExplorerChannelAction } from "./channel-actions.js";
 import { t as sendViewProtocolMessage } from "./UniformViewTransport.js";
 import { a as setString, r as getString, t as StorageKeys } from "../com/app4.js";
 import { n as createItemCtxMenu } from "./ContextMenu.js";

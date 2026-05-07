@@ -8,8 +8,8 @@ import { a as ensureStyleSheet, o as reinitializeRegistry } from "../fest/icon.j
 import { t as purify } from "../vendor/dompurify.js";
 import { t as renderMathInElement } from "../vendor/katex2.js";
 import { t as createViewState } from "./types.js";
-import { t as createViewConstructor } from "./registry.js";
-import { r as ExplorerChannelAction, s as ViewerChannelAction } from "./channel-actions.js";
+import { t as createViewConstructor } from "./registry2.js";
+import { a as ViewerChannelAction, n as ExplorerChannelAction } from "./channel-actions.js";
 import { t as sendViewProtocolMessage } from "./UniformViewTransport.js";
 //#region ../../modules/views/markdown-view/src/theme.ts
 /** Effective scheme after resolving `system` (no prefers → dark). */
@@ -723,7 +723,8 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 					if (detachedContent.trim()) this.contentRef.value = detachedContent;
 					if (payload?.filename) this.options.filename = String(payload.filename);
 					const detachedSource = String(payload?.source || "");
-					if (detachedSource) {
+					const isExt = typeof globalThis.location !== "undefined" && globalThis.location.protocol === "chrome-extension:";
+					if (detachedSource.trim() && !(isExt && /^file:/i.test(detachedSource.trim()))) {
 						this.sourceUrl = this.normalizeSourceUrl(detachedSource);
 						this.options.source = detachedSource;
 					}
@@ -734,8 +735,11 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 			}
 			const sourceParam = params.source || params.src || params.path || params.url;
 			if (sourceParam) {
-				this.sourceUrl = this.normalizeSourceUrl(sourceParam);
-				this.options.source = sourceParam;
+				const sp = String(sourceParam).trim();
+				if (!(typeof globalThis.location !== "undefined" && globalThis.location.protocol === "chrome-extension:" && /^file:/i.test(sp))) {
+					this.sourceUrl = this.normalizeSourceUrl(sourceParam);
+					this.options.source = sourceParam;
+				}
 			}
 			const filenameParam = params.filename || params.name;
 			if (filenameParam) this.options.filename = filenameParam;
@@ -1090,7 +1094,7 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 		}
 		async navigateSingletonShell(viewId) {
 			try {
-				const { bootLoader } = await import("./BootLoader.js").then((n) => n.n);
+				const { bootLoader } = await import("./BootLoader.js");
 				const shell = bootLoader.getShell();
 				if (shell?.navigate && ![
 					"window",
@@ -1906,6 +1910,27 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 				this.setViewerColorScheme(next);
 				return;
 			}
+			/** WHY: `chrome-extension:` pages must not treat `file:` as a document base — Chromium blocks nested file loads and leaks console errors unique to file origins. */
+			const stripFileUrlHintsFromCrxMarkdownPayload = (raw) => {
+				if (!raw) return raw;
+				try {
+					if (globalThis.location?.protocol !== "chrome-extension:") return raw;
+				} catch {
+					return raw;
+				}
+				const copy = { ...raw };
+				for (const key of [
+					"url",
+					"source",
+					"src",
+					"path"
+				]) {
+					const v = copy[key];
+					if (typeof v === "string" && /^file:/i.test(v.trim())) delete copy[key];
+				}
+				return copy;
+			};
+			const payload = stripFileUrlHintsFromCrxMarkdownPayload(msg.data) ?? msg.data;
 			const meta = msg.metadata;
 			const sourceMeta = meta && typeof meta.source === "string" ? meta.source : "";
 			const routeMeta = meta && typeof meta.route === "string" ? String(meta.route) : "";
@@ -1913,9 +1938,9 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 			/** Share-target and SW metadata envelopes can duplicate title/url as stale `text` while `files[]` holds the doc. */
 			const fromShareTarget = sourceMeta.includes("share-target") || routeMeta.includes("share-target") || meta && typeof meta === "object" && !Array.isArray(meta) && String(meta.shareTarget ?? "") === "1";
 			const preferAuthoritativeTextFile = fromLaunchQueue || fromShareTarget || msg.type === "share-target-input";
-			const hintName = typeof msg.data?.filename === "string" && msg.data.filename.trim().length > 0 ? msg.data.filename.trim() : typeof msg.data?.hint?.filename === "string" ? String(msg.data.hint.filename).trim() : void 0;
-			let fileEarly = msg.data?.file instanceof File ? msg.data.file : null;
-			if (Array.isArray(msg.data?.files) && msg.data.files.some((f) => f instanceof File)) fileEarly = pickAuthoritativeTransferFiles(msg.data.files.filter((f) => f instanceof File), {
+			const hintName = typeof payload?.filename === "string" && payload.filename.trim().length > 0 ? payload.filename.trim() : typeof payload?.hint?.filename === "string" ? String(payload.hint.filename).trim() : void 0;
+			let fileEarly = payload?.file instanceof File ? payload.file : null;
+			if (Array.isArray(payload?.files) && payload.files.some((f) => f instanceof File)) fileEarly = pickAuthoritativeTransferFiles(payload.files.filter((f) => f instanceof File), {
 				hintFilename: hintName,
 				isTextLike: (f) => this.isTextLikeFile(f)
 			}) ?? fileEarly;
@@ -1931,35 +1956,35 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 			if (fileEarly && this.isTextLikeFile(fileEarly) && (preferAuthoritativeTextFile || msg.type === "content-load" || msg.type === "content-view" || msg.type === "markdown-content") && fileEarly) try {
 				const text = await fileEarly.text();
 				if (this.viewIngressSupersededAfterAsync(meta)) return;
-				const sourcePath = msg.data?.source || msg.data?.src || msg.data?.path || fileEarly.name;
-				this.ingestOpenedMarkdownBody(text || "", msg.data?.filename || fileEarly.name, sourcePath);
+				const sourcePath = payload?.source || payload?.src || payload?.path || fileEarly.name;
+				this.ingestOpenedMarkdownBody(text || "", payload?.filename || fileEarly.name, sourcePath);
 				return;
 			} catch (error) {
 				console.warn("[Viewer] Failed to read prioritized file payload, falling back to inline/url:", error);
 				if (preferAuthoritativeTextFile) {
-					const sourcePath = msg.data?.source || msg.data?.src || msg.data?.path || fileEarly.name;
-					this.setContent(`> Failed to read transferred file:\n> ${fileEarly.name}`, msg.data?.filename || fileEarly.name, sourcePath);
+					const sourcePath = payload?.source || payload?.src || payload?.path || fileEarly.name;
+					this.setContent(`> Failed to read transferred file:\n> ${fileEarly.name}`, payload?.filename || fileEarly.name, sourcePath);
 					return;
 				}
 			}
-			if (!textLikeMergedEnvelopeFile && (msg.data?.text || msg.data?.content)) {
-				const content = msg.data.text || msg.data.content || "";
-				const source = msg.data.source || msg.data.src || msg.data.path;
-				this.ingestOpenedMarkdownBody(content, msg.data.filename, source);
+			if (!textLikeMergedEnvelopeFile && (payload?.text || payload?.content)) {
+				const content = payload.text || payload.content || "";
+				const source = payload.source || payload.src || payload.path;
+				this.ingestOpenedMarkdownBody(content, payload.filename, source);
 				return;
 			}
-			if (msg.data?.url) {
-				const source = msg.data.source || msg.data.src || msg.data.path || msg.data.url;
-				const opened = await this.openMarkdownFromUrl(source, msg.data.filename);
+			if (payload?.url) {
+				const source = payload.source || payload.src || payload.path || payload.url;
+				const opened = await this.openMarkdownFromUrl(source, payload.filename);
 				if (this.viewIngressSupersededAfterAsync(meta)) return;
 				if (!opened) {
 					const fallbackContent = `> Failed to load markdown from:\n> ${source}`;
-					this.setContent(fallbackContent, msg.data.filename, source);
+					this.setContent(fallbackContent, payload.filename, /^file:/i.test(String(source || "").trim()) ? null : source);
 				}
 				return;
 			}
-			let fileCandidate = msg.data?.file instanceof File ? msg.data.file : Array.isArray(msg.data?.files) ? msg.data?.files.find((f) => f instanceof File) ?? null : null;
-			fileCandidate ??= hintName && Array.isArray(msg.data?.files) ? msg.data.files.filter((f) => f instanceof File).find((f) => f.name === hintName) ?? null : null;
+			let fileCandidate = payload?.file instanceof File ? payload.file : Array.isArray(payload?.files) ? payload?.files.find((f) => f instanceof File) ?? null : null;
+			fileCandidate ??= hintName && Array.isArray(payload?.files) ? payload.files.filter((f) => f instanceof File).find((f) => f.name === hintName) ?? null : null;
 			if (fileCandidate) {
 				const vc = validateReadableFileForIngress(fileCandidate);
 				if (!vc.ok) {
@@ -1969,8 +1994,8 @@ var CwViewViewer = createViewConstructor("cw-view-viewer", (Base) => {
 				try {
 					const text = await fileCandidate.text();
 					if (this.viewIngressSupersededAfterAsync(meta)) return;
-					const srcPath = msg.data?.source || msg.data?.src || msg.data?.path || fileCandidate.name;
-					this.ingestOpenedMarkdownBody(text || "", msg.data?.filename || fileCandidate.name, srcPath);
+					const srcPath = payload?.source || payload?.src || payload?.path || fileCandidate.name;
+					this.ingestOpenedMarkdownBody(text || "", payload?.filename || fileCandidate.name, srcPath);
 				} catch (error) {
 					console.warn("[Viewer] Failed to read markdown file payload:", error);
 				}

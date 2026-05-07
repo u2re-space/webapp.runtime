@@ -1,13 +1,13 @@
 import { p as loadAsAdopted } from "../fest/dom.js";
-import { i as BROADCAST_CHANNELS, u as getBroadcastChannelForDestination } from "./UniformInterop.js";
-import { a as initializeComponent, f as unifiedMessaging, i as hasPendingMessages, n as createMessageWithOverrides, o as processInitialContent, r as enqueuePendingMessage, s as registerComponent } from "./UnifiedMessaging.js";
+import { c as getBroadcastChannelForDestination, n as BROADCAST_CHANNELS } from "./Names.js";
+import { a as initializeComponent, d as unifiedMessaging, i as hasPendingMessages, n as createMessageWithOverrides, o as processInitialContent, r as enqueuePendingMessage, s as registerComponent } from "./UnifiedMessaging.js";
 import { C as getSpeechPrompt, S as createTemplateManager, Z as H, n as getCachedComponent, r as createFileHandler } from "../com/app.js";
 import { n as loadSettings } from "./Settings.js";
-import { i as fetchSwCachedEntries } from "./ShareTargetGateway.js";
 import { n as settleIngressPaintForMinimalShell } from "../views/inbound-timing.js";
 import { i as validateReadableFileForIngress, n as textIngressLooksCorrupt, r as validateIngressBeforeViewHandle, t as pickAuthoritativeTransferFiles } from "../views/ingress-validation.js";
 import { a as ensureStyleSheet, c as clearAllCache, n as debugIconSystem, o as reinitializeRegistry, r as testIconRacing, t as clearIconCaches } from "../fest/icon.js";
-import { t as views_default } from "./views2.js";
+import { r as fetchSwCachedEntries } from "./ShareTargetGateway.js";
+import views_default from "./views2.js";
 //#region src/shared/routing/core/channel-unknown.ts
 var CHANNELS = {
 	SHARE_TARGET: BROADCAST_CHANNELS.SHARE_TARGET,

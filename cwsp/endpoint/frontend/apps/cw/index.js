@@ -563,7 +563,7 @@ var withTimeout = async (task, label, timeoutMs, fallback, options = {}) => {
 };
 async function index(mountElement) {
 	initializeLayers();
-	await loadAsAdopted((await import("./chunks/views2.js").then((n) => n.n)).default);
+	await loadAsAdopted((await import("./chunks/views2.js")).default);
 	console.log("[Index] Starting CrossWord frontend loader");
 	console.log("[Index] Initializing uniform channels...");
 	import("./chunks/hub-socket-boot.js").then((n) => n.n).then((m) => m.bootHubSocketFromStoredSettings()).catch(() => void 0);

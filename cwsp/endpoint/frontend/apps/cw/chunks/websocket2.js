@@ -1,7 +1,8 @@
+import { r as __exportAll } from "./rolldown-runtime.js";
 import { E as isShellRemoteClipboardBridgeEnabled, S as isClipboardSenderAllowedForInbound, T as isPushLocalClipboardToLanEnabled, _ as getClipboardPushIntervalMs, b as getRemoteRouteTarget, c as getAirPadHandshakeArchetype, f as getAirPadTransportMode, g as getClipboardBroadcastWireTargets, h as getClientAccessToken, j as setAirpadCredentialInvalidator, l as getAirPadHandshakeConnectionType, m as getAssociatedClientToken, o as getAccessToken, p as getAirPadTransportSecret, s as getAirPadClientId, u as getAirPadPeerInstanceId, v as getRemoteHost, x as isApplyRemoteClipboardToDeviceEnabled, y as getRemoteProtocol } from "./config.js";
 import { g as log, h as getWsStatusEl } from "./utils.js";
 import { i as writeClipboardTextToDevice, n as isCapacitorNativeShell, r as readClipboardTextFromDevice } from "./clipboard-device.js";
-//#region src/frontend/boot/native-socket.ts
+//#region ../../modules/projects/subsystem/src/boot/native-socket.ts
 var NativeSocket = class {
 	connected = false;
 	id = "";
@@ -92,7 +93,7 @@ function io(url, options) {
 	return new NativeSocket(url, options);
 }
 //#endregion
-//#region src/frontend/boot/websocket.ts
+//#region ../../modules/projects/subsystem/src/boot/websocket.ts
 /**
 * AirPad/remote transport hub for the frontend.
 *
@@ -105,6 +106,20 @@ function io(url, options) {
 * wrapper. It preserves behavior for several runtimes whose network
 * restrictions differ, especially Chromium extension pages versus normal tabs.
 */
+var websocket_exports = /* @__PURE__ */ __exportAll({
+	connectWS: () => connectWS,
+	disconnectWS: () => disconnectWS,
+	getWS: () => getWS,
+	initWebSocket: () => initWebSocket,
+	isWSConnected: () => isWSConnected,
+	onServerClipboardUpdate: () => onServerClipboardUpdate,
+	onVoiceResult: () => onVoiceResult,
+	onWSConnectionChange: () => onWSConnectionChange,
+	reconnectTransportAfterLifecycleResume: () => reconnectTransportAfterLifecycleResume,
+	sendCoordinatorAct: () => sendCoordinatorAct,
+	sendCoordinatorAsk: () => sendCoordinatorAsk,
+	sendCoordinatorRequest: () => sendCoordinatorRequest
+});
 var socket = null;
 var wsConnected = false;
 var isConnecting = false;
@@ -127,6 +142,8 @@ var AIRPAD_PROBE_HARD_CAP_MS = AIRPAD_PROBE_IO_TIMEOUT_MS + 800;
 /** Try this many candidates in parallel; first success wins. */
 var AIRPAD_CANDIDATE_PARALLEL = 3;
 var AIRPAD_VERBOSE_QUERY_KEY = "CWS_AIRPAD_VERBOSE_QUERY";
+/** Coordinator ask/act wait — was 12s, tighter for snappier UI. */
+var AIRPAD_COORDINATOR_TIMEOUT_MS = 8e3;
 /** CWSP v2 transport / route hint query keys (canonical `cwsp_*`; see network stack spec). */
 var CWSP_ROUTE_QUERY = {
 	via: "cwsp_via",
@@ -201,6 +218,26 @@ var flushQueuedCoordinatorActs = () => {
 		emitCoordinatorPacket(packet);
 	}
 };
+var ensureCoordinatorSocketConnected = async (timeoutMs = 7e3) => {
+	if (socket?.connected) return true;
+	connectWS();
+	return await new Promise((resolve) => {
+		let done = false;
+		const finish = (value) => {
+			if (done) return;
+			done = true;
+			try {
+				off?.();
+			} catch {}
+			globalThis.clearTimeout(timeoutId);
+			resolve(value);
+		};
+		const off = onWSConnectionChange((connected) => {
+			if (connected) finish(true);
+		});
+		const timeoutId = globalThis.setTimeout(() => finish(Boolean(socket?.connected)), timeoutMs);
+	});
+};
 /** Return the current live WebSocket instance, if any. */
 function getWS() {
 	return socket;
@@ -208,6 +245,27 @@ function getWS() {
 /** Report whether the primary transport socket is currently connected. */
 function isWSConnected() {
 	return wsConnected;
+}
+/**
+* Subscribe to transport connectivity updates.
+*
+* WHY: several AirPad UI widgets and retry flows need a shared source of truth
+* without directly depending on the socket object.
+*/
+function onWSConnectionChange(handler) {
+	wsConnectionHandlers.add(handler);
+	try {
+		handler(wsConnected);
+	} catch {}
+	return () => wsConnectionHandlers.delete(handler);
+}
+function onServerClipboardUpdate(handler) {
+	clipboardHandlers.add(handler);
+	return () => clipboardHandlers.delete(handler);
+}
+function onVoiceResult(handler) {
+	voiceResultHandlers.add(handler);
+	return () => voiceResultHandlers.delete(handler);
 }
 function notifyClipboardHandlers(text, meta) {
 	for (const h of clipboardHandlers) try {
@@ -659,6 +717,68 @@ function sendCoordinatorAct(what, payload, nodes, opts) {
 	queuedCoordinatorActs.push(packet);
 	connectWS();
 	return true;
+}
+/** Send a request/response-style coordinator ask and wait for one correlated reply. */
+function sendCoordinatorAsk(what, payload, nodes) {
+	return new Promise((resolve, reject) => {
+		(async () => {
+			if (!await ensureCoordinatorSocketConnected() || !socket?.connected) {
+				reject({
+					ok: false,
+					error: "WS not connected"
+				});
+				return;
+			}
+			const uuid = nextPacketId();
+			const timeoutId = globalThis.setTimeout(() => {
+				coordinatorPending.delete(uuid);
+				reject({
+					ok: false,
+					error: `Timeout waiting for ${what}`
+				});
+			}, AIRPAD_COORDINATOR_TIMEOUT_MS);
+			coordinatorPending.set(uuid, {
+				resolve,
+				reject,
+				timeoutId
+			});
+			emitCoordinatorPacket(buildCoordinatorPacket("ask", what, payload, {
+				nodes,
+				uuid
+			}));
+		})();
+	});
+}
+/** Legacy request helper that currently routes through the same transport path as `act`. */
+function sendCoordinatorRequest(what, payload, nodes) {
+	return new Promise((resolve, reject) => {
+		(async () => {
+			if (!await ensureCoordinatorSocketConnected() || !socket?.connected) {
+				reject({
+					ok: false,
+					error: "WS not connected"
+				});
+				return;
+			}
+			const uuid = nextPacketId();
+			const timeoutId = globalThis.setTimeout(() => {
+				coordinatorPending.delete(uuid);
+				reject({
+					ok: false,
+					error: `Timeout waiting for ${what}`
+				});
+			}, AIRPAD_COORDINATOR_TIMEOUT_MS);
+			coordinatorPending.set(uuid, {
+				resolve,
+				reject,
+				timeoutId
+			});
+			emitCoordinatorPacket(buildCoordinatorPacket("act", what, payload, {
+				nodes,
+				uuid
+			}));
+		})();
+	});
 }
 function updateButtonLabel() {
 	if (!btnEl) return;
@@ -1358,4 +1478,4 @@ function handleWsConnectButtonClick() {
 	else connectWS();
 }
 //#endregion
-export { connectWS, getWS, initWebSocket, isWSConnected, reconnectTransportAfterLifecycleResume };
+export { onServerClipboardUpdate as a, sendCoordinatorAct as c, websocket_exports as d, isWSConnected as i, sendCoordinatorAsk as l, disconnectWS as n, onVoiceResult as o, initWebSocket as r, onWSConnectionChange as s, connectWS as t, sendCoordinatorRequest as u };

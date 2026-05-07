@@ -1,6 +1,6 @@
 import { n as ENABLED_VIEW_IDS } from "../chunks/views.js";
-import { s as ViewRegistry } from "../shells/preference.js";
-//#region ../../modules/projects/subsystem/src/routing/core/view-transitions.ts
+import { n as ViewRegistry } from "../chunks/registry.js";
+//#region src/shared/routing/core/view-transitions.ts
 /**
 * Canonical view order used to determine navigation direction.
 * Earlier index = "back", later index = "forward".

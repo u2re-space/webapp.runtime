@@ -1,10 +1,10 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
-import { h as viewBroadcastChannelName, i as BROADCAST_CHANNELS, p as normalizeDestination } from "./UniformInterop.js";
-import { d as sendProtocolMessage, f as unifiedMessaging, r as enqueuePendingMessage } from "./UnifiedMessaging.js";
-import { R as copy, z as initClipboardReceiver } from "../com/app.js";
-import { t as summarizeForLog } from "./LogSanitizer.js";
+import { f as viewBroadcastChannelName, n as BROADCAST_CHANNELS, u as normalizeDestination } from "./Names.js";
+import { d as unifiedMessaging, r as enqueuePendingMessage, u as sendProtocolMessage } from "./UnifiedMessaging.js";
+import { R as copy, c as parseDataUrl, o as isBase64Like, z as initClipboardReceiver } from "../com/app.js";
+import { t as summarizeForLog$1 } from "./LogSanitizer.js";
+import { c as storeShareTargetPayloadToCache, i as unifiedMessaging$1, o as buildShareDataFromCachedPayload, s as consumeCachedShareTargetPayload } from "./UnifiedMessaging2.js";
 import { n as loadSettings } from "./Settings.js";
-import { a as storeShareTargetPayloadToCache$1, n as consumeCachedShareTargetPayload$1, t as buildShareDataFromCachedPayload } from "./ShareTargetGateway.js";
 //#region src/shared/routing/pwa/sw-url.ts
 var isLikelyJavaScriptContentType = (contentType) => {
 	const ct = (contentType || "").toLowerCase();
@@ -608,11 +608,24 @@ var extractRecognizedContent = (data) => {
 	}
 	return data;
 };
+/** Only browsers with a fetchable `/clipboard/pending` (PWA/site SW) — never extension or opaque origins */
+var clipboardPendingSupported = () => {
+	try {
+		if (typeof window === "undefined") return false;
+		const href = String(window.location?.href ?? "");
+		if (href.startsWith("chrome-extension://") || href.startsWith("moz-extension://") || href.startsWith("edge-extension://")) return false;
+		const p = window.location?.protocol ?? "";
+		return p === "http:" || p === "https:";
+	} catch {
+		return false;
+	}
+};
 /**
 * Check for pending clipboard operations from service worker
 */
 var checkPendingClipboardOperations = async () => {
 	try {
+		if (!clipboardPendingSupported()) return;
 		if (!navigator.serviceWorker) {
 			console.log("[PWA-Copy] Service workers not supported");
 			return;
@@ -667,6 +680,7 @@ var checkPendingClipboardOperations = async () => {
 * Call this early in the PWA lifecycle to receive clipboard requests from service worker
 */
 var initPWAClipboard = () => {
+	if (!clipboardPendingSupported()) return () => void 0;
 	if (_pwaClipboardInitialized) return () => cleanupPWAClipboard();
 	_pwaClipboardInitialized = true;
 	console.log("[PWA-Copy] Initializing clipboard and toast receivers...");
@@ -677,7 +691,7 @@ var initPWAClipboard = () => {
 		const clipboardChannel = new BroadcastChannel("rs-clipboard");
 		const clipboardHandler = async (event) => {
 			const { type, data, operations } = event.data || {};
-			console.log("[PWA-Copy] Clipboard channel message:", type, summarizeForLog(data));
+			console.log("[PWA-Copy] Clipboard channel message:", type, summarizeForLog$1(data));
 			if (type === "pending-operations" && operations && Array.isArray(operations)) {
 				console.log("[PWA-Copy] Received", operations.length, "pending operations via broadcast");
 				for (const operation of operations) if (operation.type === "ai-result" && operation.data) {
@@ -712,11 +726,11 @@ var initPWAClipboard = () => {
 		const shareChannel = new BroadcastChannel("rs-share-target");
 		const shareHandler = async (event) => {
 			const { type, data } = event.data || {};
-			console.log("[PWA-Copy] Share channel message:", type, summarizeForLog(data));
+			console.log("[PWA-Copy] Share channel message:", type, summarizeForLog$1(data));
 			if (type === "copy-shared" && data) await copy(data, { showFeedback: true });
-			if (type === "share-received" && data) console.log("[PWA-Copy] Share received from SW:", summarizeForLog(data));
+			if (type === "share-received" && data) console.log("[PWA-Copy] Share received from SW:", summarizeForLog$1(data));
 			if (type === "ai-result" && data) {
-				console.log("[PWA-Copy] AI result from SW:", summarizeForLog(data));
+				console.log("[PWA-Copy] AI result from SW:", summarizeForLog$1(data));
 				if (data.success && data.data) {
 					const text = extractRecognizedContent(data.data);
 					await copy(text, { showFeedback: true });
@@ -742,7 +756,7 @@ var initPWAClipboard = () => {
 				});
 			}
 			if (type === "share-received" && data) {
-				console.log("[PWA-Copy] Share received, broadcasting input to work center:", summarizeForLog(data));
+				console.log("[PWA-Copy] Share received, broadcasting input to work center:", summarizeForLog$1(data));
 				await unifiedMessaging.sendMessage({
 					type: "share-target-input",
 					destination: "workcenter",
@@ -766,10 +780,10 @@ var initPWAClipboard = () => {
 		const swChannel = new BroadcastChannel("rs-sw");
 		const swHandler = async (event) => {
 			const { type, results } = event.data || {};
-			console.log("[PWA-Copy] SW channel message:", type, summarizeForLog(results));
+			console.log("[PWA-Copy] SW channel message:", type, summarizeForLog$1(results));
 			if (type === "commit-to-clipboard" && results && Array.isArray(results)) {
 				for (const result of results) if (result?.status === "queued" && result?.data) {
-					console.log("[PWA-Copy] Copying result data:", summarizeForLog(result.data));
+					console.log("[PWA-Copy] Copying result data:", summarizeForLog$1(result.data));
 					const extractedContent = extractRecognizedContent(result.data);
 					await copy(extractedContent, { showFeedback: true });
 					await unifiedMessaging.sendMessage({
@@ -810,7 +824,7 @@ var cleanupPWAClipboard = () => {
 	_pwaClipboardInitialized = false;
 };
 //#endregion
-//#region ../../modules/projects/subsystem/src/routing/channel/ViewTransferRouting.ts
+//#region src/shared/routing/channel/ViewTransferRouting.ts
 /**
 * Canonical classification for share-target / launch-queue files (extension often beats flaky MIME).
 * Viewer-first routing treats `markdown` + `text`; other kinds stay on Work Center or sibling sinks.
@@ -923,7 +937,7 @@ var resolveViewTransfer = (payload) => {
 			...payload.metadata || {}
 		}
 	};
-	console.log("[ViewTransfer] Resolved transfer:", summarizeForLog({
+	console.log("[ViewTransfer] Resolved transfer:", summarizeForLog$1({
 		source: payload.source,
 		route: payload.route,
 		pending: payload.pending,
@@ -961,7 +975,7 @@ var dispatchViewTransfer = async (payload) => {
 		metadata: resolved.metadata,
 		source: `view-transfer:${payload.source}`
 	};
-	console.log("[ViewTransfer] Dispatching message:", summarizeForLog({
+	console.log("[ViewTransfer] Dispatching message:", summarizeForLog$1({
 		destination: message.destination,
 		type: message.type,
 		contentType: message.contentType,
@@ -1005,7 +1019,7 @@ var dispatchViewTransfer = async (payload) => {
 	};
 };
 //#endregion
-//#region ../../modules/projects/subsystem/src/routing/policies/ingress-pipeline-guard.ts
+//#region src/shared/routing/policies/ingress-pipeline-guard.ts
 /**
 * Throttles share-target / launch-queue style ingress so bursts cannot
 * run more than twice within any 100ms sliding window (additional calls wait).
@@ -1039,6 +1053,87 @@ var waitForIngressPipelineSlot = async () => {
 	}
 };
 //#endregion
+//#region src/shared/routing/channel/LogSanitizer.ts
+var DEFAULT_OPTIONS = {
+	maxStringLength: 180,
+	maxArrayLength: 8,
+	maxObjectKeys: 20,
+	maxDepth: 3
+};
+var isFileLike = (value) => typeof File !== "undefined" && value instanceof File;
+var isBlobLike = (value) => typeof Blob !== "undefined" && value instanceof Blob;
+var summarizeString = (value, maxStringLength) => {
+	if (!value) return value;
+	const parsedDataUrl = parseDataUrl(value);
+	if (parsedDataUrl) return `[data-url ${parsedDataUrl.mimeType || "application/octet-stream"}, length=${value.length}]`;
+	if (value.length > maxStringLength && isBase64Like(value)) return `[base64-like string, length=${value.length}]`;
+	if (value.length > maxStringLength) return `${value.slice(0, maxStringLength)}... [truncated ${value.length - maxStringLength} chars]`;
+	return value;
+};
+var summarizeFormData = (formData, options) => {
+	const entries = Array.from(formData.entries());
+	const keys = [...new Set(entries.map(([key]) => key))];
+	const preview = {};
+	for (const key of keys.slice(0, options.maxObjectKeys)) preview[key] = formData.getAll(key).slice(0, options.maxArrayLength).map((entry) => {
+		if (typeof entry === "string") return summarizeString(entry, options.maxStringLength);
+		if (isFileLike(entry)) return {
+			file: entry.name,
+			type: entry.type,
+			size: entry.size
+		};
+		return summarizeForLog(entry, options);
+	});
+	return {
+		kind: "FormData",
+		keyCount: keys.length,
+		keys,
+		preview
+	};
+};
+var summarizeRecord = (value, options, depth, seen) => {
+	if (depth >= options.maxDepth) return `[object depth>${options.maxDepth}]`;
+	if (seen.has(value)) return "[circular]";
+	seen.add(value);
+	const entries = Object.entries(value);
+	const sliced = entries.slice(0, options.maxObjectKeys);
+	const summary = {};
+	for (const [key, entryValue] of sliced) summary[key] = summarizeUnknown(entryValue, options, depth + 1, seen);
+	if (entries.length > options.maxObjectKeys) summary.__truncatedKeys = entries.length - options.maxObjectKeys;
+	return summary;
+};
+var summarizeUnknown = (value, options, depth, seen) => {
+	if (value == null) return value;
+	if (typeof value === "string") return summarizeString(value, options.maxStringLength);
+	if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") return value;
+	if (typeof value === "symbol") return value.toString();
+	if (typeof value === "function") return `[function ${value.name || "anonymous"}]`;
+	if (typeof FormData !== "undefined" && value instanceof FormData) return summarizeFormData(value, options);
+	if (isFileLike(value)) return {
+		file: value.name,
+		type: value.type,
+		size: value.size
+	};
+	if (isBlobLike(value)) return {
+		blob: true,
+		type: value.type,
+		size: value.size
+	};
+	if (Array.isArray(value)) {
+		if (depth >= options.maxDepth) return `[array(${value.length}) depth>${options.maxDepth}]`;
+		const summary = value.slice(0, options.maxArrayLength).map((item) => summarizeUnknown(item, options, depth + 1, seen));
+		if (value.length > options.maxArrayLength) summary.push(`[${value.length - options.maxArrayLength} more items]`);
+		return summary;
+	}
+	if (typeof value === "object") return summarizeRecord(value, options, depth, seen);
+	return String(value);
+};
+var summarizeForLog = (value, partialOptions = {}) => {
+	return summarizeUnknown(value, {
+		...DEFAULT_OPTIONS,
+		...partialOptions
+	}, 0, /* @__PURE__ */ new WeakSet());
+};
+//#endregion
 //#region src/shared/routing/pwa/sw-handling.ts
 /**
 * Window-side PWA integration helpers.
@@ -1060,6 +1155,26 @@ var sw_handling_exports = /* @__PURE__ */ __exportAll({
 	setupLaunchQueueConsumer: () => setupLaunchQueueConsumer,
 	storeShareTargetPayloadToCache: () => storeShareTargetPayloadToCache
 });
+/**
+* WHY: MV3 extension pages (`chrome-extension:`) do not expose PWA-relative routes (`/clipboard/pending`)
+* or the site service worker bundle. Running ingress here caused `fetch('/clipboard/pending')` →
+* `chrome-extension://…/clipboard/pending` (404) and needless SW / launch-queue churn during boot.
+*
+* IMPORTANT: Compare `href`/protocol explicitly — if `location.protocol` were ever missing briefly,
+* `undefined !== "chrome-extension:"` was true and the full PWA clipboard stack still ran.
+*/
+var shouldRunPwaIngress = () => {
+	try {
+		if (typeof window === "undefined") return false;
+		const href = String(window.location?.href ?? "");
+		if (href.startsWith("chrome-extension://") || href.startsWith("moz-extension://") || href.startsWith("edge-extension://")) return false;
+		const p = window.location?.protocol ?? "";
+		if (p === "chrome-extension:" || p === "moz-extension:" || p === "edge-extension:") return false;
+		return p === "http:" || p === "https:";
+	} catch {
+		return false;
+	}
+};
 /** Ensure the production app CSS bundle is present when the app boots outside extension pages. */
 var ensureAppCss = () => {
 	if ({
@@ -1426,7 +1541,7 @@ var routeToTransferView = async (shareData, source, hint, pending = false) => {
 	const tryNavigateLiveShell = async () => {
 		if (!delivered) return false;
 		try {
-			const { bootLoader } = await import("./BootLoader.js").then((n) => n.n);
+			const { bootLoader } = await import("./BootLoader.js");
 			const shell = bootLoader.getShell();
 			if (!(shell && ![
 				"window",
@@ -1613,8 +1728,7 @@ var processShareTargetData = async (shareData, skipIfEmpty = false) => {
 			});
 			clipboardChannel.close();
 			try {
-				const { unifiedMessaging } = await import("./UnifiedMessaging.js").then((n) => n.t);
-				await unifiedMessaging.sendMessage({
+				await unifiedMessaging$1.sendMessage({
 					type: "share-target-result",
 					source: "share-target",
 					destination: "workcenter",
@@ -1695,12 +1809,6 @@ var CHANNELS = {
 	FILE_EXPLORER: BROADCAST_CHANNELS.FILE_EXPLORER,
 	PRINT_VIEWER: BROADCAST_CHANNELS.PRINT_VIEWER
 };
-var storeShareTargetPayloadToCache = async (payload) => storeShareTargetPayloadToCache$1(payload);
-/**
-* Read and (optionally) clear share-target cached payload, including real files.
-* This is used by Basic edition to attach incoming files to WorkCenter or open markdown.
-*/
-var consumeCachedShareTargetPayload = async (opts = {}) => consumeCachedShareTargetPayload$1(opts);
 /**
 * Fallback to server-side AI processing when client-side fails
 * Broadcasts results to PWA clipboard handlers instead of copying directly
@@ -2094,6 +2202,7 @@ var initIngressPWA = async () => {
 	if (_ingressPwaPromise) return _ingressPwaPromise;
 	_ingressPwaPromise = (async () => {
 		if (typeof globalThis === "undefined" || typeof window === "undefined") return;
+		if (!shouldRunPwaIngress()) return;
 		try {
 			/**
 			* Always `immediate: false` here — dev + `immediate: true` caused `controllerchange` → `location.reload()`

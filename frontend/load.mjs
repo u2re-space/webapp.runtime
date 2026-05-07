@@ -31,9 +31,9 @@ const registerServiceWorker = async () => {
         const swUrl = new URL(SW_JS, import.meta.url).href;
         console.log("[SW] Registering service worker:", swUrl);
 
+        // Must match built `sw.js` format: vite-plugin-pwa injectManifest uses `rollupFormat: 'iife'`.
         const registration = await navigator.serviceWorker.register(swUrl, {
             scope: "/",
-            type: "module",
             updateViaCache: "none"
         });
 
@@ -86,12 +86,13 @@ const handleShareTargetParams = () => {
         const shareData = {
             title: params.get("title") || "",
             text: params.get("text") || "",
-            url: params.get("sharedUrl") || "",
+            url: params.get("url") || "",
+            sharedUrl: params.get("sharedUrl") || "",
             timestamp: Date.now()
         };
 
-        // Store in sessionStorage for app to pick up
-        if (shareData.title || shareData.text || shareData.url) {
+        // Store minimal metadata for fallback when only sessionStorage survives navigation.
+        if (shareData.title || shareData.text || shareData.url || shareData.sharedUrl) {
             try {
                 sessionStorage.setItem("rs-pending-share", JSON.stringify(shareData));
                 console.log("[ShareTarget] Share data stored for app processing");
@@ -100,10 +101,7 @@ const handleShareTargetParams = () => {
             }
         }
 
-        // Clean URL
-        const cleanUrl = new URL(window.location.href);
-        cleanUrl.search = "";
-        window.history.replaceState({}, "", cleanUrl.pathname + cleanUrl.hash);
+        // WHY: Do not wipe the query string here — handleShareTarget needs `shared=1` plus cache hydration.
     }
 };
 

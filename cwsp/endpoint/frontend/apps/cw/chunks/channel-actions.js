@@ -47,19 +47,10 @@ var AirpadChannelAction = {
 	AirpadStart: "airpad-start",
 	Retry: "retry"
 };
-var HomeChannelAction = {
-	Navigate: "navigate",
-	OpenView: "open-view",
-	...FileWorkspaceUseAction
-};
+({ ...FileWorkspaceUseAction });
 var HistoryChannelAction = {
 	Reload: "reload",
 	Refresh: "refresh"
 };
-var EditorChannelAction = {
-	ContentLoad: "content-load",
-	SetContent: "set-content",
-	ContentEdit: "content-edit"
-};
 //#endregion
-export { HomeChannelAction as a, HistoryChannelAction as i, EditorChannelAction as n, SettingsChannelAction as o, ExplorerChannelAction as r, ViewerChannelAction as s, AirpadChannelAction as t };
+export { ViewerChannelAction as a, SettingsChannelAction as i, ExplorerChannelAction as n, HistoryChannelAction as r, AirpadChannelAction as t };

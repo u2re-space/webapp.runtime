@@ -3,7 +3,6 @@ import { a as numberRef, f as safe, l as stringRef, n as affected, o as observe,
 import { a as redirectCell } from "../fest/core.js";
 import { n as setAppWallpaper } from "../chunks/Canvas-2.js";
 import { $ as vector2Ref, A as hostnameToFaviconRef, F as loadDesktopRaw, G as elementPointerMap, I as persistDesktopDraft, K as clampCell$1, L as persistDesktopMain, M as parseDesktopItemCompact, N as serializeDesktopItemCompact, O as compactIconSrcForStorage, P as decodeDesktopState, U as LongPressHandler, W as bindDraggable, et as registerModal, j as normalizeIconSrcFromPayload, k as expandIconSrcForDom, q as makeShiftTrigger, tt as navigate, w as makeUIState } from "../com/app.js";
-import { a as HomeChannelAction } from "../chunks/channel-actions.js";
 import { r as openUnifiedContextMenu, t as closeUnifiedContextMenu } from "../chunks/ContextMenu.js";
 //#region ../../modules/views/home-view/src/ts/Interact.ts
 /**
@@ -5296,6 +5295,514 @@ var HomeView = class {
 	constructor(options = {}) {
 		this.options = options;
 		this.shellContext = options.shellContext;
+	}
+	getToolbar() {
+		throw new Error("Method not implemented.");
+	}
+	canHandleMessage(messageType) {
+		throw new Error("Method not implemented.");
+	}
+	handleMessage(message) {
+		throw new Error("Method not implemented.");
+	}
+	shellNavigateHydrate(options, initialData) {
+		throw new Error("Method not implemented.");
+	}
+	accessKey;
+	accessKeyLabel;
+	autocapitalize;
+	autocorrect;
+	dir;
+	draggable;
+	hidden;
+	inert;
+	innerText;
+	lang;
+	offsetHeight;
+	offsetLeft;
+	offsetParent;
+	offsetTop;
+	offsetWidth;
+	outerText;
+	popover;
+	spellcheck;
+	title;
+	translate;
+	writingSuggestions;
+	attachInternals() {
+		throw new Error("Method not implemented.");
+	}
+	click() {
+		throw new Error("Method not implemented.");
+	}
+	hidePopover() {
+		throw new Error("Method not implemented.");
+	}
+	showPopover() {
+		throw new Error("Method not implemented.");
+	}
+	togglePopover(options) {
+		throw new Error("Method not implemented.");
+	}
+	addEventListener(type, listener, options) {
+		throw new Error("Method not implemented.");
+	}
+	removeEventListener(type, listener, options) {
+		throw new Error("Method not implemented.");
+	}
+	attributes;
+	get classList() {
+		throw new Error("Method not implemented.");
+	}
+	set classList(value) {
+		throw new Error("Method not implemented.");
+	}
+	className;
+	clientHeight;
+	clientLeft;
+	clientTop;
+	clientWidth;
+	currentCSSZoom;
+	innerHTML;
+	localName;
+	namespaceURI;
+	onfullscreenchange;
+	onfullscreenerror;
+	outerHTML;
+	ownerDocument;
+	get part() {
+		throw new Error("Method not implemented.");
+	}
+	set part(value) {
+		throw new Error("Method not implemented.");
+	}
+	prefix;
+	scrollHeight;
+	scrollLeft;
+	scrollTop;
+	scrollWidth;
+	shadowRoot;
+	slot;
+	tagName;
+	attachShadow(init) {
+		throw new Error("Method not implemented.");
+	}
+	checkVisibility(options) {
+		throw new Error("Method not implemented.");
+	}
+	closest(selectors) {
+		throw new Error("Method not implemented.");
+	}
+	computedStyleMap() {
+		throw new Error("Method not implemented.");
+	}
+	getAttribute(qualifiedName) {
+		throw new Error("Method not implemented.");
+	}
+	getAttributeNS(namespace, localName) {
+		throw new Error("Method not implemented.");
+	}
+	getAttributeNames() {
+		throw new Error("Method not implemented.");
+	}
+	getAttributeNode(qualifiedName) {
+		throw new Error("Method not implemented.");
+	}
+	getAttributeNodeNS(namespace, localName) {
+		throw new Error("Method not implemented.");
+	}
+	getBoundingClientRect() {
+		throw new Error("Method not implemented.");
+	}
+	getClientRects() {
+		throw new Error("Method not implemented.");
+	}
+	getElementsByClassName(classNames) {
+		throw new Error("Method not implemented.");
+	}
+	getElementsByTagName(qualifiedName) {
+		throw new Error("Method not implemented.");
+	}
+	getElementsByTagNameNS(namespace, localName) {
+		throw new Error("Method not implemented.");
+	}
+	getHTML(options) {
+		throw new Error("Method not implemented.");
+	}
+	hasAttribute(qualifiedName) {
+		throw new Error("Method not implemented.");
+	}
+	hasAttributeNS(namespace, localName) {
+		throw new Error("Method not implemented.");
+	}
+	hasAttributes() {
+		throw new Error("Method not implemented.");
+	}
+	hasPointerCapture(pointerId) {
+		throw new Error("Method not implemented.");
+	}
+	insertAdjacentElement(where, element) {
+		throw new Error("Method not implemented.");
+	}
+	insertAdjacentHTML(position, string) {
+		throw new Error("Method not implemented.");
+	}
+	insertAdjacentText(where, data) {
+		throw new Error("Method not implemented.");
+	}
+	matches(selectors) {
+		throw new Error("Method not implemented.");
+	}
+	releasePointerCapture(pointerId) {
+		throw new Error("Method not implemented.");
+	}
+	removeAttribute(qualifiedName) {
+		throw new Error("Method not implemented.");
+	}
+	removeAttributeNS(namespace, localName) {
+		throw new Error("Method not implemented.");
+	}
+	removeAttributeNode(attr) {
+		throw new Error("Method not implemented.");
+	}
+	requestFullscreen(options) {
+		throw new Error("Method not implemented.");
+	}
+	requestPointerLock(options) {
+		throw new Error("Method not implemented.");
+	}
+	scroll(x, y) {
+		throw new Error("Method not implemented.");
+	}
+	scrollBy(x, y) {
+		throw new Error("Method not implemented.");
+	}
+	scrollIntoView(arg) {
+		throw new Error("Method not implemented.");
+	}
+	scrollTo(x, y) {
+		throw new Error("Method not implemented.");
+	}
+	setAttribute(qualifiedName, value) {
+		throw new Error("Method not implemented.");
+	}
+	setAttributeNS(namespace, qualifiedName, value) {
+		throw new Error("Method not implemented.");
+	}
+	setAttributeNode(attr) {
+		throw new Error("Method not implemented.");
+	}
+	setAttributeNodeNS(attr) {
+		throw new Error("Method not implemented.");
+	}
+	setHTMLUnsafe(html) {
+		throw new Error("Method not implemented.");
+	}
+	setPointerCapture(pointerId) {
+		throw new Error("Method not implemented.");
+	}
+	toggleAttribute(qualifiedName, force) {
+		throw new Error("Method not implemented.");
+	}
+	webkitMatchesSelector(selectors) {
+		throw new Error("Method not implemented.");
+	}
+	get textContent() {
+		throw new Error("Method not implemented.");
+	}
+	set textContent(value) {
+		throw new Error("Method not implemented.");
+	}
+	baseURI;
+	childNodes;
+	firstChild;
+	isConnected;
+	lastChild;
+	nextSibling;
+	nodeName;
+	nodeType;
+	nodeValue;
+	parentElement;
+	parentNode;
+	previousSibling;
+	appendChild(node) {
+		throw new Error("Method not implemented.");
+	}
+	cloneNode(subtree) {
+		throw new Error("Method not implemented.");
+	}
+	compareDocumentPosition(other) {
+		throw new Error("Method not implemented.");
+	}
+	contains(other) {
+		throw new Error("Method not implemented.");
+	}
+	getRootNode(options) {
+		throw new Error("Method not implemented.");
+	}
+	hasChildNodes() {
+		throw new Error("Method not implemented.");
+	}
+	insertBefore(node, child) {
+		throw new Error("Method not implemented.");
+	}
+	isDefaultNamespace(namespace) {
+		throw new Error("Method not implemented.");
+	}
+	isEqualNode(otherNode) {
+		throw new Error("Method not implemented.");
+	}
+	isSameNode(otherNode) {
+		throw new Error("Method not implemented.");
+	}
+	lookupNamespaceURI(prefix) {
+		throw new Error("Method not implemented.");
+	}
+	lookupPrefix(namespace) {
+		throw new Error("Method not implemented.");
+	}
+	normalize() {
+		throw new Error("Method not implemented.");
+	}
+	removeChild(child) {
+		throw new Error("Method not implemented.");
+	}
+	replaceChild(node, child) {
+		throw new Error("Method not implemented.");
+	}
+	ELEMENT_NODE;
+	ATTRIBUTE_NODE;
+	TEXT_NODE;
+	CDATA_SECTION_NODE;
+	ENTITY_REFERENCE_NODE;
+	ENTITY_NODE;
+	PROCESSING_INSTRUCTION_NODE;
+	COMMENT_NODE;
+	DOCUMENT_NODE;
+	DOCUMENT_TYPE_NODE;
+	DOCUMENT_FRAGMENT_NODE;
+	NOTATION_NODE;
+	DOCUMENT_POSITION_DISCONNECTED;
+	DOCUMENT_POSITION_PRECEDING;
+	DOCUMENT_POSITION_FOLLOWING;
+	DOCUMENT_POSITION_CONTAINS;
+	DOCUMENT_POSITION_CONTAINED_BY;
+	DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC;
+	dispatchEvent(event) {
+		throw new Error("Method not implemented.");
+	}
+	ariaActiveDescendantElement;
+	ariaAtomic;
+	ariaAutoComplete;
+	ariaBrailleLabel;
+	ariaBrailleRoleDescription;
+	ariaBusy;
+	ariaChecked;
+	ariaColCount;
+	ariaColIndex;
+	ariaColIndexText;
+	ariaColSpan;
+	ariaControlsElements;
+	ariaCurrent;
+	ariaDescribedByElements;
+	ariaDescription;
+	ariaDetailsElements;
+	ariaDisabled;
+	ariaErrorMessageElements;
+	ariaExpanded;
+	ariaFlowToElements;
+	ariaHasPopup;
+	ariaHidden;
+	ariaInvalid;
+	ariaKeyShortcuts;
+	ariaLabel;
+	ariaLabelledByElements;
+	ariaLevel;
+	ariaLive;
+	ariaModal;
+	ariaMultiLine;
+	ariaMultiSelectable;
+	ariaOrientation;
+	ariaOwnsElements;
+	ariaPlaceholder;
+	ariaPosInSet;
+	ariaPressed;
+	ariaReadOnly;
+	ariaRelevant;
+	ariaRequired;
+	ariaRoleDescription;
+	ariaRowCount;
+	ariaRowIndex;
+	ariaRowIndexText;
+	ariaRowSpan;
+	ariaSelected;
+	ariaSetSize;
+	ariaSort;
+	ariaValueMax;
+	ariaValueMin;
+	ariaValueNow;
+	ariaValueText;
+	role;
+	animate(keyframes, options) {
+		throw new Error("Method not implemented.");
+	}
+	getAnimations(options) {
+		throw new Error("Method not implemented.");
+	}
+	after(...nodes) {
+		throw new Error("Method not implemented.");
+	}
+	before(...nodes) {
+		throw new Error("Method not implemented.");
+	}
+	remove() {
+		throw new Error("Method not implemented.");
+	}
+	replaceWith(...nodes) {
+		throw new Error("Method not implemented.");
+	}
+	nextElementSibling;
+	previousElementSibling;
+	childElementCount;
+	children;
+	firstElementChild;
+	lastElementChild;
+	append(...nodes) {
+		throw new Error("Method not implemented.");
+	}
+	prepend(...nodes) {
+		throw new Error("Method not implemented.");
+	}
+	querySelector(selectors) {
+		throw new Error("Method not implemented.");
+	}
+	querySelectorAll(selectors) {
+		throw new Error("Method not implemented.");
+	}
+	replaceChildren(...nodes) {
+		throw new Error("Method not implemented.");
+	}
+	assignedSlot;
+	attributeStyleMap;
+	get style() {
+		throw new Error("Method not implemented.");
+	}
+	set style(cssText) {
+		throw new Error("Method not implemented.");
+	}
+	contentEditable;
+	enterKeyHint;
+	inputMode;
+	isContentEditable;
+	onabort;
+	onanimationcancel;
+	onanimationend;
+	onanimationiteration;
+	onanimationstart;
+	onauxclick;
+	onbeforeinput;
+	onbeforematch;
+	onbeforetoggle;
+	onblur;
+	oncancel;
+	oncanplay;
+	oncanplaythrough;
+	onchange;
+	onclick;
+	onclose;
+	oncontextlost;
+	oncontextmenu;
+	oncontextrestored;
+	oncopy;
+	oncuechange;
+	oncut;
+	ondblclick;
+	ondrag;
+	ondragend;
+	ondragenter;
+	ondragleave;
+	ondragover;
+	ondragstart;
+	ondrop;
+	ondurationchange;
+	onemptied;
+	onended;
+	onerror;
+	onfocus;
+	onformdata;
+	ongotpointercapture;
+	oninput;
+	oninvalid;
+	onkeydown;
+	onkeypress;
+	onkeyup;
+	onload;
+	onloadeddata;
+	onloadedmetadata;
+	onloadstart;
+	onlostpointercapture;
+	onmousedown;
+	onmouseenter;
+	onmouseleave;
+	onmousemove;
+	onmouseout;
+	onmouseover;
+	onmouseup;
+	onpaste;
+	onpause;
+	onplay;
+	onplaying;
+	onpointercancel;
+	onpointerdown;
+	onpointerenter;
+	onpointerleave;
+	onpointermove;
+	onpointerout;
+	onpointerover;
+	onpointerrawupdate;
+	onpointerup;
+	onprogress;
+	onratechange;
+	onreset;
+	onresize;
+	onscroll;
+	onscrollend;
+	onsecuritypolicyviolation;
+	onseeked;
+	onseeking;
+	onselect;
+	onselectionchange;
+	onselectstart;
+	onslotchange;
+	onstalled;
+	onsubmit;
+	onsuspend;
+	ontimeupdate;
+	ontoggle;
+	ontouchcancel;
+	ontouchend;
+	ontouchmove;
+	ontouchstart;
+	ontransitioncancel;
+	ontransitionend;
+	ontransitionrun;
+	ontransitionstart;
+	onvolumechange;
+	onwaiting;
+	onwebkitanimationend;
+	onwebkitanimationiteration;
+	onwebkitanimationstart;
+	onwebkittransitionend;
+	onwheel;
+	autofocus;
+	dataset;
+	nonce;
+	tabIndex;
+	blur() {
+		throw new Error("Method not implemented.");
+	}
+	focus(options) {
+		throw new Error("Method not implemented.");
 	}
 	/**
 	* WHY: {@link ShellBase.getContext} exposes `navigate` but not `openView`. Calling both caused a double

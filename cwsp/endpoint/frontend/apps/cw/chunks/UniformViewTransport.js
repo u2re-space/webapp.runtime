@@ -1,5 +1,5 @@
 import { r as createProtocolEnvelope } from "../fest/uniform.js";
-import { d as sendProtocolMessage } from "./UnifiedMessaging.js";
+import { u as sendProtocolMessage } from "./UnifiedMessaging.js";
 import { s as normalizeDataAsset } from "../com/app.js";
 //#region ../../modules/projects/subsystem/src/routing/channel/UniformViewTransport.ts
 var asNamePrefix = (source) => {

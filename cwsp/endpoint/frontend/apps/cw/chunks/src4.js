@@ -2,14 +2,8 @@ import { g as removeAdopted, p as loadAsAdopted } from "../fest/dom.js";
 import { c as ref } from "../fest/object.js";
 import { Z as H } from "../com/app.js";
 import { t as createViewState } from "./types.js";
-import { n as EditorChannelAction } from "./channel-actions.js";
 //#region ../../modules/views/editor-view/src/editor.scss?inline
 var editor_default = "@layer view.editor{:is(html,body):has([data-view=editor]){--view-layout:\"flex\";--view-content-max-width:none}.view-editor{background-color:var(--view-bg,var(--color-surface,#ffffff));block-size:100%;color:var(--view-fg,var(--color-on-surface,#1a1a1a));display:flex;flex-direction:column}.view-editor__toolbar{align-items:center;background-color:var(--view-toolbar-bg,rgba(0,0,0,.02));border-block-end:1px solid var(--view-border,rgba(0,0,0,.08));display:flex;flex-shrink:0;gap:.5rem;justify-content:space-between;padding:.5rem 1rem}.view-editor__toolbar-left,.view-editor__toolbar-right{align-items:center;display:flex;gap:.25rem}.view-editor__btn{align-items:center;background:transparent;border:none;border-radius:6px;color:var(--view-fg);cursor:pointer;display:flex;font-size:.8125rem;font-weight:500;gap:.5rem;padding:.5rem .75rem;transition:background-color .15s ease}.view-editor__btn ui-icon{font-size:1rem;opacity:.7}@media (max-width:640px){.view-editor__btn span{display:none}}.view-editor__btn:hover{background-color:rgba(0,0,0,.06)}.view-editor__content{display:flex;flex:1;overflow:hidden}.view-editor__textarea{background-color:var(--view-editor-bg,#fafafa);border:none;color:var(--view-fg);flex:1;font-family:SF Mono,Fira Code,JetBrains Mono,Consolas,monospace;font-size:.9375rem;line-height:1.6;padding:1.5rem 2rem;resize:none}.view-editor__textarea:focus{outline:none}.view-editor__textarea::placeholder{color:var(--view-fg);opacity:.4}@media print{.view-editor__toolbar{display:none}.view-editor__textarea{padding:0}}}";
-//#endregion
-//#region ../../modules/projects/subsystem/runtime/clipboard-device.ts
-async function writeClipboardText(text) {
-	await globalThis.navigator?.clipboard?.writeText?.(text);
-}
 //#endregion
 //#region ../../modules/views/editor-view/src/index.ts
 /**

@@ -1,7 +1,7 @@
 import { a as initServiceWorker } from "../chunks/sw-handling.js";
 import { Z as H } from "../com/app.js";
 import { n as loadSettings } from "../chunks/Settings.js";
-import { a as onServerClipboardUpdate, c as sendCoordinatorAct, i as isWSConnected, l as sendCoordinatorAsk, n as disconnectWS, o as onVoiceResult, r as initWebSocket, s as onWSConnectionChange, t as connectWS, u as sendCoordinatorRequest } from "../chunks/websocket.js";
+import { a as onServerClipboardUpdate, c as sendCoordinatorAct, i as isWSConnected, l as sendCoordinatorAsk, n as disconnectWS, o as onVoiceResult, r as initWebSocket, s as onWSConnectionChange, t as connectWS, u as sendCoordinatorRequest } from "../chunks/websocket2.js";
 import { n as stopBubbling, r as waitForDomPaint, t as eventTargetElement } from "../chunks/DocTools.js";
 //#region src/frontend/views/airpad/utils/utils.ts
 /** Airpad markup mount node (set on mount, cleared on unmount). Avoid `document.getElementById` — IDs may not be in the document tree (routed host, shadow, iframe). */

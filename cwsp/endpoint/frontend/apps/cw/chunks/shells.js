@@ -3,12 +3,13 @@ import { h as preloadStyle, m as loadInlineStyle } from "../fest/dom.js";
 import { c as ref } from "../fest/object.js";
 import { x as dynamicTheme } from "../com/app.js";
 import { n as loadSettings, r as saveSettings } from "./Settings.js";
+import { n as initBootShellWindowActivity } from "../shells/preference.js";
 import { i as serviceChannels } from "./channel-mixin.js";
-import { r as initBootShellWindowActivity, s as ViewRegistry } from "../shells/preference.js";
+import { n as ViewRegistry } from "./registry.js";
 import { n as getTransitionDirection, r as withViewTransition, t as scheduleViewModulePrefetch } from "../views/prefetch.js";
 import { i as syncBrowserChromeTheme, n as applyTheme, r as resyncThemeAfterAdoptedViewSheet } from "./Theme.js";
 import { a as ensureStyleSheet } from "../fest/icon.js";
-//#region ../../modules/projects/subsystem/src/boot/shell-elements.ts
+//#region src/frontend/boot/shell-elements.ts
 var ShellHost = class extends HTMLElement {
 	mountShellLayout(layout) {
 		if (!this.shadowRoot) this.attachShadow({ mode: "open" });
@@ -23,7 +24,7 @@ function ensureShellElementDefined(id) {
 	return tag;
 }
 //#endregion
-//#region ../../modules/projects/subsystem/src/boot/toast.ts
+//#region src/frontend/boot/toast.ts
 var DEFAULT_CONFIG = {
 	containerId: "rs-toast-layer",
 	position: "bottom",
@@ -307,7 +308,7 @@ var showToast = (options) => {
 	return toast;
 };
 //#endregion
-//#region ../../modules/projects/subsystem/src/boot/shells.ts
+//#region src/frontend/boot/shells.ts
 /** Views backed by {@link SERVICE_CHANNEL_CONFIG}; lazily initialized on first navigate when not boot-preloaded. */
 var VIEW_SERVICE_CHANNEL_IDS = new Set([
 	"workcenter",

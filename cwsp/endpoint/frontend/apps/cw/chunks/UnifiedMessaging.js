@@ -1,6 +1,7 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
 import { n as getUnifiedMessaging$1, r as createProtocolEnvelope } from "../fest/uniform.js";
-import { d as getDestinationAliases, i as BROADCAST_CHANNELS, l as createDestinationChannelMappings, n as toUnifiedInteropMessage, o as CONTENT_TYPES, p as normalizeDestination, s as DESTINATIONS, t as createInteropEnvelope } from "./UniformInterop.js";
+import { a as DESTINATIONS, i as CONTENT_TYPES, n as BROADCAST_CHANNELS, s as createDestinationChannelMappings, u as normalizeDestination } from "./Names.js";
+import { n as toUnifiedInteropMessage, t as createInteropEnvelope } from "./UniformInterop.js";
 //#region ../../modules/projects/subsystem/src/service/instructions/core.ts
 var AI_INSTRUCTIONS = {
 	SOLVE_AND_ANSWER: `
@@ -478,12 +479,10 @@ var UnifiedMessaging_exports = /* @__PURE__ */ __exportAll({
 	initializeComponent: () => initializeComponent,
 	processInitialContent: () => processInitialContent,
 	registerComponent: () => registerComponent,
-	registerHandler: () => registerHandler,
 	replayQueuedMessagesForDestination: () => replayQueuedMessagesForDestination,
 	sendMessage: () => sendMessage,
 	sendProtocolMessage: () => sendProtocolMessage,
-	unifiedMessaging: () => unifiedMessaging,
-	unregisterHandler: () => unregisterHandler
+	unifiedMessaging: () => unifiedMessaging
 });
 var APP_CHANNEL_MAPPINGS = {
 	...createDestinationChannelMappings(),
@@ -549,19 +548,6 @@ function sendProtocolMessage(message) {
 		error: interop.error ? String(interop.error) : void 0
 	});
 	return unifiedMessaging.sendMessage(envelope);
-}
-/**
-* Register a handler using the app-configured manager
-*/
-function registerHandler(destination, handler) {
-	const aliases = getDestinationAliases(destination);
-	const names = aliases.length > 0 ? aliases : [normalizeDestination(destination) || destination];
-	for (const name of names) unifiedMessaging.registerHandler(name, handler);
-}
-function unregisterHandler(destination, handler) {
-	const aliases = getDestinationAliases(destination);
-	const names = aliases.length > 0 ? aliases : [normalizeDestination(destination) || destination];
-	for (const name of names) unifiedMessaging.unregisterHandler(name, handler);
 }
 function initializeComponent(componentId) {
 	return unifiedMessaging.initializeComponent(componentId);
@@ -669,4 +655,4 @@ function createMessageWithOverrides(type, source, contentType, data, overrideFac
 	};
 }
 //#endregion
-export { initializeComponent as a, registerHandler as c, sendProtocolMessage as d, unifiedMessaging as f, hasPendingMessages as i, replayQueuedMessagesForDestination as l, createMessageWithOverrides as n, processInitialContent as o, unregisterHandler as p, enqueuePendingMessage as r, registerComponent as s, UnifiedMessaging_exports as t, sendMessage as u };
+export { initializeComponent as a, replayQueuedMessagesForDestination as c, unifiedMessaging as d, hasPendingMessages as i, sendMessage as l, createMessageWithOverrides as n, processInitialContent as o, enqueuePendingMessage as r, registerComponent as s, UnifiedMessaging_exports as t, sendProtocolMessage as u };

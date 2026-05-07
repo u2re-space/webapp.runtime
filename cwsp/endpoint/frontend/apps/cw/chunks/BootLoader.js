@@ -1,139 +1,33 @@
-import { r as __exportAll } from "./rolldown-runtime.js";
 import { t as initializeLayers } from "./layer-manager.js";
-import { f as isEnabledView, p as pickEnabledView } from "./views.js";
+import "./views.js";
 import { p as loadAsAdopted } from "../fest/dom.js";
-import { n as DEFAULT_SETTINGS } from "./SettingsTypes.js";
-import { n as loadSettings } from "./Settings.js";
+import { t as LS_BOOT_SHELL_LAST_ACTIVE } from "../shells/preference.js";
 import { i as serviceChannels } from "./channel-mixin.js";
-import { c as darkTheme, d as lightTheme, l as defaultTheme, m as startImplicitViewMessagingBridge, o as ShellRegistry, t as LS_BOOT_SHELL_LAST_ACTIVE, u as initializeRegistries } from "../shells/preference.js";
-import { n as applyTheme } from "./Theme.js";
-import { n as core_default, t as scss_default } from "../fest/veela.js";
-import { n as initCwsNativeBridge } from "../vendor/@capacitor_core.js";
-import { t as applyHubSocketFromSettings } from "./hub-socket-boot.js";
-//#region ../../modules/projects/subsystem/src/boot/veela-variant-runtime.ts
+import { a as initializeRegistries, i as defaultTheme, l as startImplicitViewMessagingBridge, o as lightTheme, r as darkTheme, t as ShellRegistry } from "./registry.js";
+import { n as initCwsNativeBridge, r as isCapacitorCwsNativeShell } from "./cws-bridge.js";
+import { n as shouldDeferCrxHubSocketBootstrap, t as loadSettings } from "./Settings2.js";
+import { n as applyTheme, r as DEFAULT_SETTINGS, t as loadStyleSystem } from "./styles.js";
+import { C as isMaintainHubSocketConnectionEnabled, i as applyAirpadRuntimeFromAppSettings, v as getRemoteHost, w as isPreferNativeWebsocketEnabled } from "./config.js";
+//#region src/frontend/boot/hub-socket-boot.ts
 /**
-* Veela stylesheet loader for CrossWord (no `fest/fl-ui` runtime SCSS dependency).
-*
-* Uses the canonical forwarded stack in `veela.css/src/scss/index.scss` (core + curated basic surface).
-* `advanced` / `beercss` currently share that stack until a standalone advanced bundle exists with stable `@use` paths.
+* Unified hub transport: WebSocket to cwsp / endpoint (same stack as AirPad), optional background connection.
+* Used from main PWA boot, Settings save, and CRX shells so clipboard coordinator works outside the AirPad view.
 */
-var loadedVariant = null;
 /**
-* Loads Veela stylesheet slices for the coarse variant presets used by BootLoader.
+* Apply after any settings mutation (Save, storage sync). Idempotent with {@link applyAirpadRuntimeFromAppSettings}.
 */
-async function loadVeelaVariant(variant) {
-	if (loadedVariant === variant) return;
-	console.log("[Veela] Loading variant:", variant);
-	const apply = async (text) => {
-		if (typeof text === "string" && text.length) await loadAsAdopted(text);
-	};
-	if (variant === "core") {
-		await apply(core_default);
-		loadedVariant = variant;
-		return;
-	}
-	await apply(scss_default);
-	loadedVariant = variant;
+async function applyHubSocketFromSettings(settings) {
+	if (await shouldDeferCrxHubSocketBootstrap(settings)) return;
+	applyAirpadRuntimeFromAppSettings(settings);
+	if (isCapacitorCwsNativeShell() && isPreferNativeWebsocketEnabled()) return;
+	if (!isMaintainHubSocketConnectionEnabled()) return;
+	if (!getRemoteHost().trim()) return;
+	const { initWebSocket, connectWS } = await import("./websocket.js");
+	initWebSocket(null);
+	connectWS();
 }
 //#endregion
-//#region src/shared/styles.ts
-/**
-* CrossWord Styles Module
-*
-* Provides style system integration for the CrossWord application.
-* Supports multiple style systems based on veela CSS variants.
-*
-* Style Systems:
-* - veela-advanced: Full-featured CSS framework (default)
-* - veela-basic: Lightweight minimal styling
-* - veela-beercss: Beer CSS compatible styling
-* - raw: No styling framework (browser defaults)
-*/
-var STYLE_CONFIGS$1 = {
-	"vl-advanced": {
-		id: "vl-advanced",
-		name: "Veela Advanced",
-		description: "Full-featured CSS framework with design tokens and effects",
-		variant: "advanced",
-		initFn: async () => {
-			try {
-				await loadVeelaVariant("advanced");
-				console.log("[Styles] Veela Advanced loaded");
-			} catch (e) {}
-		}
-	},
-	"vl-basic": {
-		id: "vl-basic",
-		name: "Veela Basic Styles",
-		description: "Lightweight minimal styling for basic functionality",
-		variant: "basic",
-		initFn: async () => {
-			try {
-				await loadVeelaVariant("basic");
-				console.log("[Styles] Veela Basic Styles loaded");
-			} catch (e) {
-				console.warn("[Styles] Failed to load Veela Basic Styles:", e);
-			}
-		}
-	},
-	"vl-beercss": {
-		id: "vl-beercss",
-		name: "Veela BeerCSS",
-		description: "Beer CSS compatible styling with Material Design 3",
-		variant: "beercss",
-		initFn: async () => {
-			try {
-				await loadVeelaVariant("beercss");
-				console.log("[Styles] Veela BeerCSS loaded");
-			} catch (e) {
-				console.warn("[Styles] Failed to load Veela BeerCSS:", e);
-			}
-		}
-	},
-	"vl-core": {
-		id: "vl-core",
-		name: "Veela Core",
-		description: "Shared foundation styles for all veela variants",
-		variant: "core",
-		initFn: async () => {
-			try {
-				await loadVeelaVariant("core");
-				console.log("[Styles] Veela Core loaded");
-			} catch (e) {
-				console.warn("[Styles] Failed to load Veela Core:", e);
-			}
-		}
-	},
-	"raw": {
-		id: "raw",
-		name: "Raw",
-		description: "No styling framework, browser defaults",
-		variant: "core",
-		initFn: async () => {
-			console.log("[Styles] Raw mode - no styles loaded");
-		}
-	}
-};
-var _currentStyle = null;
-/**
-* Load a style system
-*
-* @param styleId - Style system identifier
-*/
-async function loadStyleSystem(styleId) {
-	const config = STYLE_CONFIGS$1[styleId] || STYLE_CONFIGS$1["vl-basic"];
-	if (!config) throw new Error(`Unknown style system: ${styleId}`);
-	if (_currentStyle === styleId) {
-		console.log(`[Styles] Style system '${styleId}' already loaded`);
-		return;
-	}
-	console.log(`[Styles] Loading style system: ${config.name}`);
-	if (config.initFn) await config.initFn();
-	_currentStyle = styleId;
-	console.log(`[Styles] Style system ${config.name} loaded`);
-}
-//#endregion
-//#region ../../modules/projects/subsystem/src/boot/BootLoader.ts
+//#region src/frontend/boot/BootLoader.ts
 /**
 * Boot Loader - Shell/Style Initialization System
 * 
@@ -151,18 +45,6 @@ async function loadStyleSystem(styleId) {
 * 
 * [r] - recommended, [o] - optional
 */
-var BootLoader_exports = /* @__PURE__ */ __exportAll({
-	BootLoader: () => BootLoader,
-	bootBase: () => bootBase,
-	bootContent: () => bootContent,
-	bootEnvironment: () => bootEnvironment,
-	bootImmersive: () => bootImmersive,
-	bootLoader: () => bootLoader,
-	bootMinimal: () => bootMinimal,
-	bootTabbed: () => bootTabbed,
-	bootWindow: () => bootWindow,
-	default: () => bootLoader
-});
 var normalizeShellId = (shell) => {
 	if (shell === "faint") return "tabbed";
 	if (shell === "base") return "immersive";
@@ -215,12 +97,9 @@ var STYLE_CONFIGS = {
 	}
 };
 /**
-* Boot Loader
-* 
-* Manages the application boot sequence with proper ordering:
-* Styles → Shell → View → Channels
+* Get the singleton boot loader
 */
-var BootLoader = class BootLoader {
+var bootLoader = class BootLoader {
 	static instance;
 	state = {
 		phase: "idle",
@@ -476,147 +355,6 @@ var BootLoader = class BootLoader {
 			localStorage.removeItem(LS_BOOT_SHELL_LAST_ACTIVE);
 		} catch {}
 	}
-};
-/**
-* Get the singleton boot loader
-*/
-var bootLoader = BootLoader.getInstance();
-async function bootTabbed(container, view = "home") {
-	const channels = [
-		"workcenter",
-		"settings",
-		"viewer",
-		"explorer",
-		"history",
-		"editor",
-		"airpad",
-		"home"
-	].filter((channelId) => isEnabledView(channelId));
-	const defaultView = pickEnabledView(view, "home");
-	const channelPriorityId = channels.find((c) => c === defaultView) ?? channels[0];
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "tabbed",
-		defaultView,
-		channels,
-		channelPriorityId,
-		rememberChoice: true
-	});
-}
-async function bootEnvironment(container, view = "home") {
-	const channels = [
-		"workcenter",
-		"settings",
-		"viewer",
-		"explorer",
-		"history",
-		"editor",
-		"airpad",
-		"home"
-	].filter((channelId) => isEnabledView(channelId));
-	const defaultView = pickEnabledView(view, "home");
-	const channelPriorityId = channels.find((c) => c === defaultView) ?? channels[0];
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "environment",
-		defaultView,
-		channels,
-		channelPriorityId,
-		rememberChoice: true
-	});
-}
-/**
-* Boot with Minimal shell
-*/
-async function bootMinimal(container, view = "viewer", options) {
-	const defaultView = pickEnabledView(view, "viewer");
-	/** Minimal shell: init only the active view's channel — others register on first navigate (see ShellBase.loadView). */
-	const channels = isEnabledView(defaultView) ? [defaultView] : ["viewer"];
-	const channelPriorityId = channels[0];
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "minimal",
-		defaultView,
-		channels,
-		channelPriorityId,
-		rememberChoice: options?.rememberChoice ?? true,
-		skipInitialNavigate: options?.skipInitialNavigate ?? false
-	});
-}
-async function bootWindow(container, view = "home") {
-	const channels = [
-		"workcenter",
-		"settings",
-		"viewer",
-		"explorer",
-		"history",
-		"editor",
-		"airpad",
-		"home"
-	].filter((channelId) => isEnabledView(channelId));
-	const defaultView = pickEnabledView(view, "home");
-	const channelPriorityId = channels.find((c) => c === defaultView) ?? channels[0];
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "window",
-		defaultView,
-		channels,
-		channelPriorityId,
-		rememberChoice: true
-	});
-}
-/**
-* Boot with Raw shell (minimal)
-*/
-async function bootBase(container, view = "viewer") {
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "base",
-		defaultView: pickEnabledView(view, "viewer"),
-		channels: [],
-		rememberChoice: false
-	});
-}
-async function bootContent(container, view = "home", options) {
-	const defaultChannels = [
-		"workcenter",
-		"settings",
-		"viewer",
-		"explorer",
-		"history",
-		"editor",
-		"airpad",
-		"home"
-	].filter((channelId) => isEnabledView(channelId));
-	const channels = options?.channels !== void 0 ? options.channels : defaultChannels;
-	const defaultView = pickEnabledView(view, "home");
-	const channelPriorityId = channels.length > 0 ? channels.find((c) => c === defaultView) ?? channels[0] : void 0;
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "content",
-		defaultView,
-		channels,
-		channelPriorityId,
-		rememberChoice: options?.rememberChoice ?? true,
-		skipInitialNavigate: options?.skipInitialNavigate ?? false
-	});
-}
-/**
-* Immersive (chromeless): extension side panels / fullscreen single-view contexts.
-*/
-async function bootImmersive(container, view = "viewer", options) {
-	const defaultView = pickEnabledView(view, "viewer");
-	const channels = isEnabledView(defaultView) ? [defaultView] : ["viewer"];
-	const channelPriorityId = channels[0];
-	return bootLoader.boot(container, {
-		styleSystem: "vl-basic",
-		shell: "immersive",
-		defaultView,
-		channels,
-		channelPriorityId,
-		rememberChoice: options?.rememberChoice ?? true,
-		skipInitialNavigate: options?.skipInitialNavigate ?? false
-	});
-}
+}.getInstance();
 //#endregion
-export { bootEnvironment as a, bootTabbed as c, bootContent as i, bootWindow as l, BootLoader_exports as n, bootImmersive as o, bootBase as r, bootMinimal as s, BootLoader as t };
+export { bootLoader, bootLoader as default };

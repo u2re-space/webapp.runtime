@@ -1,37 +1,38 @@
 import { t as createServiceChannelManager } from "../fest/uniform.js";
-import { a as COMPONENTS, c as ROUTE_HASHES, d as getDestinationAliases, f as matchesDestination, h as viewBroadcastChannelName, i as BROADCAST_CHANNELS, m as normalizeViewId, n as toUnifiedInteropMessage } from "./UniformInterop.js";
-import { a as initializeComponent, c as registerHandler, p as unregisterHandler, s as registerComponent } from "./UnifiedMessaging.js";
-import "./ShareTargetGateway.js";
+import { d as normalizeViewId$1, f as viewBroadcastChannelName, n as BROADCAST_CHANNELS$1, o as ROUTE_HASHES$1, r as COMPONENTS$1 } from "./Names.js";
+import "./UnifiedMessaging.js";
+import { a as unregisterHandler, n as registerComponent, r as registerHandler, t as initializeComponent } from "./UnifiedMessaging2.js";
+import { n as toUnifiedInteropMessage } from "./UniformInterop2.js";
 import { i as shouldDeferUnifiedIngressUntilStable, r as settleIngressTargetBeforeDelivery, t as scheduleSerialViewIngressDelivery } from "../views/inbound-timing.js";
 import { r as validateIngressBeforeViewHandle } from "../views/ingress-validation.js";
-//#region ../../modules/projects/subsystem/src/routing/channel/ServiceChannels.ts
+//#region src/shared/routing/channel/ServiceChannels.ts
 /**
 * Service Channels for CrossWord
 * Extends fest/uniform ServiceChannelManager with app-specific configuration
 */
 var SERVICE_CHANNEL_CONFIG = {
 	workcenter: {
-		broadcastName: BROADCAST_CHANNELS.WORK_CENTER,
-		routeHash: ROUTE_HASHES.WORKCENTER,
-		component: COMPONENTS.WORK_CENTER,
+		broadcastName: BROADCAST_CHANNELS$1.WORK_CENTER,
+		routeHash: ROUTE_HASHES$1.WORKCENTER,
+		component: COMPONENTS$1.WORK_CENTER,
 		description: "AI work center for processing files and content"
 	},
 	settings: {
-		broadcastName: BROADCAST_CHANNELS.SETTINGS,
-		routeHash: ROUTE_HASHES.SETTINGS,
-		component: COMPONENTS.SETTINGS,
+		broadcastName: BROADCAST_CHANNELS$1.SETTINGS,
+		routeHash: ROUTE_HASHES$1.SETTINGS,
+		component: COMPONENTS$1.SETTINGS,
 		description: "Application settings and configuration"
 	},
 	viewer: {
-		broadcastName: BROADCAST_CHANNELS.MARKDOWN_VIEWER,
-		routeHash: ROUTE_HASHES.MARKDOWN_VIEWER,
-		component: COMPONENTS.MARKDOWN_VIEWER,
+		broadcastName: BROADCAST_CHANNELS$1.MARKDOWN_VIEWER,
+		routeHash: ROUTE_HASHES$1.MARKDOWN_VIEWER,
+		component: COMPONENTS$1.MARKDOWN_VIEWER,
 		description: "Content viewer for markdown and files"
 	},
 	explorer: {
-		broadcastName: BROADCAST_CHANNELS.FILE_EXPLORER,
-		routeHash: ROUTE_HASHES.FILE_EXPLORER,
-		component: COMPONENTS.FILE_EXPLORER,
+		broadcastName: BROADCAST_CHANNELS$1.FILE_EXPLORER,
+		routeHash: ROUTE_HASHES$1.FILE_EXPLORER,
+		component: COMPONENTS$1.FILE_EXPLORER,
 		description: "File explorer and browser"
 	},
 	airpad: {
@@ -41,21 +42,21 @@ var SERVICE_CHANNEL_CONFIG = {
 		description: "Touch-friendly input pad"
 	},
 	print: {
-		broadcastName: BROADCAST_CHANNELS.PRINT_CHANNEL,
-		routeHash: ROUTE_HASHES.PRINT,
-		component: COMPONENTS.BASIC_PRINT,
+		broadcastName: BROADCAST_CHANNELS$1.PRINT_CHANNEL,
+		routeHash: ROUTE_HASHES$1.PRINT,
+		component: COMPONENTS$1.BASIC_PRINT,
 		description: "Print preview and export"
 	},
 	history: {
-		broadcastName: BROADCAST_CHANNELS.HISTORY_CHANNEL,
-		routeHash: ROUTE_HASHES.HISTORY,
-		component: COMPONENTS.HISTORY,
+		broadcastName: BROADCAST_CHANNELS$1.HISTORY_CHANNEL,
+		routeHash: ROUTE_HASHES$1.HISTORY,
+		component: COMPONENTS$1.HISTORY,
 		description: "Action history and undo/redo"
 	},
 	editor: {
 		broadcastName: "rs-editor",
-		routeHash: ROUTE_HASHES.MARKDOWN_EDITOR,
-		component: COMPONENTS.MARKDOWN_EDITOR,
+		routeHash: ROUTE_HASHES$1.MARKDOWN_EDITOR,
+		component: COMPONENTS$1.MARKDOWN_EDITOR,
 		description: "Content editor"
 	},
 	home: {
@@ -104,7 +105,7 @@ var VIEW_MESSAGE_FALLBACKS = {
 	print: ["content-view"]
 };
 var inferViewDestination = (viewId) => {
-	return normalizeViewId(viewId);
+	return normalizeViewId$1(viewId);
 };
 var selectMessageTypeForView = (view, incomingType) => {
 	const checks = [incomingType, ...VIEW_MESSAGE_FALLBACKS[view.id] || []];
@@ -134,13 +135,200 @@ var mapUnifiedMessageToView = (view, message) => {
 */
 function subscribeViewChannel(viewId, handler) {
 	if (typeof BroadcastChannel === "undefined") return () => {};
-	const bc = new BroadcastChannel(viewBroadcastChannelName(normalizeViewId(viewId)));
+	const bc = new BroadcastChannel(viewBroadcastChannelName(normalizeViewId$1(viewId)));
 	bc.addEventListener("message", handler);
 	return () => {
 		bc.removeEventListener("message", handler);
 		bc.close();
 	};
 }
+//#endregion
+//#region ../../modules/projects/subsystem/src/other/config/Names.ts
+/**
+* Centralized naming system for CrossWord application
+* Consolidates component names, channel names, route names, etc.
+*/
+/**
+* Broadcast channel names used throughout the application
+*/
+var BROADCAST_CHANNELS = {
+	SHARE_TARGET: "rs-share-target",
+	TOAST: "rs-toast",
+	CLIPBOARD: "rs-clipboard",
+	WORK_CENTER: "rs-workcenter",
+	MARKDOWN_VIEWER: "rs-markdown-viewer",
+	SETTINGS: "rs-settings",
+	GENERAL: "rs-app-general",
+	MINIMAL_APP: "minimal-app",
+	MAIN_APP: "main-app",
+	FILE_EXPLORER: "file-explorer",
+	PRINT_VIEWER: "print-viewer",
+	SETTINGS_VIEWER: "settings-viewer",
+	HISTORY_VIEWER: "history-viewer",
+	MARKDOWN_VIEWER_CHANNEL: "markdown-viewer",
+	FILE_EXPLORER_CHANNEL: "file-explorer",
+	SETTINGS_CHANNEL: "settings",
+	HISTORY_CHANNEL: "history",
+	PRINT_CHANNEL: "print",
+	SERVICE_WORKCENTER: "rs-service-workcenter",
+	SERVICE_SETTINGS: "rs-service-settings",
+	SERVICE_VIEWER: "rs-service-viewer",
+	SERVICE_EXPLORER: "rs-service-explorer",
+	SERVICE_AIRPAD: "rs-service-airpad",
+	SERVICE_PRINT: "rs-service-print",
+	SERVICE_HISTORY: "rs-service-history",
+	SERVICE_EDITOR: "rs-service-editor",
+	SERVICE_HOME: "rs-service-home"
+};
+/**
+* Component and module identifiers
+*/
+var COMPONENTS = {
+	WORK_CENTER: "workcenter",
+	MARKDOWN_VIEWER: "markdown-viewer",
+	MARKDOWN_EDITOR: "markdown-editor",
+	RICH_EDITOR: "rich-editor",
+	SETTINGS: "settings",
+	HISTORY: "history",
+	FILE_PICKER: "file-picker",
+	FILE_EXPLORER: "file-explorer",
+	WORKCENTER_CORE: "workcenter-core",
+	BASIC_WORKCENTER: "basic-workcenter",
+	BASIC_VIEWER: "basic-viewer",
+	BASIC_EXPLORER: "basic-explorer",
+	BASIC_SETTINGS: "basic-settings",
+	BASIC_HISTORY: "basic-history",
+	BASIC_PRINT: "basic-print",
+	AIRPAD: "airpad",
+	HOME: "home",
+	EDITOR: "editor",
+	VIEWER: "viewer",
+	EXPLORER: "explorer",
+	PRINT: "print"
+};
+/**
+* Location hash identifiers for app navigation
+*/
+var ROUTE_HASHES = {
+	MARKDOWN_VIEWER: "#markdown-viewer",
+	MARKDOWN_EDITOR: "#markdown-editor",
+	RICH_EDITOR: "#rich-editor",
+	SETTINGS: "#settings",
+	HISTORY: "#history",
+	WORKCENTER: "#workcenter",
+	FILE_PICKER: "#file-picker",
+	FILE_EXPLORER: "#file-explorer",
+	PRINT: "#print",
+	WORKCENTER_FILES: "#workcenter-files",
+	WORKCENTER_TEXT: "#workcenter-text",
+	WORKCENTER_IMAGES: "#workcenter-images",
+	WORKCENTER_PROCESSING: "#workcenter-processing",
+	SHARE_TARGET_TEXT: "#share-target-text",
+	SHARE_TARGET_FILES: "#share-target-files",
+	SHARE_TARGET_URL: "#share-target-url",
+	SHARE_TARGET_IMAGE: "#share-target-image"
+};
+/**
+* Destination identifiers for unified messaging
+*/
+var DESTINATIONS = {
+	WORKCENTER: "workcenter",
+	CLIPBOARD: "clipboard",
+	VIEWER: "viewer",
+	MARKDOWN_VIEWER: "markdown-viewer",
+	SETTINGS: "settings",
+	HISTORY: "history",
+	EXPLORER: "explorer",
+	FILE_EXPLORER: "file-explorer",
+	PRINT: "print",
+	PRINT_VIEWER: "print-viewer",
+	EDITOR: "editor",
+	AIRPAD: "airpad",
+	HOME: "home",
+	BASIC_APP: "basic-app",
+	MAIN_APP: "main-app"
+};
+var CANONICAL_VIEW_IDS = [
+	"viewer",
+	"workcenter",
+	"explorer",
+	"editor",
+	"settings",
+	"history",
+	"home",
+	"airpad",
+	"print"
+];
+/**
+* COMPAT: legacy shells still emit `markdown-viewer`, `file-explorer`, and
+* `basic-*` destinations. Keep alias resolution centralized here so transports,
+* views, and workers can agree on one canonical target vocabulary.
+*/
+var DESTINATION_ALIASES = {
+	viewer: [
+		DESTINATIONS.VIEWER,
+		DESTINATIONS.MARKDOWN_VIEWER,
+		COMPONENTS.BASIC_VIEWER
+	],
+	workcenter: [
+		DESTINATIONS.WORKCENTER,
+		COMPONENTS.BASIC_WORKCENTER,
+		COMPONENTS.WORKCENTER_CORE
+	],
+	explorer: [
+		DESTINATIONS.EXPLORER,
+		DESTINATIONS.FILE_EXPLORER,
+		COMPONENTS.BASIC_EXPLORER
+	],
+	editor: [
+		DESTINATIONS.EDITOR,
+		COMPONENTS.MARKDOWN_EDITOR,
+		COMPONENTS.RICH_EDITOR
+	],
+	settings: [
+		DESTINATIONS.SETTINGS,
+		BROADCAST_CHANNELS.SETTINGS_CHANNEL,
+		COMPONENTS.BASIC_SETTINGS
+	],
+	history: [
+		DESTINATIONS.HISTORY,
+		BROADCAST_CHANNELS.HISTORY_CHANNEL,
+		COMPONENTS.BASIC_HISTORY
+	],
+	print: [
+		DESTINATIONS.PRINT,
+		DESTINATIONS.PRINT_VIEWER,
+		COMPONENTS.BASIC_PRINT
+	],
+	airpad: [DESTINATIONS.AIRPAD],
+	home: [DESTINATIONS.HOME],
+	clipboard: [DESTINATIONS.CLIPBOARD],
+	"basic-app": [DESTINATIONS.BASIC_APP],
+	"main-app": [DESTINATIONS.MAIN_APP]
+};
+var DESTINATION_LOOKUP = Object.entries(DESTINATION_ALIASES).reduce((out, [canonical, aliases]) => {
+	out[canonical] = canonical;
+	for (const alias of aliases) out[String(alias).toLowerCase()] = canonical;
+	return out;
+}, {});
+var normalizeDestination = (value) => {
+	const raw = String(value || "").trim().toLowerCase();
+	if (!raw) return "";
+	return DESTINATION_LOOKUP[raw] || raw;
+};
+var getDestinationAliases = (value) => {
+	const canonical = normalizeDestination(value);
+	if (!canonical) return [];
+	return [...new Set([canonical, ...DESTINATION_ALIASES[canonical] || []])];
+};
+var matchesDestination = (candidate, expected) => Boolean(normalizeDestination(candidate) && normalizeDestination(candidate) === normalizeDestination(expected));
+var normalizeViewId = (value) => {
+	const canonical = normalizeDestination(value);
+	if (CANONICAL_VIEW_IDS.includes(canonical)) return canonical;
+	return "viewer";
+};
+BROADCAST_CHANNELS.SERVICE_WORKCENTER, BROADCAST_CHANNELS.SERVICE_SETTINGS, BROADCAST_CHANNELS.SERVICE_VIEWER, BROADCAST_CHANNELS.SERVICE_EXPLORER, BROADCAST_CHANNELS.SERVICE_AIRPAD, BROADCAST_CHANNELS.SERVICE_PRINT, BROADCAST_CHANNELS.SERVICE_HISTORY, BROADCAST_CHANNELS.SERVICE_EDITOR, BROADCAST_CHANNELS.SERVICE_HOME;
+ROUTE_HASHES.WORKCENTER, ROUTE_HASHES.SETTINGS, ROUTE_HASHES.MARKDOWN_VIEWER, ROUTE_HASHES.FILE_EXPLORER, ROUTE_HASHES.PRINT, ROUTE_HASHES.HISTORY, ROUTE_HASHES.MARKDOWN_EDITOR;
 //#endregion
 //#region src/shared/routing/core/channel-mixin.ts
 /**

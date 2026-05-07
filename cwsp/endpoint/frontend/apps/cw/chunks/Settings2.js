@@ -1,30 +1,7 @@
-import { r as __exportAll } from "./rolldown-runtime.js";
 import { T as JSOX, i as writeFileSmart } from "../com/app.js";
 import { n as DEFAULT_SETTINGS } from "./SettingsTypes.js";
-//#region src/shared/other/config/Settings.ts
-var Settings_exports = /* @__PURE__ */ __exportAll({
-	DB_NAME: () => DB_NAME,
-	SETTINGS_KEY: () => SETTINGS_KEY,
-	STORE: () => STORE,
-	WebDavSync: () => WebDavSync,
-	currentWebDav: () => currentWebDav,
-	default: () => WebDavSync,
-	didPersistShellMaintainHubSocket: () => didPersistShellMaintainHubSocket,
-	getByPath: () => getByPath,
-	idbGetSettings: () => idbGetSettings,
-	idbPutSettings: () => idbPutSettings,
-	loadSettings: () => loadSettings,
-	normalizeCoreEndpointOrigin: () => normalizeCoreEndpointOrigin,
-	saveSettings: () => saveSettings,
-	shouldDeferCrxHubSocketBootstrap: () => shouldDeferCrxHubSocketBootstrap,
-	slugify: () => slugify,
-	splitPath: () => splitPath,
-	updateWebDavSettings: () => updateWebDavSettings
-});
+//#region ../../modules/projects/subsystem/src/other/config/Settings.ts
 var SETTINGS_KEY = "rs-settings";
-var splitPath = (path) => path.split(".");
-var getByPath = (source, path) => splitPath(path).reduce((acc, key) => acc == null ? acc : acc[key], source);
-var slugify = (value) => value.replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
 var DB_NAME = "req-store";
 var STORE = "settings";
 var createWebDavClient = null;
@@ -179,43 +156,6 @@ var idbGetSettings = async (key = SETTINGS_KEY) => {
 		return null;
 	}
 };
-var idbPutSettings = async (value, key = SETTINGS_KEY) => {
-	try {
-		if (hasChromeStorage()) return new Promise((res, rej) => {
-			try {
-				chrome.storage.local.set({ [key]: value }, () => {
-					if (chrome.runtime.lastError) rej(chrome.runtime.lastError);
-					else res();
-				});
-			} catch (e) {
-				console.warn("chrome.storage write failed:", e);
-				rej(e);
-			}
-		});
-		if (typeof indexedDB === "undefined") {
-			console.warn("IndexedDB not available");
-			return;
-		}
-		const db = await idbOpen();
-		return new Promise((res, rej) => {
-			const tx = db.transaction(STORE, "readwrite");
-			tx.objectStore(STORE).put({
-				key,
-				value
-			});
-			tx.oncomplete = () => {
-				res(void 0);
-				db.close();
-			};
-			tx.onerror = () => {
-				rej(tx.error);
-				db.close();
-			};
-		});
-	} catch (e) {
-		console.warn("Settings storage write failed:", e);
-	}
-};
 /** Normalize `core.endpointUrl` for equality checks (scheme + host + port, lowercase). */
 var normalizeCoreEndpointOrigin = (raw) => {
 	const t = (raw || "").trim();
@@ -343,7 +283,7 @@ var loadSettings = async () => {
 				}
 			};
 			try {
-				const { getNativeUnifiedSettings, isCwsNativeIpcAvailable } = await import("./cws-bridge.js").then((n) => n.t);
+				const { getNativeUnifiedSettings, isCwsNativeIpcAvailable } = await import("./cws-bridge2.js");
 				if (isCwsNativeIpcAvailable()) {
 					const nativeSettings = await getNativeUnifiedSettings();
 					if (nativeSettings && typeof nativeSettings === "object") result = mergeAppSettingsShape(result, nativeSettings);
@@ -361,121 +301,6 @@ var loadSettings = async () => {
 		console.warn("[Settings] loadSettings error:", e);
 	}
 	return JSOX.parse(JSOX.stringify(DEFAULT_SETTINGS));
-};
-var saveSettings = async (settings) => {
-	const current = await loadSettings();
-	const getMcp = () => {
-		if (settings.ai?.mcp !== void 0) return settings.ai.mcp;
-		if (current.ai?.mcp !== void 0) return current.ai.mcp;
-		return [];
-	};
-	const getCustomInstructions = () => {
-		if (settings.ai?.customInstructions !== void 0) return settings.ai.customInstructions;
-		if (current.ai?.customInstructions !== void 0) return current.ai.customInstructions;
-		return [];
-	};
-	const getActiveInstructionId = () => {
-		if (Object.prototype.hasOwnProperty.call(settings.ai || {}, "activeInstructionId")) return settings.ai?.activeInstructionId ?? "";
-		if (current.ai?.activeInstructionId !== void 0) return current.ai.activeInstructionId;
-		return "";
-	};
-	const merged = {
-		core: {
-			...DEFAULT_SETTINGS.core || {},
-			...current.core || {},
-			...settings.core || {},
-			network: {
-				...DEFAULT_SETTINGS.core?.network || {},
-				...current.core?.network || {},
-				...settings.core?.network || {}
-			},
-			socket: {
-				...DEFAULT_SETTINGS.core?.socket || {},
-				...current.core?.socket || {},
-				...settings.core?.socket || {}
-			},
-			interop: {
-				...DEFAULT_SETTINGS.core?.interop || {},
-				...current.core?.interop || {},
-				...settings.core?.interop || {}
-			},
-			ops: {
-				...DEFAULT_SETTINGS.core?.ops || {},
-				...current.core?.ops || {},
-				...settings.core?.ops || {}
-			},
-			admin: {
-				...DEFAULT_SETTINGS.core?.admin || {},
-				...current.core?.admin || {},
-				...settings.core?.admin || {}
-			}
-		},
-		ai: {
-			...DEFAULT_SETTINGS.ai || {},
-			...current.ai || {},
-			...settings.ai || {},
-			mcp: getMcp(),
-			customInstructions: getCustomInstructions(),
-			activeInstructionId: getActiveInstructionId()
-		},
-		webdav: {
-			...DEFAULT_SETTINGS.webdav || {},
-			...current.webdav || {},
-			...settings.webdav || {}
-		},
-		timeline: {
-			...DEFAULT_SETTINGS.timeline || {},
-			...current.timeline || {},
-			...settings.timeline || {}
-		},
-		appearance: {
-			...DEFAULT_SETTINGS.appearance || {},
-			...current.appearance || {},
-			...settings.appearance || {},
-			markdown: {
-				...DEFAULT_SETTINGS.appearance?.markdown || {},
-				...current.appearance?.markdown || {},
-				...settings.appearance?.markdown || {},
-				page: {
-					...DEFAULT_SETTINGS.appearance?.markdown?.page || {},
-					...current.appearance?.markdown?.page || {},
-					...settings.appearance?.markdown?.page || {}
-				},
-				modules: {
-					...DEFAULT_SETTINGS.appearance?.markdown?.modules || {},
-					...current.appearance?.markdown?.modules || {},
-					...settings.appearance?.markdown?.modules || {}
-				},
-				plugins: {
-					...DEFAULT_SETTINGS.appearance?.markdown?.plugins || {},
-					...current.appearance?.markdown?.plugins || {},
-					...settings.appearance?.markdown?.plugins || {}
-				}
-			}
-		},
-		speech: {
-			...DEFAULT_SETTINGS.speech || {},
-			...current.speech || {},
-			...settings.speech || {}
-		},
-		grid: {
-			...DEFAULT_SETTINGS.grid || {},
-			...current.grid || {},
-			...settings.grid || {}
-		},
-		shell: {
-			...DEFAULT_SETTINGS.shell || {},
-			...current.shell || {},
-			...settings.shell || {}
-		}
-	};
-	await idbPutSettings(merged);
-	try {
-		const { patchNativeUnifiedSettings, isCwsNativeIpcAvailable } = await import("./cws-bridge.js").then((n) => n.t);
-		if (isCwsNativeIpcAvailable()) patchNativeUnifiedSettings(merged);
-	} catch {}
-	updateWebDavSettings(merged)?.catch?.(console.warn.bind(console));
-	return merged;
 };
 var joinPath = (base, name, addTrailingSlash = false) => {
 	const b = (base || "/").replace(/\/+$/g, "") || "/";
@@ -621,22 +446,6 @@ if (!isContentScriptContext()) (async () => {
 		await currentWebDav?.sync?.download?.(true);
 	} catch (e) {}
 })();
-var updateWebDavSettings = async (settings) => {
-	settings ||= await loadSettings();
-	if (settings?.core?.mode === "endpoint" && settings?.core?.preferBackendSync) {
-		currentWebDav.sync = null;
-		return;
-	}
-	if (!settings?.webdav?.url) return;
-	currentWebDav.sync = await WebDavSync(settings.webdav.url, {
-		withCredentials: true,
-		username: settings.webdav.username,
-		password: settings.webdav.password,
-		token: settings.webdav.token
-	}) ?? currentWebDav.sync;
-	await currentWebDav?.sync?.upload?.();
-	await currentWebDav?.sync?.download?.(true);
-};
 if (!isContentScriptContext()) {
 	try {
 		if (typeof window !== "undefined" && typeof addEventListener === "function") {
@@ -658,4 +467,4 @@ if (!isContentScriptContext()) {
 	})();
 }
 //#endregion
-export { loadSettings as n, saveSettings as r, Settings_exports as t };
+export { shouldDeferCrxHubSocketBootstrap as n, loadSettings as t };
