@@ -4,6 +4,8 @@ import { a as initializeComponent, f as unifiedMessaging, i as hasPendingMessage
 import { C as getSpeechPrompt, S as createTemplateManager, Z as H, n as getCachedComponent, r as createFileHandler } from "../com/app.js";
 import { n as loadSettings } from "./Settings.js";
 import { i as fetchSwCachedEntries } from "./ShareTargetGateway.js";
+import { n as settleIngressPaintForMinimalShell } from "../views/inbound-timing.js";
+import { i as validateReadableFileForIngress, n as textIngressLooksCorrupt, r as validateIngressBeforeViewHandle, t as pickAuthoritativeTransferFiles } from "../views/ingress-validation.js";
 import { a as ensureStyleSheet, c as clearAllCache, n as debugIconSystem, o as reinitializeRegistry, r as testIconRacing, t as clearIconCaches } from "../fest/icon.js";
 import { t as views_default } from "./views2.js";
 //#region src/shared/routing/core/channel-unknown.ts
@@ -186,17 +188,6 @@ var mountShellApp = (mountElement, options = {}) => {
 	const hasExistingContent = globalThis?.localStorage?.getItem?.("rs-markdown") || options.initialMarkdown;
 	const routeView = getViewFromPathname();
 	const defaultView = options.initialView || routeView || (hasExistingContent ? "markdown-viewer" : "file-picker");
-	/**
-	* Create unified messaging handler for view switching
-	*/
-	const createViewHandler = (destination, view) => ({
-		canHandle: (msg) => msg.destination === destination,
-		handle: async (_msg) => {
-			state.view = view;
-			setViewHash(view);
-			render();
-		}
-	});
 	const isAttachmentMessage = (msg) => {
 		const type = String(msg?.type || "").trim().toLowerCase();
 		return type === "content-attach" || type === "file-attach";
@@ -324,146 +315,251 @@ var mountShellApp = (mountElement, options = {}) => {
 			}
 		}, duration);
 	};
+	/** Minimal-shell path: same stale-inline-text issue as BootLoader viewer (`content-load` + `files[]`). */
+	const hydrateViewerMarkdownFromUnifiedMessage = async (msg, deliveryGen) => {
+		const data = msg?.data && typeof msg.data === "object" ? msg.data : {};
+		const msgType = String(msg?.type || "");
+		const openIntent = msgType === "content-load" || msgType === "content-view" || msgType === "markdown-content";
+		if (!openIntent) return false;
+		const ingressPrecheck = validateIngressBeforeViewHandle(msg, msgType);
+		if (!ingressPrecheck.ok) {
+			console.warn("[Shell] Markdown hydrator skipped:", ingressPrecheck.reason);
+			return false;
+		}
+		const meta = msg?.metadata && typeof msg.metadata === "object" ? msg.metadata : {};
+		const sourceMeta = typeof meta.source === "string" ? meta.source : "";
+		const routeMeta = typeof meta.route === "string" ? meta.route : "";
+		const fromLaunchQueue = sourceMeta.includes("launch-queue") || routeMeta.includes("launch-queue");
+		const textLikeMimeOrName = (file) => {
+			const name = (file.name || "").toLowerCase();
+			const type = (file.type || "").toLowerCase();
+			if (!type || type.startsWith("text/")) return true;
+			if (type.includes("markdown") || type.includes("json") || type.includes("xml")) return true;
+			return [
+				".md",
+				".markdown",
+				".mdown",
+				".mkd",
+				".mkdn",
+				".txt",
+				".html",
+				".htm"
+			].some((ext) => name.endsWith(ext));
+		};
+		const hintName = typeof data.filename === "string" && data.filename.trim().length > 0 ? String(data.filename).trim() : typeof data.hint?.filename === "string" ? String(data.hint.filename).trim() : void 0;
+		let fileEarly = data.file instanceof File ? data.file : null;
+		const fileList = Array.isArray(data.files) ? data.files.filter((f) => f instanceof File) : [];
+		if (fileList.length > 0) fileEarly = pickAuthoritativeTransferFiles(fileList, {
+			hintFilename: hintName,
+			isTextLike: textLikeMimeOrName
+		}) ?? fileEarly;
+		if (fileEarly) {
+			const vr = validateReadableFileForIngress(fileEarly);
+			if (!vr.ok) {
+				console.warn("[Shell] Ingress file skipped:", vr.reason, fileEarly.name);
+				fileEarly = null;
+			}
+		}
+		const textLikeLaunchFile = fromLaunchQueue && !!(fileEarly && textLikeMimeOrName(fileEarly));
+		if (openIntent && fileEarly && textLikeMimeOrName(fileEarly)) {
+			try {
+				const txt = await fileEarly.text();
+				if (deliveryGen !== markdownSurfaceGeneration) return false;
+				if (typeof txt === "string") {
+					if (txt.trim().length === 0) return false;
+					if (textIngressLooksCorrupt(txt)) {
+						state.markdown = "> Received content does not look like UTF-8 text/markdown (binary or unsupported format).\n\n";
+						return true;
+					}
+					state.markdown = txt;
+					return true;
+				}
+			} catch {}
+			if (fromLaunchQueue && fileEarly) {
+				state.markdown = `> Failed to read transferred file:\n> ${fileEarly.name}`;
+				return true;
+			}
+		}
+		const inline = data.text ?? data.content;
+		if (!textLikeLaunchFile && inline != null && String(inline).trim()) {
+			const md = typeof inline === "string" ? inline : JSON.stringify(inline, null, 2);
+			if (textIngressLooksCorrupt(md)) {
+				state.markdown = "> Inline payload looks like binary data — try opening a `.md` file or copying as plain text.\n\n";
+				return true;
+			}
+			state.markdown = md;
+			return true;
+		}
+		return false;
+	};
+	/** Burst ingress (launch-queue, mail replay) serialized per surface — matches full-shell ingress ordering. */
+	const minimalIngressChains = /* @__PURE__ */ new Map();
+	const runSequentialMinimalIngress = (key, task) => {
+		const next = (minimalIngressChains.get(key) ?? Promise.resolve()).then(() => task()).catch((e) => console.warn("[Shell] Minimal ingress failed:", key, e));
+		minimalIngressChains.set(key, next);
+		return next;
+	};
+	/** Shared across `markdown-viewer` + `viewer` destinations: rapid opens coalesce to the latest. */
+	let markdownSurfaceGeneration = 0;
 	unifiedMessaging.registerHandler("markdown-viewer", {
 		canHandle: (msg) => msg.destination === "markdown-viewer",
 		handle: async (msg) => {
-			if (msg.data?.text) {
-				state.markdown = msg.data.text;
-				state.view = "markdown-viewer";
-				persistMarkdown();
-				render();
-			}
+			const g = ++markdownSurfaceGeneration;
+			await runSequentialMinimalIngress("markdown-surface", async () => {
+				if (g !== markdownSurfaceGeneration) return;
+				await settleIngressPaintForMinimalShell();
+				if (g !== markdownSurfaceGeneration) return;
+				if (await hydrateViewerMarkdownFromUnifiedMessage(msg, g)) {
+					state.view = "markdown-viewer";
+					persistMarkdown();
+					render();
+				}
+			});
 		}
 	});
-	unifiedMessaging.registerHandler("workcenter", createViewHandler("workcenter", "workcenter"));
 	unifiedMessaging.registerHandler("viewer", {
 		canHandle: (msg) => msg.destination === "viewer",
 		handle: async (msg) => {
-			if (msg.data?.text || msg.data?.content) {
-				const content = msg.data.text || msg.data.content;
-				state.markdown = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+			const g = ++markdownSurfaceGeneration;
+			await runSequentialMinimalIngress("markdown-surface", async () => {
+				if (g !== markdownSurfaceGeneration) return;
+				await settleIngressPaintForMinimalShell();
+				if (g !== markdownSurfaceGeneration) return;
+				if (!await hydrateViewerMarkdownFromUnifiedMessage(msg, g)) return;
 				state.view = "markdown-viewer";
 				setViewHash("markdown-viewer");
 				persistMarkdown();
 				render();
 				showStatusMessage("Content loaded in viewer");
-			}
+			});
 		}
 	});
 	unifiedMessaging.registerHandler("workcenter", {
 		canHandle: (msg) => msg.destination === "workcenter",
 		handle: async (msg) => {
-			const instance = state.managers?.workCenter?.instance;
-			if (instance) {
-				try {
-					if (isAttachmentMessage(msg)) await handleWorkCenterAttachment(msg, state, setViewHash, render, showStatusMessage, true);
-					else if (instance?.handleExternalMessage) await instance.handleExternalMessage(msg);
-				} catch (e) {
-					console.error("[Shell] WorkCenter message handling failed:", e);
+			await runSequentialMinimalIngress("workcenter", async () => {
+				await settleIngressPaintForMinimalShell();
+				const instance = state.managers?.workCenter?.instance;
+				if (instance) {
+					try {
+						if (isAttachmentMessage(msg)) await handleWorkCenterAttachment(msg, state, setViewHash, render, showStatusMessage, true);
+						else if (instance?.handleExternalMessage) await instance.handleExternalMessage(msg);
+					} catch (e) {
+						console.error("[Shell] WorkCenter message handling failed:", e);
+					}
+					return;
 				}
-				return;
-			}
-			try {
-				enqueuePendingMessage("workcenter", msg);
-			} catch (e) {
-				console.warn("[Shell] Failed to enqueue pending workcenter message:", e);
-			}
-			if (state.view !== "workcenter") {
-				state.view = "workcenter";
-				setViewHash("workcenter");
-				render();
-			}
+				try {
+					enqueuePendingMessage("workcenter", msg);
+				} catch (e) {
+					console.warn("[Shell] Failed to enqueue pending workcenter message:", e);
+				}
+				if (state.view !== "workcenter") {
+					state.view = "workcenter";
+					setViewHash("workcenter");
+					render();
+				}
+			});
 		}
 	});
 	unifiedMessaging.registerHandler("explorer", {
 		canHandle: (msg) => msg.destination === "explorer",
 		handle: async (msg) => {
-			if (state.view !== "file-explorer") {
-				state.view = "file-explorer";
-				setViewHash("file-explorer");
-				render();
-			}
-			setTimeout(async () => {
-				try {
-					const action = msg.data?.action || "save";
-					const path = msg.data?.path || msg.data?.into || "/";
-					if (action === "save" && (msg.data?.file || msg.data?.text || msg.data?.content)) {
-						let fileToSave = null;
-						if (msg.data.file instanceof File) fileToSave = msg.data.file;
-						else if (msg.data.blob instanceof Blob) {
-							const filename = msg.data.filename || `file-${Date.now()}`;
-							fileToSave = new File([msg.data.blob], filename, { type: msg.data.blob.type });
-						} else if (msg.data.text || msg.data.content) {
-							const content = msg.data.text || msg.data.content;
-							const textContent = typeof content === "string" ? content : JSON.stringify(content, null, 2);
-							const filename = msg.data.filename || `content-${Date.now()}.txt`;
-							fileToSave = new File([textContent], filename, { type: "text/plain" });
-						}
-						if (fileToSave && state.components.explorer.element) {
-							if (path && path !== state.components.explorer.element.path) state.components.explorer.element.path = path;
-							console.log(`[Shell] Saving file ${fileToSave.name} to Explorer at: ${path}`);
-							state.message = `Saved ${fileToSave.name} to Explorer`;
-							renderStatus();
-							setTimeout(() => {
-								state.message = "";
-								renderStatus();
-							}, 3e3);
-						}
-					} else if (action === "view" && msg.data?.path) {
-						if (state.components.explorer.element && path) {
-							state.components.explorer.element.path = path;
-							console.log(`[Shell] Navigated Explorer to path: ${path}`);
-							state.message = `Opened Explorer at ${path}`;
-							renderStatus();
-							setTimeout(() => {
-								state.message = "";
-								renderStatus();
-							}, 2e3);
-						}
-					} else if (action === "place" && msg.data?.place && msg.data?.into) {
-						const targetPath = msg.data.into;
-						if (state.components.explorer.element && targetPath) {
-							state.components.explorer.element.path = targetPath;
-							console.log(`[Shell] Navigated Explorer to place data at: ${targetPath}`);
-							state.message = `Explorer ready at ${targetPath}`;
-							renderStatus();
-							setTimeout(() => {
-								state.message = "";
-								renderStatus();
-							}, 3e3);
-						}
-					} else if (action === "navigate" && path) {
-						if (state.components.explorer.element) {
-							state.components.explorer.element.path = path;
-							state.message = `Explorer navigated to ${path}`;
-							renderStatus();
-							setTimeout(() => {
-								state.message = "";
-								renderStatus();
-							}, 2e3);
-						}
-					}
-				} catch (error) {
-					console.warn("[Shell] Failed to handle explorer action:", error);
-					state.message = "Failed to perform Explorer action";
-					renderStatus();
-					setTimeout(() => {
-						state.message = "";
-						renderStatus();
-					}, 3e3);
+			await runSequentialMinimalIngress("explorer", async () => {
+				await settleIngressPaintForMinimalShell();
+				if (state.view !== "file-explorer") {
+					state.view = "file-explorer";
+					setViewHash("file-explorer");
+					render();
 				}
-			}, 100);
+				await new Promise((resolve) => {
+					setTimeout(async () => {
+						try {
+							const action = msg.data?.action || "save";
+							const path = msg.data?.path || msg.data?.into || "/";
+							if (action === "save" && (msg.data?.file || msg.data?.text || msg.data?.content)) {
+								let fileToSave = null;
+								if (msg.data.file instanceof File) fileToSave = msg.data.file;
+								else if (msg.data.blob instanceof Blob) {
+									const filename = msg.data.filename || `file-${Date.now()}`;
+									fileToSave = new File([msg.data.blob], filename, { type: msg.data.blob.type });
+								} else if (msg.data.text || msg.data.content) {
+									const content = msg.data.text || msg.data.content;
+									const textContent = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+									const filename = msg.data.filename || `content-${Date.now()}.txt`;
+									fileToSave = new File([textContent], filename, { type: "text/plain" });
+								}
+								if (fileToSave && state.components.explorer.element) {
+									if (path && path !== state.components.explorer.element.path) state.components.explorer.element.path = path;
+									console.log(`[Shell] Saving file ${fileToSave.name} to Explorer at: ${path}`);
+									state.message = `Saved ${fileToSave.name} to Explorer`;
+									renderStatus();
+									setTimeout(() => {
+										state.message = "";
+										renderStatus();
+									}, 3e3);
+								}
+							} else if (action === "view" && msg.data?.path) {
+								if (state.components.explorer.element && path) {
+									state.components.explorer.element.path = path;
+									console.log(`[Shell] Navigated Explorer to path: ${path}`);
+									state.message = `Opened Explorer at ${path}`;
+									renderStatus();
+									setTimeout(() => {
+										state.message = "";
+										renderStatus();
+									}, 2e3);
+								}
+							} else if (action === "place" && msg.data?.place && msg.data?.into) {
+								const targetPath = msg.data.into;
+								if (state.components.explorer.element && targetPath) {
+									state.components.explorer.element.path = targetPath;
+									console.log(`[Shell] Navigated Explorer to place data at: ${targetPath}`);
+									state.message = `Explorer ready at ${targetPath}`;
+									renderStatus();
+									setTimeout(() => {
+										state.message = "";
+										renderStatus();
+									}, 3e3);
+								}
+							} else if (action === "navigate" && path) {
+								if (state.components.explorer.element) {
+									state.components.explorer.element.path = path;
+									state.message = `Explorer navigated to ${path}`;
+									renderStatus();
+									setTimeout(() => {
+										state.message = "";
+										renderStatus();
+									}, 2e3);
+								}
+							}
+						} catch (error) {
+							console.warn("[Shell] Failed to handle explorer action:", error);
+							state.message = "Failed to perform Explorer action";
+							renderStatus();
+							setTimeout(() => {
+								state.message = "";
+								renderStatus();
+							}, 3e3);
+						} finally {
+							resolve();
+						}
+					}, 100);
+				});
+			});
 		}
 	});
 	unifiedMessaging.registerHandler("print", {
 		canHandle: (msg) => msg.destination === "print",
 		handle: async (msg) => {
-			if (msg.data?.text || msg.data?.content) {
-				const content = msg.data.text || msg.data.content;
-				const printableContent = typeof content === "string" ? content : JSON.stringify(content, null, 2);
-				const printWindow = globalThis?.open?.("", "_blank", "width=800,height=600");
-				if (printWindow) {
-					printWindow.document.write(`
+			await runSequentialMinimalIngress("print", async () => {
+				await settleIngressPaintForMinimalShell();
+				if (msg.data?.text || msg.data?.content) {
+					const content = msg.data.text || msg.data.content;
+					const printableContent = typeof content === "string" ? content : JSON.stringify(content, null, 2);
+					const printWindow = globalThis?.open?.("", "_blank", "width=800,height=600");
+					if (printWindow) {
+						printWindow.document.write(`
                         <!DOCTYPE html>
                         <html>
                         <head>
@@ -479,10 +575,11 @@ var mountShellApp = (mountElement, options = {}) => {
                         </body>
                         </html>
                     `);
-					printWindow.document.close();
-					printWindow.print();
+						printWindow.document.close();
+						printWindow.print();
+					}
 				}
-			}
+			});
 		}
 	});
 	if (typeof window !== "undefined") {

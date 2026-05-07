@@ -3,6 +3,7 @@ import { a as initializeComponent, s as registerComponent, u as sendMessage } fr
 import { Z as H, c as parseDataUrl, o as isBase64Like, s as normalizeDataAsset } from "../com/app.js";
 import { t as summarizeForLog } from "./LogSanitizer.js";
 import { n as consumeCachedShareTargetPayload, r as fetchCachedShareFiles } from "./ShareTargetGateway.js";
+import { i as validateReadableFileForIngress } from "../views/ingress-validation.js";
 import { t as renderMathInElement } from "../vendor/katex2.js";
 import { t as g } from "../vendor/marked.js";
 import { t as src_default } from "../vendor/marked-katex-extension.js";
@@ -609,8 +610,9 @@ var WorkCenterShareTarget = class {
 				return null;
 			};
 			const attachmentFiles = Array.isArray(inputData.attachments) ? inputData.attachments.map((entry) => entry?.data).filter((entry) => entry instanceof File || entry instanceof Blob) : [];
-			if ([...Array.isArray(inputData.files) ? inputData.files : [], ...attachmentFiles].length > 0) for (const file of inputData.files) {
-				const normalized = await normalizeIncomingFile(file);
+			const incomingFiles = [...Array.isArray(inputData.files) ? inputData.files : [], ...attachmentFiles];
+			if (incomingFiles.length > 0) for (const raw of incomingFiles) {
+				const normalized = await normalizeIncomingFile(raw);
 				if (normalized && pushUniqueFile(normalized)) filesAdded++;
 			}
 			if (filesAdded === 0 && Number(inputData?.fileCount || 0) > 0) try {
@@ -3784,24 +3786,53 @@ var WorkCenterManager = class {
 	async handlePastedContent(content, sourceType) {
 		return this.fileOps.handlePastedContent(this.state, content, sourceType);
 	}
+	fingerprintIncomingFile(file) {
+		return `${String(file.name || "").trim().toLowerCase()}::${Number(file.size || 0)}::${String(file.type || "").trim().toLowerCase()}`;
+	}
+	pushUniqueIncomingFile(file) {
+		if (!file) return false;
+		const key = this.fingerprintIncomingFile(file);
+		for (const existing of this.state.files) if (this.fingerprintIncomingFile(existing) === key) return false;
+		this.state.files.push(file);
+		return true;
+	}
 	async handleIncomingContent(data, contentType) {
 		try {
+			let attached = false;
+			if (Array.isArray(data.files) && data.files.length > 0) {
+				const filesFromArray = data.files.filter((x) => x instanceof File);
+				for (const f of filesFromArray) {
+					const chk = validateReadableFileForIngress(f);
+					if (!chk.ok) {
+						console.warn("[WorkCenter] Skipping oversized/invalid ingress file:", chk.reason, f.name);
+						continue;
+					}
+					if (this.pushUniqueIncomingFile(f)) attached = true;
+				}
+			}
 			let fileToAttach = null;
-			if (data.file instanceof File) fileToAttach = data.file;
-			else if (data.blob instanceof Blob) {
+			if (!attached && data.file instanceof File) fileToAttach = data.file;
+			else if (!attached && data.blob instanceof Blob) {
 				const filename = data.filename || `attachment-${Date.now()}.${contentType === "markdown" ? "md" : "txt"}`;
 				fileToAttach = new File([data.blob], filename, { type: data.blob.type });
-			} else if (data.text || data.content) {
+			} else if (!attached && (data.text || data.content)) {
 				const content = data.text || data.content;
 				const textContent = typeof content === "string" ? content : JSON.stringify(content, null, 2);
 				const filename = data.filename || `content-${Date.now()}.${contentType === "markdown" ? "md" : "txt"}`;
 				fileToAttach = new File([textContent], filename, { type: contentType === "markdown" ? "text/markdown" : "text/plain" });
 			}
 			if (fileToAttach) {
-				this.state.files.push(fileToAttach);
+				const chk = validateReadableFileForIngress(fileToAttach);
+				if (!chk.ok) {
+					console.warn("[WorkCenter] Rejecting primary attachment:", chk.reason);
+					fileToAttach = null;
+				}
+			}
+			if (fileToAttach && this.pushUniqueIncomingFile(fileToAttach)) attached = true;
+			if (attached) {
 				this.ui.updateFileList(this.state);
 				this.ui.updateFileCounter(this.state);
-				this.deps.showMessage(`Attached ${fileToAttach.name} to Work Center`);
+				this.deps.showMessage(fileToAttach ? `Attached ${fileToAttach.name} to Work Center` : "Attached files to Work Center");
 			}
 		} catch (error) {
 			console.warn("[WorkCenter] Failed to handle incoming content:", error);
@@ -3819,8 +3850,8 @@ var WorkCenterManager = class {
 			if (this.processedMessageIds.has(messageId)) return;
 			this.processedMessageIds.add(messageId);
 			if (this.processedMessageIds.size > 256) {
-				const [first] = this.processedMessageIds;
-				if (first) this.processedMessageIds.delete(first);
+				const iter = this.processedMessageIds.values().next();
+				if (!iter.done) this.processedMessageIds.delete(iter.value);
 			}
 		}
 		if (message.type === "share-target-input" && message.data) {
@@ -3840,7 +3871,10 @@ var WorkCenterManager = class {
 			this.ui.updateDataPipeline(this.state);
 			return;
 		}
-		if (message.type === "content-share" && message.data) await this.handleIncomingContent(message.data, message.contentType || "text");
+		if ((message.type === "content-share" || message.type === "content-attach" || message.type === "file-attach") && message.data) {
+			await this.handleIncomingContent(message.data, message.contentType || "text");
+			return;
+		}
 	}
 	getState() {
 		return this.state;

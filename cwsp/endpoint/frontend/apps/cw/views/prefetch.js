@@ -1,5 +1,5 @@
 import { n as ENABLED_VIEW_IDS } from "../chunks/views.js";
-import { n as ViewRegistry } from "../chunks/registry.js";
+import { s as ViewRegistry } from "../shells/preference.js";
 //#region ../../modules/projects/subsystem/src/routing/core/view-transitions.ts
 /**
 * Canonical view order used to determine navigation direction.
@@ -40,8 +40,22 @@ function getTransitionDirection(from, to) {
 * and start the new one — this is intentional and handled gracefully.
 */
 async function withViewTransition(update, options = {}) {
+	const finishOnce = () => {
+		try {
+			options.onTransitionFinished?.();
+		} catch (error) {
+			console.warn("[view-transition] onTransitionFinished error:", error);
+		}
+	};
+	let finishedCalled = false;
+	const guardedFinish = () => {
+		if (finishedCalled) return;
+		finishedCalled = true;
+		finishOnce();
+	};
 	if (!supportsViewTransitions()) {
 		await update();
+		requestAnimationFrame(() => requestAnimationFrame(guardedFinish));
 		return;
 	}
 	const { direction = "fade", types } = options;
@@ -51,6 +65,8 @@ async function withViewTransition(update, options = {}) {
 		update,
 		types
 	}) : doc.startViewTransition(update);
+	transition.finished.then(guardedFinish).catch(guardedFinish);
+	globalThis.setTimeout?.(() => guardedFinish(), 1400);
 	try {
 		await (transition.updateCallbackDone ?? transition.finished);
 	} catch {} finally {

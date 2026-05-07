@@ -4,9 +4,9 @@ import { f as isEnabledView, p as pickEnabledView } from "./views.js";
 import { p as loadAsAdopted } from "../fest/dom.js";
 import { n as DEFAULT_SETTINGS } from "./SettingsTypes.js";
 import { n as loadSettings } from "./Settings.js";
-import { a as initializeRegistries, i as defaultTheme, l as startImplicitViewMessagingBridge, o as lightTheme, r as darkTheme, t as ShellRegistry, u as serviceChannels } from "./registry.js";
+import { i as serviceChannels } from "./channel-mixin.js";
+import { c as darkTheme, d as lightTheme, l as defaultTheme, m as startImplicitViewMessagingBridge, o as ShellRegistry, t as LS_BOOT_SHELL_LAST_ACTIVE, u as initializeRegistries } from "../shells/preference.js";
 import { n as applyTheme } from "./Theme.js";
-import { t as LS_BOOT_SHELL_LAST_ACTIVE } from "../shells/preference.js";
 import { n as core_default, t as scss_default } from "../fest/veela.js";
 import { n as initCwsNativeBridge } from "../vendor/@capacitor_core.js";
 import { t as applyHubSocketFromSettings } from "./hub-socket-boot.js";
@@ -165,6 +165,7 @@ var BootLoader_exports = /* @__PURE__ */ __exportAll({
 });
 var normalizeShellId = (shell) => {
 	if (shell === "faint") return "tabbed";
+	if (shell === "base") return "immersive";
 	return shell;
 };
 /**
@@ -175,13 +176,13 @@ var STYLE_CONFIGS = {
 		name: "Raw (No Framework)",
 		stylesheets: [],
 		description: "No CSS framework, raw browser defaults",
-		recommendedShells: ["base"]
+		recommendedShells: ["immersive"]
 	},
 	"vl-core": {
 		name: "Core (Shared Foundation)",
 		stylesheets: [],
 		description: "Shared foundation styles for all veela variants",
-		recommendedShells: ["base", "minimal"]
+		recommendedShells: ["immersive", "minimal"]
 	},
 	"vl-basic": {
 		name: "Basic Veela Styles",
@@ -192,7 +193,7 @@ var STYLE_CONFIGS = {
 			"tabbed",
 			"minimal",
 			"environment",
-			"base",
+			"immersive",
 			"content"
 		]
 	},

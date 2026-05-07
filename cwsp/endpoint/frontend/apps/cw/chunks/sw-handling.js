@@ -1169,7 +1169,11 @@ var isTextLikeFile = (file) => {
 };
 var hydrateTextPayloadFromFiles = async (shareData) => {
 	const files = Array.isArray(shareData.files) ? shareData.files.filter((f) => f instanceof File) : [];
-	if (!files.length || String(shareData.text || "").trim()) return shareData;
+	if (!files.length) return shareData;
+	const existingInline = String(shareData.text || "").trim();
+	/** OS launch-queue merges / pending payloads can retain old `text` while `files[]` is the real doc. */
+	const sourceKey = String(shareData.source || "");
+	if (!(sourceKey === "launch-queue" || sourceKey === "cached-bootstrap" || !existingInline)) return shareData;
 	const firstTextFile = files.find(isTextLikeFile);
 	if (!firstTextFile) return shareData;
 	try {
@@ -1264,31 +1268,58 @@ var routeToTransferView = async (shareData, source, hint, pending = false) => {
 	} catch {
 		silentRoute = false;
 	}
-	if (!silentRoute && currentPath !== resolved.routePath) {
-		if (delivered) try {
+	const tryNavigateLiveShell = async () => {
+		if (!delivered) return false;
+		try {
 			const { bootLoader } = await import("./BootLoader.js").then((n) => n.n);
 			const shell = bootLoader.getShell();
-			if (shell && ![
+			if (!(shell && ![
 				"window",
 				"tabbed",
 				"environment"
-			].includes(shell.id) && shell.getElement?.()?.isConnected) {
-				await shell.navigate(resolved.destination);
-				console.log("[ViewTransfer] Routed through live shell:", resolved.routePath);
-				return delivered;
+			].includes(shell.id)) || !shell.getElement?.()?.isConnected) return false;
+			const activeView = shell.getContext?.().navigationState?.currentView;
+			/**
+			* WHY: Ingress replay (launch-queue / pending) defaults markdown/text to destination
+			* `viewer`. After the user opens Work Center, routing here would call `navigate('viewer')`
+			* and hide Work Center even though payloads were already delivered via unified messaging.
+			* Share Target flows keep `source === "share-target"` and still bump to the viewer when appropriate.
+			*/
+			if (resolved.destination === "viewer" && activeView === "workcenter" && source !== "share-target") {
+				console.log("[ViewTransfer] Skipping steal to viewer — staying on Work Center", {
+					source,
+					pending,
+					delivered
+				});
+				return true;
 			}
+			await shell.navigate(resolved.destination, void 0, { force: true });
+			console.log("[ViewTransfer] Routed through live shell:", resolved.routePath);
+			return true;
 		} catch (error) {
 			console.warn("[ViewTransfer] Live shell routing failed, falling back to hard navigation:", error);
+			return false;
 		}
-		const nextUrl = new URL(globalThis?.location?.href);
-		nextUrl.pathname = resolved.routePath;
-		nextUrl.search = "";
-		nextUrl.hash = "";
-		if (pending) nextUrl.searchParams.set("shared", "1");
-		console.log("[ViewTransfer] Navigating to resolved route:", nextUrl.toString());
-		globalThis.location.href = nextUrl.toString();
-	} else if (silentRoute && currentPath !== resolved.routePath) console.log("[ViewTransfer] Silent mode: skipping navigation; delivery via channels only:", resolved.routePath);
-	else console.log("[ViewTransfer] Already on resolved route:", resolved.routePath);
+	};
+	if (silentRoute) {
+		if (currentPath !== resolved.routePath) console.log("[ViewTransfer] Silent mode: skipping navigation; delivery via channels only:", resolved.routePath);
+		else await tryNavigateLiveShell();
+		return delivered;
+	}
+	if (currentPath !== resolved.routePath) {
+		if (!await tryNavigateLiveShell()) {
+			const nextUrl = new URL(globalThis?.location?.href);
+			nextUrl.pathname = resolved.routePath;
+			nextUrl.search = "";
+			nextUrl.hash = "";
+			if (pending) nextUrl.searchParams.set("shared", "1");
+			console.log("[ViewTransfer] Navigating to resolved route:", nextUrl.toString());
+			globalThis.location.href = nextUrl.toString();
+		}
+		return delivered;
+	}
+	await tryNavigateLiveShell();
+	console.log("[ViewTransfer] Already on resolved route:", resolved.routePath);
 	return delivered;
 };
 /**

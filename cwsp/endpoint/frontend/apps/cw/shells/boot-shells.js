@@ -4,13 +4,13 @@ import "../fest/dom.js";
 import "../chunks/app-layers.js";
 import { Y as defineElement } from "../com/app.js";
 import "../chunks/Settings.js";
-import { a as initializeRegistries, c as registerDefaultViews, i as defaultTheme, o as lightTheme, r as darkTheme, s as registerDefaultShells } from "../chunks/registry.js";
+import "../chunks/channel-mixin.js";
+import { a as readLastActiveBootShell, c as darkTheme, d as lightTheme, f as registerDefaultShells, i as normalizeBootShellId, l as defaultTheme, n as coerceShellForBootViewport, p as registerDefaultViews, u as initializeRegistries } from "./preference.js";
 import "../views/prefetch.js";
 import "../chunks/Theme.js";
 import "../fest/icon.js";
 import { t as UIElement } from "../com/app2.js";
 import { t as __decorate } from "../chunks/decorate.js";
-import { a as readLastActiveBootShell, i as normalizeBootShellId, n as coerceShellForBootViewport } from "./preference.js";
 import { a as bootEnvironment, c as bootTabbed, i as bootContent, l as bootWindow, o as bootImmersive, r as bootBase, s as bootMinimal, t as BootLoader } from "../chunks/BootLoader.js";
 import "../vendor/@capacitor_core.js";
 import "../chunks/config.js";
@@ -161,7 +161,7 @@ function getSavedShellPreference() {
 */
 var loadSubAppWithShell = async (shellId, initialView) => {
 	const shell = normalizeShellPreference(shellId || getSavedShellPreference() || "minimal");
-	const shellDefaultView = shell === "base" || shell === "minimal" ? "viewer" : "home";
+	const shellDefaultView = shell === "base" || shell === "immersive" || shell === "minimal" ? "viewer" : "home";
 	const view = pickEnabledView(initialView || getViewFromPath() || shellDefaultView, "home");
 	console.log("[App] Loading sub-app with shell:", shell, "view:", view);
 	try {
