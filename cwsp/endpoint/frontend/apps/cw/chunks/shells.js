@@ -9,6 +9,7 @@ import { n as ViewRegistry } from "./registry.js";
 import { n as getTransitionDirection, r as withViewTransition, t as scheduleViewModulePrefetch } from "../views/prefetch.js";
 import { i as syncBrowserChromeTheme, n as applyTheme, r as resyncThemeAfterAdoptedViewSheet } from "./Theme.js";
 import { a as ensureStyleSheet } from "../fest/icon.js";
+import { n as resolveOverlayMountPoint } from "../shells/slots.js";
 //#region src/frontend/boot/shell-elements.ts
 var ShellHost = class extends HTMLElement {
 	mountShellLayout(layout) {
@@ -682,7 +683,12 @@ var ShellBase = class {
 			getContentContainer: () => this.contentContainer,
 			getOverlayContainer: () => this.overlayContainer,
 			getToolbarContainer: () => this.toolbarContainer,
-			setViewToolbar: (toolbar) => this.setViewToolbar(toolbar)
+			setViewToolbar: (toolbar) => this.setViewToolbar(toolbar),
+			resolveOverlayMountPoint: (anchor) => {
+				const c = this.overlayContainer;
+				if (c) return c;
+				return resolveOverlayMountPoint(anchor ?? null);
+			}
 		};
 	}
 	getElement() {

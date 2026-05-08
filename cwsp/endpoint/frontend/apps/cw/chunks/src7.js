@@ -7,7 +7,7 @@ import { t as BUILTIN_AI_MODELS } from "./SettingsTypes.js";
 import { n as loadSettings, r as saveSettings } from "./Settings.js";
 import { i as applyAirpadRuntimeFromAppSettings } from "./config.js";
 import { n as applyTheme } from "./Theme.js";
-import { n as navigateToView } from "../shells/boot-shells.js";
+import { n as navigateToView } from "../shells/boot-shell-slots.js";
 import { i as SettingsChannelAction } from "./channel-actions.js";
 import { n as openAdminDoorFromCore, r as resolveAdminDoorUrls } from "./admin-doors.js";
 import { c as updateInstruction, i as deleteInstruction, n as addInstruction, o as getInstructionRegistry, r as addInstructions, s as setActiveInstruction } from "./CustomInstructions.js";

@@ -569,7 +569,7 @@ async function index(mountElement) {
 	import("./chunks/hub-socket-boot.js").then((n) => n.n).then((m) => m.bootHubSocketFromStoredSettings()).catch(() => void 0);
 	setLoadingState(mountElement, "Initializing CrossWord...");
 	try {
-		const { loadSubAppWithShell, VALID_VIEWS, getShellFromQuery, getSavedShellPreference } = await import("./shells/boot-shells.js").then((n) => n.t);
+		const { loadSubAppWithShell, VALID_VIEWS, getShellFromQuery, getSavedShellPreference } = await import("./shells/boot-shell-slots.js").then((n) => n.t);
 		const isValidViewPath = (path) => VALID_VIEWS.includes(path);
 		const pwaPromise = initPWA();
 		if (!isExtension()) {

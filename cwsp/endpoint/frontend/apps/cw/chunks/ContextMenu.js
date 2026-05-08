@@ -1,5 +1,6 @@
 import { E as MOCElement } from "../fest/dom.js";
 import { H as ctxMenuTrigger, Z as H } from "../com/app.js";
+import { n as resolveOverlayMountPoint } from "../shells/slots.js";
 //#region ../../modules/views/explorer-view/src/ts/ContextMenu.ts
 var SUBMENU_HOVER_OPEN_MS = 320;
 var SUBMENU_HOVER_CLOSE_MS = 220;
@@ -19,7 +20,7 @@ var ensureStyle = () => {
 	const style = document.createElement("style");
 	style.id = "cw-unified-context-menu-style";
 	style.textContent = `
-        /* WHY: Menu is mounted on body/overlay — use app design tokens (Veela) when present, else light-dark(). */
+        /* WHY: Menu mounts on shell `[data - shell - overlays]`, app overlay, or body — Veela tokens when present. */
         .cw-context-menu-layer {
             position: fixed;
             inset: 0;
@@ -141,9 +142,6 @@ var ensureStyle = () => {
         }
     `;
 	document.head.appendChild(style);
-};
-var getOverlayHost = () => {
-	return document.querySelector("[data-app-layer=\"overlay\"]") || document.body;
 };
 var clearCleanup = () => {
 	for (const fn of cleanupFns) try {
@@ -303,12 +301,12 @@ var openUnifiedContextMenu = (request) => {
 	ensureStyle();
 	closeUnifiedContextMenu();
 	const session = menuSession;
-	const overlayHost = getOverlayHost();
-	overlayHost.style.pointerEvents = overlayHost.style.pointerEvents || "none";
+	const mount = request.resolveOverlayMountPoint?.(request.anchor ?? null) ?? resolveOverlayMountPoint(request.anchor ?? null);
+	if (mount !== document.body) mount.style.pointerEvents = mount.style.pointerEvents || "none";
 	const layer = document.createElement("div");
 	layer.className = "cw-context-menu-layer";
 	menuLayer = layer;
-	overlayHost.appendChild(layer);
+	mount.appendChild(layer);
 	const menu = buildMenuElement(entries, Boolean(request.compact), 0, session);
 	rootMenu = menu;
 	layer.appendChild(menu);
@@ -417,11 +415,9 @@ var makeFileSystemOps = () => {
 		}
 	];
 };
-var makeContextMenu = () => {
+var makeContextMenu = (anchor) => {
 	const ctxMenu = H`<ul class="round-decor ctx-menu ux-anchor" style="position: fixed; z-index: 99999;" data-hidden></ul>`;
-	const overlay = document.querySelector("[data-app-layer=\"overlay\"]");
-	const basicApp = document.querySelector(".basic-app");
-	(overlay || basicApp || document.body).append(ctxMenu);
+	resolveOverlayMountPoint(anchor ?? null).append(ctxMenu);
 	return ctxMenu;
 };
 var createItemCtxMenu = async (fileManager, onMenuAction, entries) => {
@@ -434,7 +430,7 @@ var createItemCtxMenu = async (fileManager, onMenuAction, entries) => {
 		}
 	};
 	const initiatorElement = fileManager;
-	const ctxMenu = makeContextMenu();
+	const ctxMenu = makeContextMenu(initiatorElement);
 	ctxMenuTrigger(initiatorElement, ctxMenuDesc, ctxMenu);
 	disconnectRegistry.register(initiatorElement, ctxMenu);
 	return ctxMenu;

@@ -3888,6 +3888,13 @@ function setSpeedDialViewOpener(opener) {
 function getSpeedDialViewOpener() {
 	return viewOpener;
 }
+var overlayMountResolver = null;
+function setHomeOverlayMountResolver(fn) {
+	overlayMountResolver = typeof fn === "function" ? fn : null;
+}
+function getHomeOverlayMountResolver() {
+	return overlayMountResolver;
+}
 //#endregion
 //#region ../../modules/shells/window-frame/src/views/markdown-view-window.ts
 /**
@@ -5225,7 +5232,9 @@ var initializeOrientedDesktop = (host) => {
 			x: event.clientX,
 			y: event.clientY,
 			items: entries,
-			compact: true
+			compact: true,
+			anchor: event.target instanceof Element ? event.target : null,
+			resolveOverlayMountPoint: getHomeOverlayMountResolver() ?? void 0
 		});
 	};
 	const handlePaste = async (event) => {
@@ -5290,6 +5299,7 @@ var HomeView = class {
 	element = null;
 	lifecycle = { onUnmount: () => {
 		setSpeedDialViewOpener(null);
+		setHomeOverlayMountResolver(null);
 		this.element = null;
 	} };
 	constructor(options = {}) {
@@ -5836,6 +5846,7 @@ var HomeView = class {
 		setSpeedDialViewOpener((viewId, params) => {
 			this.dispatchShellRoute(viewId, { params });
 		});
+		setHomeOverlayMountResolver(typeof this.shellContext?.resolveOverlayMountPoint === "function" ? (anchor) => this.shellContext.resolveOverlayMountPoint(anchor) : null);
 		initializeOrientedDesktop(root);
 		this.element = root;
 		return root;

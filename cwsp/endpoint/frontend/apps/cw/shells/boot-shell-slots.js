@@ -18,6 +18,17 @@ import { t as UIElement } from "../com/app2.js";
 import { t as __decorate } from "../chunks/decorate.js";
 import { t as applyHubSocketFromSettings } from "../chunks/hub-socket-boot.js";
 import "../chunks/websocket2.js";
+[
+	"cw-shell-base",
+	"cw-shell-window",
+	"cw-shell-tabbed",
+	"cw-shell-minimal",
+	"cw-shell-environment",
+	"cw-shell-content",
+	"cw-shell-immersive",
+	"cw-shell-faint"
+].join(",");
+//#endregion
 //#region src/frontend/shells/boot/registry.ts
 var ViewBase = class ViewBase extends UIElement {
 	__options;
