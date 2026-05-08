@@ -1,1 +1,0 @@
-import "../com/app.js";
