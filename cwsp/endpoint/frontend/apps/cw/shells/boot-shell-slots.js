@@ -24,6 +24,7 @@ import "../chunks/websocket2.js";
 	"cw-shell-tabbed",
 	"cw-shell-minimal",
 	"cw-shell-environment",
+	"env-shell-container",
 	"cw-shell-content",
 	"cw-shell-immersive",
 	"cw-shell-faint"

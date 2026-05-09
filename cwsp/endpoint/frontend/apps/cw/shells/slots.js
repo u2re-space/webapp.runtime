@@ -25,13 +25,14 @@ var SHELL_HOST_SELECTOR = [
 	"cw-shell-tabbed",
 	"cw-shell-minimal",
 	"cw-shell-environment",
+	"env-shell-container",
 	"cw-shell-content",
 	"cw-shell-immersive",
 	"cw-shell-faint"
 ].join(",");
 /**
 * Nearest shell's shadow `[data-shell-overlays]` for stacking UI above routed views.
-* Walks past `.wf-frame` and other non-shell ancestors to the enclosing `cw-shell-*`.
+* Walks past `.wf-frame` and other non-shell ancestors to the enclosing shell host (`cw-shell-*` or `env-shell-container`).
 */
 function resolveShellOverlaysMount(from) {
 	if (!(from instanceof Element) || typeof from.closest !== "function") return null;
