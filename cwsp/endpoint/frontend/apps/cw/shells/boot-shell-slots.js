@@ -234,7 +234,7 @@ var BootLoader = class BootLoader {
 			if (persistedSettings) applyHubSocketFromSettings(persistedSettings).catch(() => void 0);
 			applyTheme(persistedSettings ?? DEFAULT_SETTINGS);
 			try {
-				const { initIngressPWA } = await import("../chunks/sw-handling.js").then((n) => n.s);
+				const { initIngressPWA } = await import("../chunks/sw-handling.js").then((n) => n.o);
 				await initIngressPWA();
 			} catch (e) {
 				console.warn("[BootLoader] Share-target / service worker ingress failed (non-fatal):", e);
@@ -458,7 +458,6 @@ async function bootTabbed(container, view = "home") {
 		"explorer",
 		"history",
 		"editor",
-		"airpad",
 		"home"
 	].filter((channelId) => isEnabledView(channelId));
 	const defaultView = pickEnabledView(view, "home");
@@ -480,7 +479,6 @@ async function bootEnvironment(container, view = "home") {
 		"explorer",
 		"history",
 		"editor",
-		"airpad",
 		"home"
 	].filter((channelId) => isEnabledView(channelId));
 	const defaultView = pickEnabledView(view, "home");
@@ -520,7 +518,6 @@ async function bootWindow(container, view = "home") {
 		"explorer",
 		"history",
 		"editor",
-		"airpad",
 		"home"
 	].filter((channelId) => isEnabledView(channelId));
 	const defaultView = pickEnabledView(view, "home");
@@ -554,7 +551,6 @@ async function bootContent(container, view = "home", options) {
 		"explorer",
 		"history",
 		"editor",
-		"airpad",
 		"home"
 	].filter((channelId) => isEnabledView(channelId));
 	const channels = options?.channels !== void 0 ? options.channels : defaultChannels;

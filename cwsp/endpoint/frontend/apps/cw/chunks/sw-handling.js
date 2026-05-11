@@ -2230,4 +2230,4 @@ var initIngressPWA = async () => {
 	return _ingressPwaPromise;
 };
 //#endregion
-export { initServiceWorker as a, ensureServiceWorkerRegistered as c, initReceivers as i, ensureAppCss as n, setupLaunchQueueConsumer as o, handleShareTarget as r, sw_handling_exports as s, checkPendingShareData as t };
+export { setupLaunchQueueConsumer as a, initReceivers as i, ensureAppCss as n, sw_handling_exports as o, handleShareTarget as r, ensureServiceWorkerRegistered as s, checkPendingShareData as t };

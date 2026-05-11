@@ -1,4 +1,4 @@
-import { c as ensureServiceWorkerRegistered, i as initReceivers, n as ensureAppCss, o as setupLaunchQueueConsumer, r as handleShareTarget, t as checkPendingShareData } from "./chunks/sw-handling.js";
+import { a as setupLaunchQueueConsumer, i as initReceivers, n as ensureAppCss, r as handleShareTarget, s as ensureServiceWorkerRegistered, t as checkPendingShareData } from "./chunks/sw-handling.js";
 import { t as initializeLayers } from "./chunks/layer-manager.js";
 import { f as pickEnabledView } from "./chunks/views.js";
 import { p as loadAsAdopted } from "./fest/dom.js";
@@ -566,7 +566,6 @@ async function index(mountElement) {
 	await loadAsAdopted((await import("./chunks/views2.js")).default);
 	console.log("[Index] Starting CrossWord frontend loader");
 	console.log("[Index] Initializing uniform channels...");
-	import("./chunks/hub-socket-boot.js").then((n) => n.n).then((m) => m.bootHubSocketFromStoredSettings()).catch(() => void 0);
 	setLoadingState(mountElement, "Initializing CrossWord...");
 	try {
 		const { loadSubAppWithShell, VALID_VIEWS, getShellFromQuery, getSavedShellPreference } = await import("./shells/boot-shell-slots.js").then((n) => n.t);
@@ -585,7 +584,7 @@ async function index(mountElement) {
 			console.warn("[Index] Pre-boot share/launch queue failed:", e);
 		}
 		const prePath = getNormalizedPathname();
-		if (!prePath || prePath === "viewer" || prePath === "share-target" || prePath === "share_target") import("./chunks/src8.js").then((m) => m.warmViewerMarkdownEngine?.()).catch(() => {});
+		if (!prePath || prePath === "viewer" || prePath === "share-target" || prePath === "share_target") import("./chunks/src7.js").then((m) => m.warmViewerMarkdownEngine?.()).catch(() => {});
 		withTimeout(pwaPromise, "initPWA", 5e3, null, { warnOnTimeout: false }).then(() => {
 			console.log("[Index] PWA initialization complete");
 		}).catch((error) => {

@@ -1,7 +1,7 @@
 import { r as __exportAll } from "./rolldown-runtime.js";
 import { r as isCapacitorCwsNativeShell } from "./cws-bridge.js";
-import { n as shouldDeferCrxHubSocketBootstrap, t as loadSettings } from "./Settings2.js";
-import { C as isMaintainHubSocketConnectionEnabled, i as applyAirpadRuntimeFromAppSettings, v as getRemoteHost, w as isPreferNativeWebsocketEnabled } from "./config.js";
+import { n as shouldDeferCrxHubSocketBootstrap } from "./Settings2.js";
+import { p as getRemoteHost, t as applyAirpadRuntimeFromAppSettings, v as isMaintainHubSocketConnectionEnabled, y as isPreferNativeWebsocketEnabled } from "./config.js";
 //#region ../../modules/projects/subsystem/src/boot/hub-socket-boot.ts
 /**
 * Unified hub transport: WebSocket to cwsp / endpoint (same stack as AirPad), optional background connection.
@@ -9,7 +9,6 @@ import { C as isMaintainHubSocketConnectionEnabled, i as applyAirpadRuntimeFromA
 */
 var hub_socket_boot_exports = /* @__PURE__ */ __exportAll({
 	applyHubSocketFromSettings: () => applyHubSocketFromSettings,
-	bootHubSocketFromStoredSettings: () => bootHubSocketFromStoredSettings,
 	installAirpadHubLifecycleRecovery: () => installAirpadHubLifecycleRecovery
 });
 /** After this long in the background, force a full reconnect (zombie TCP / suspended workers). */
@@ -39,7 +38,7 @@ function installAirpadHubLifecycleRecovery() {
 	const recoverAfterVisibility = () => {
 		if (!shouldRunHubRecovery()) return;
 		(async () => {
-			const { connectWS, getWS, initWebSocket, isWSConnected, reconnectTransportAfterLifecycleResume } = await import("./websocket2.js").then((n) => n.d);
+			const { connectWS, getWS, initWebSocket, isWSConnected, reconnectTransportAfterLifecycleResume } = await import("./websocket2.js").then((n) => n.t);
 			initWebSocket(null);
 			const live = Boolean(getWS()?.connected);
 			if (lastDocumentHiddenAt > 0 && Date.now() - lastDocumentHiddenAt >= PWA_STALE_BACKGROUND_MS && (live || isWSConnected())) {
@@ -52,7 +51,7 @@ function installAirpadHubLifecycleRecovery() {
 	const recoverAfterNetworkOrRestore = (reason) => {
 		if (!shouldRunHubRecovery()) return;
 		(async () => {
-			const { initWebSocket, reconnectTransportAfterLifecycleResume } = await import("./websocket2.js").then((n) => n.d);
+			const { initWebSocket, reconnectTransportAfterLifecycleResume } = await import("./websocket2.js").then((n) => n.t);
 			initWebSocket(null);
 			reconnectTransportAfterLifecycleResume(reason);
 		})();
@@ -68,22 +67,16 @@ function installAirpadHubLifecycleRecovery() {
 	});
 }
 /**
-* Load stored settings, apply AirPad / shell runtime, then connect or disconnect the hub socket.
-*/
-async function bootHubSocketFromStoredSettings() {
-	installAirpadHubLifecycleRecovery();
-	await applyHubSocketFromSettings(await loadSettings());
-}
-/**
-* Apply after any settings mutation (Save, storage sync). Idempotent with {@link applyAirpadRuntimeFromAppSettings}.
+* Apply after boot or any settings mutation (Save, storage sync). Idempotent with {@link applyAirpadRuntimeFromAppSettings}.
 */
 async function applyHubSocketFromSettings(settings) {
+	installAirpadHubLifecycleRecovery();
 	if (await shouldDeferCrxHubSocketBootstrap(settings)) return;
 	applyAirpadRuntimeFromAppSettings(settings);
 	if (isCapacitorCwsNativeShell() && isPreferNativeWebsocketEnabled()) return;
 	if (!isMaintainHubSocketConnectionEnabled()) return;
 	if (!getRemoteHost().trim()) return;
-	const { initWebSocket, connectWS } = await import("./websocket2.js").then((n) => n.d);
+	const { initWebSocket, connectWS } = await import("./websocket2.js").then((n) => n.t);
 	initWebSocket(null);
 	connectWS();
 }

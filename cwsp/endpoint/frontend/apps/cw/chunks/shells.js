@@ -316,7 +316,6 @@ var VIEW_SERVICE_CHANNEL_IDS = new Set([
 	"settings",
 	"viewer",
 	"explorer",
-	"airpad",
 	"print",
 	"history",
 	"editor",

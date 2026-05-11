@@ -34,21 +34,20 @@ function resolveWireArchetype(raw) {
 	return (raw ?? "").trim() || "server-v2";
 }
 //#endregion
-//#region ../../modules/views/airpad-view/src/credential-cache-bridge.ts
-var impl = null;
-/** Called from websocket.ts at module load. */
-function setAirpadCredentialInvalidator(fn) {
-	impl = fn;
-}
-/** Clear AES/HMAC key caches when transport secrets or mode change. */
-function invalidateAirpadTransportCredentials() {
-	try {
-		impl?.();
-	} catch {}
-}
+//#region ../../modules/projects/subsystem/runtime/airpad-cwsp-client-parity.ts
+/**
+* **AirPad** web (`localStorage` key below) ↔ **CWSAndroid** (`ApplicationSettings`, `cwsp.*`) contracts.
+* Canonical for shell / view builds that must not import from `runtime/cwsp` sources.
+*
+* **Storage:** {@link AIRPAD_REMOTE_CONFIG_STORAGE_KEY} holds JSON {@link CwspRemoteConnectionV1}.
+* **Specs:** coordinator behaviour in `runtime/cwsp/endpoint/` (`SPECIFICATION-v2.md`, route query helpers).
+*
+* Import in Vite apps via `cwsp-shared/airpad-cwsp-client-parity` (see `tsconfig.vite-base.json`).
+*/
+/** AirPad popup / view persisted remote block (`airpad-view` / embedding shells). */
+var AIRPAD_REMOTE_CONFIG_STORAGE_KEY = "airpad.remote.connection.v1";
 //#endregion
 //#region ../../modules/views/airpad-view/src/config/config.ts
-var STORAGE_KEY = "airpad.remote.connection.v1";
 var toTrimmedString = (value) => {
 	if (typeof value === "number") return Number.isFinite(value) ? String(value) : "";
 	return typeof value === "string" ? value.trim() : "";
@@ -79,18 +78,6 @@ var normalizeOriginUrl = (value) => {
 	} catch {
 		return trimmed;
 	}
-};
-var looksLikeConnectUrl = (value) => {
-	const trimmed = value.trim();
-	if (!trimmed) return false;
-	if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return true;
-	if (trimmed.startsWith("localhost")) return true;
-	if (trimmed.includes("/")) return true;
-	if (/^\[[0-9a-f:]+\](?::\d{1,5})?$/i.test(trimmed)) return true;
-	if (/^\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?$/.test(trimmed)) return true;
-	if (/^[^.\s:]+:\d{1,5}$/.test(trimmed)) return true;
-	if (/^[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d{1,5})?$/i.test(trimmed)) return true;
-	return false;
 };
 var joinUniqueUrls = (...values) => {
 	return Array.from(new Set(values.map((entry) => normalizeOriginUrl(entry)).filter(Boolean))).join(", ");
@@ -146,7 +133,7 @@ var rewriteEndpointToMatchHttpsTab = (originLike) => {
 };
 function loadStoredRemoteConfig() {
 	try {
-		const raw = globalThis?.localStorage?.getItem?.(STORAGE_KEY);
+		const raw = globalThis?.localStorage?.getItem?.(AIRPAD_REMOTE_CONFIG_STORAGE_KEY);
 		if (!raw) return {};
 		const parsed = JSON.parse(raw);
 		if (!parsed || typeof parsed !== "object") return {};
@@ -187,15 +174,20 @@ var readGlobalAirpadValue = (keys) => {
 };
 function persistRemoteConfig() {
 	try {
-		globalThis?.localStorage?.setItem?.(STORAGE_KEY, JSON.stringify({
+		const payload = {
+			v: 1,
 			quickConnectValue: remoteConfig.quickConnectValue,
 			endpointUrl: remoteConfig.endpointUrl,
 			directUrl: remoteConfig.directUrl,
 			destinationId: remoteConfig.destinationId,
 			accessToken: remoteConfig.accessToken,
 			clientId: remoteConfig.clientId,
-			peerInstanceId: remoteConfig.peerInstanceId
-		}));
+			peerInstanceId: remoteConfig.peerInstanceId,
+			identificationToken: remoteConfig.identificationToken.trim() || void 0,
+			clientAccessToken: remoteConfig.clientAccessToken.trim() || void 0
+		};
+		if (remoteConfig.wireTransport === "ws" || remoteConfig.wireTransport === "socket.io") payload.wireTransport = remoteConfig.wireTransport;
+		globalThis?.localStorage?.setItem?.(AIRPAD_REMOTE_CONFIG_STORAGE_KEY, JSON.stringify(payload));
 	} catch {}
 }
 var createPeerInstanceId = () => {
@@ -209,7 +201,9 @@ var remoteConfig = {
 	accessToken: "",
 	destinationId: "",
 	clientId: "",
-	peerInstanceId: ""
+	peerInstanceId: "",
+	identificationToken: "",
+	clientAccessToken: ""
 };
 /** IndexedDB “Server” tab: userId fallback for AirPad client identity (CWS_ASSOCIATED_*). */
 var coreIdentityBridgeUserId = "";
@@ -259,6 +253,10 @@ function hydrateFromStored(stored) {
 	const storedPeer = toTrimmedString(stored.peerInstanceId);
 	if (storedPeer) remoteConfig.peerInstanceId = storedPeer;
 	else if (!remoteConfig.peerInstanceId) remoteConfig.peerInstanceId = createPeerInstanceId();
+	remoteConfig.identificationToken = toTrimmedString(stored.identificationToken);
+	remoteConfig.clientAccessToken = toTrimmedString(stored.clientAccessToken);
+	const wt = stored.wireTransport;
+	remoteConfig.wireTransport = wt === "ws" || wt === "socket.io" ? wt : void 0;
 	refreshRemoteHost();
 }
 var stored = loadStoredRemoteConfig();
@@ -266,21 +264,7 @@ hydrateFromStored(stored);
 if (!toTrimmedString(stored.peerInstanceId)) remoteConfig.peerInstanceId = remoteConfig.peerInstanceId || createPeerInstanceId();
 var storedAccessToken = toTrimmedString(stored.accessToken);
 var storedLegacyAuthToken = toTrimmedString(stored.authToken);
-if (stored._legacyMigrated === true || !stored.peerInstanceId || storedLegacyAuthToken && !storedAccessToken) persistRemoteConfig();
-/** Re-read localStorage (e.g. after another tab saved, or before mounting AirPad). */
-function reloadAirpadRemoteConfigFromStorage() {
-	hydrateFromStored(loadStoredRemoteConfig());
-}
-/** When another tab updates AirPad settings, refresh in-memory state and crypto caches. */
-function attachAirpadCrossTabConfigSync() {
-	const onStorage = (e) => {
-		if (e.key !== STORAGE_KEY || e.newValue == null) return;
-		reloadAirpadRemoteConfigFromStorage();
-		invalidateAirpadTransportCredentials();
-	};
-	globalThis.addEventListener?.("storage", onStorage);
-	return () => globalThis.removeEventListener?.("storage", onStorage);
-}
+if (stored._legacyMigrated === true || !stored.peerInstanceId || storedLegacyAuthToken && !storedAccessToken || stored.v !== 1) persistRemoteConfig();
 function applyAirpadRemoteConfig(input, options) {
 	if (input.endpointUrl !== void 0) remoteConfig.endpointUrl = normalizeOriginUrl(input.endpointUrl);
 	else if (input.host !== void 0) remoteConfig.endpointUrl = normalizeOriginUrl(input.host);
@@ -290,6 +274,9 @@ function applyAirpadRemoteConfig(input, options) {
 	if (input.destinationId !== void 0) remoteConfig.destinationId = (input.destinationId || "").trim();
 	else if (input.routeTarget !== void 0) remoteConfig.destinationId = (input.routeTarget || "").trim();
 	if (input.clientId !== void 0) remoteConfig.clientId = (input.clientId || "").trim();
+	if (input.identificationToken !== void 0) remoteConfig.identificationToken = (input.identificationToken || "").trim();
+	if (input.clientAccessToken !== void 0) remoteConfig.clientAccessToken = (input.clientAccessToken || "").trim();
+	if (input.wireTransport === "ws" || input.wireTransport === "socket.io") remoteConfig.wireTransport = input.wireTransport;
 	refreshRemoteHost();
 	if (options?.persist !== false) persistRemoteConfig();
 }
@@ -319,8 +306,8 @@ function applyAirpadRuntimeFromAppSettings(settings) {
 	const intervalRaw = Number(shell?.clipboardPushIntervalMs);
 	shellClipboardPushIntervalMs = Number.isFinite(intervalRaw) && intervalRaw >= 800 ? Math.min(Math.round(intervalRaw), 6e4) : 2e3;
 	shellClipboardBroadcastTargets = (shell?.clipboardBroadcastTargets || "").trim();
-	/** Align with {@link isMaintainHubSocketConnectionEnabled}: explicit false disables; missing shells default on. */
-	shellMaintainHubSocket = (shell?.maintainHubSocketConnection ?? true) !== false;
+	/** Only on when settings explicitly set shell.maintainHubSocketConnection === true (default off). */
+	shellMaintainHubSocket = shell?.maintainHubSocketConnection === true;
 	shellPreferNativeWebsocket = (shell?.preferNativeWebsocket ?? interop?.preferNativeWebsocket ?? true) !== false;
 	shellNativeSmsEnabled = (shell?.enableNativeSms ?? true) !== false;
 	shellNativeContactsEnabled = (shell?.enableNativeContacts ?? true) !== false;
@@ -412,45 +399,6 @@ function isPreferNativeWebsocketEnabled() {
 function getRemoteHost() {
 	return sanitizeLoopbackRemoteOnPublicOrigin(remoteHost);
 }
-function getAirPadEndpointUrl() {
-	if (remoteConfig.endpointUrl.trim()) return remoteConfig.endpointUrl.trim();
-	return normalizeOriginUrl(readGlobalAirpadValue(["AIRPAD_ENDPOINT_URL"]));
-}
-/**
-* Quick-connect value shown in the AirPad popup (plus optional auth pass field).
-* Prefer an explicit target device id first, otherwise show the current direct/url target.
-*/
-function getAirPadQuickConnectTarget() {
-	if (remoteConfig.quickConnectValue.trim()) return remoteConfig.quickConnectValue.trim();
-	if (remoteConfig.destinationId.trim()) return remoteConfig.destinationId.trim();
-	if (remoteConfig.directUrl.trim()) return remoteConfig.directUrl.trim();
-	if (coreSocketRouteTarget.trim()) return coreSocketRouteTarget.trim();
-	return getAirPadEndpointUrl();
-}
-/**
-* Quick-connect accepts either a target device id (routed through the Server-tab
-* endpoint URL) or a direct URL/host:port override.
-*/
-function setAirPadQuickConnectTarget(value) {
-	const trimmed = toTrimmedString(value);
-	remoteConfig.quickConnectValue = trimmed;
-	if (!trimmed) {
-		remoteConfig.directUrl = "";
-		remoteConfig.destinationId = "";
-		refreshRemoteHost();
-		persistRemoteConfig();
-		return;
-	}
-	if (looksLikeConnectUrl(trimmed)) {
-		remoteConfig.directUrl = normalizeOriginUrl(trimmed);
-		remoteConfig.destinationId = "";
-	} else {
-		remoteConfig.destinationId = trimmed;
-		remoteConfig.directUrl = "";
-	}
-	refreshRemoteHost();
-	persistRemoteConfig();
-}
 function getRemoteProtocol() {
 	return coreSocketProtocol;
 }
@@ -478,10 +426,6 @@ function getAccessToken() {
 		"ADMIN_TOKEN"
 	]);
 }
-function setAccessToken(token) {
-	remoteConfig.accessToken = token || "";
-	persistRemoteConfig();
-}
 function getAirPadClientId() {
 	if (coreSocketSelfId.trim()) return coreSocketSelfId.trim();
 	if (coreIdentityUseForAirpad && coreIdentityBridgeUserId.trim()) return coreIdentityBridgeUserId.trim();
@@ -495,6 +439,8 @@ function getAssociatedClientToken() {
 function getClientAccessToken() {
 	const local = coreSocketClientAccessToken.trim();
 	if (local) return local;
+	const fromRemote = remoteConfig.clientAccessToken.trim();
+	if (fromRemote) return fromRemote;
 	return readGlobalAirpadValue(["CWS_CLIENT_ACCESS_TOKEN", "CLIENT_ACCESS_TOKEN"]);
 }
 function getAirPadPeerInstanceId() {
@@ -517,8 +463,5 @@ function getAirPadHandshakeArchetype() {
 	if (fromSettings) return resolveWireArchetype(fromSettings);
 	return resolveWireArchetype(readGlobalAirpadValue(["CWS_ARCHETYPE", "AIRPAD_ARCHETYPE"]));
 }
-var MOTION_JITTER_EPS = .001;
-var REL_ORIENT_DEADZONE = .001;
-var REL_ORIENT_SMOOTH = .8;
 //#endregion
-export { invalidateAirpadTransportCredentials as A, isMaintainHubSocketConnectionEnabled as C, reloadAirpadRemoteConfigFromStorage as D, isShellRemoteClipboardBridgeEnabled as E, setAccessToken as O, isClipboardSenderAllowedForInbound as S, isPushLocalClipboardToLanEnabled as T, getClipboardPushIntervalMs as _, attachAirpadCrossTabConfigSync as a, getRemoteRouteTarget as b, getAirPadHandshakeArchetype as c, getAirPadQuickConnectTarget as d, getAirPadTransportMode as f, getClipboardBroadcastWireTargets as g, getClientAccessToken as h, applyAirpadRuntimeFromAppSettings as i, setAirpadCredentialInvalidator as j, setAirPadQuickConnectTarget as k, getAirPadHandshakeConnectionType as l, getAssociatedClientToken as m, REL_ORIENT_DEADZONE as n, getAccessToken as o, getAirPadTransportSecret as p, REL_ORIENT_SMOOTH as r, getAirPadClientId as s, MOTION_JITTER_EPS as t, getAirPadPeerInstanceId as u, getRemoteHost as v, isPreferNativeWebsocketEnabled as w, isApplyRemoteClipboardToDeviceEnabled as x, getRemoteProtocol as y };
+export { isClipboardSenderAllowedForInbound as _, getAirPadHandshakeConnectionType as a, isPushLocalClipboardToLanEnabled as b, getAirPadTransportSecret as c, getClipboardBroadcastWireTargets as d, getClipboardPushIntervalMs as f, isApplyRemoteClipboardToDeviceEnabled as g, getRemoteRouteTarget as h, getAirPadHandshakeArchetype as i, getAssociatedClientToken as l, getRemoteProtocol as m, getAccessToken as n, getAirPadPeerInstanceId as o, getRemoteHost as p, getAirPadClientId as r, getAirPadTransportMode as s, applyAirpadRuntimeFromAppSettings as t, getClientAccessToken as u, isMaintainHubSocketConnectionEnabled as v, isShellRemoteClipboardBridgeEnabled as x, isPreferNativeWebsocketEnabled as y };

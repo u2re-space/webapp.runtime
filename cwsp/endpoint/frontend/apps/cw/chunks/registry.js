@@ -435,37 +435,37 @@ function registerDefaultViews() {
 		id: "viewer",
 		name: "Viewer",
 		icon: "eye",
-		loader: () => import("./src8.js")
+		loader: () => import("./src7.js")
 	});
 	ViewRegistry.register({
 		id: "workcenter",
 		name: "Work Center",
 		icon: "lightning",
-		loader: () => import("./src9.js")
+		loader: () => import("./src8.js")
 	});
 	ViewRegistry.register({
 		id: "settings",
 		name: "Settings",
 		icon: "gear",
-		loader: () => import("./src7.js")
+		loader: () => import("./src6.js")
 	});
 	ViewRegistry.register({
 		id: "history",
 		name: "History",
 		icon: "clock-counter-clockwise",
-		loader: () => import("./src6.js")
+		loader: () => import("./src5.js")
 	});
 	ViewRegistry.register({
 		id: "explorer",
 		name: "Explorer",
 		icon: "folder",
-		loader: () => import("./src5.js")
+		loader: () => import("./src4.js")
 	});
 	ViewRegistry.register({
 		id: "editor",
 		name: "Editor",
 		icon: "pencil",
-		loader: () => import("./src4.js")
+		loader: () => import("./src3.js")
 	});
 	ViewRegistry.register({
 		id: "home",
@@ -477,7 +477,7 @@ function registerDefaultViews() {
 		id: "print",
 		name: "Print",
 		icon: "printer",
-		loader: () => import("./src8.js")
+		loader: () => import("./src7.js")
 	});
 }
 var defaultTheme = {

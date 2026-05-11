@@ -13,7 +13,6 @@ var VIEW_FLAGS = {
 	editor: VIEW_ENABLED_EDITOR,
 	workcenter: VIEW_ENABLED_WORKCENTER,
 	explorer: VIEW_ENABLED_EXPLORER,
-	airpad: "",
 	settings: VIEW_ENABLED_SETTINGS,
 	history: VIEW_ENABLED_HISTORY,
 	home: VIEW_ENABLED_HOME,

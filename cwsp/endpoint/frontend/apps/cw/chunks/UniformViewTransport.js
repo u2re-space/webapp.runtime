@@ -1,6 +1,33 @@
 import { r as createProtocolEnvelope } from "../fest/uniform.js";
 import { u as sendProtocolMessage } from "./UnifiedMessaging.js";
 import { s as normalizeDataAsset } from "../com/app.js";
+//#region ../../modules/projects/subsystem/registry.ts
+var ViewBase = class extends HTMLElement {
+	id = "view";
+	name = "View";
+	icon = "square";
+	options = {};
+	lifecycle = {};
+	constructor(options) {
+		super();
+		if (options) this.options = options;
+	}
+	render(options) {
+		if (options) this.options = {
+			...this.options,
+			...options
+		};
+		return this;
+	}
+};
+function createViewConstructor(tagName, build) {
+	const existing = globalThis.customElements?.get?.(tagName);
+	if (existing) return existing;
+	const Ctor = build(ViewBase);
+	globalThis.customElements?.define?.(tagName, Ctor);
+	return Ctor;
+}
+//#endregion
 //#region ../../modules/projects/subsystem/src/routing/channel/UniformViewTransport.ts
 var asNamePrefix = (source) => {
 	return String(source || "attachment").toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "") || "attachment";
@@ -58,4 +85,4 @@ var sendViewProtocolMessage = async (input) => {
 	}));
 };
 //#endregion
-export { sendViewProtocolMessage as t };
+export { createViewConstructor as n, sendViewProtocolMessage as t };

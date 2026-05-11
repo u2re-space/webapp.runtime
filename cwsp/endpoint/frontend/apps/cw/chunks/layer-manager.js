@@ -348,18 +348,6 @@ var LAYER_HIERARCHY = [
 		description: "Quill editor sublayer"
 	},
 	{
-		name: "layer.view.airpad",
-		category: "view",
-		order: 370,
-		description: "Airpad (touch input)"
-	},
-	{
-		name: "view.airpad",
-		category: "view",
-		order: 371,
-		description: "Airpad SCSS @layer view.airpad (alias)"
-	},
-	{
 		name: "layer.view.home",
 		category: "view",
 		order: 380,

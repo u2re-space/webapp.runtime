@@ -7,16 +7,72 @@ import { a as initializeRegistries, i as defaultTheme, l as startImplicitViewMes
 import { n as initCwsNativeBridge, r as isCapacitorCwsNativeShell } from "./cws-bridge.js";
 import { n as shouldDeferCrxHubSocketBootstrap, t as loadSettings } from "./Settings2.js";
 import { n as applyTheme, r as DEFAULT_SETTINGS, t as loadStyleSystem } from "./styles.js";
-import { C as isMaintainHubSocketConnectionEnabled, i as applyAirpadRuntimeFromAppSettings, v as getRemoteHost, w as isPreferNativeWebsocketEnabled } from "./config.js";
+import { p as getRemoteHost, t as applyAirpadRuntimeFromAppSettings, v as isMaintainHubSocketConnectionEnabled, y as isPreferNativeWebsocketEnabled } from "./config.js";
 //#region src/frontend/boot/hub-socket-boot.ts
 /**
 * Unified hub transport: WebSocket to cwsp / endpoint (same stack as AirPad), optional background connection.
 * Used from main PWA boot, Settings save, and CRX shells so clipboard coordinator works outside the AirPad view.
 */
+/** After this long in the background, force a full reconnect (zombie TCP / suspended workers). */
+var PWA_STALE_BACKGROUND_MS = 12e3;
+var hubLifecycleRecoveryInstalled = false;
+var lastDocumentHiddenAt = 0;
+function shouldRunHubRecovery() {
+	if (isCapacitorCwsNativeShell() && isPreferNativeWebsocketEnabled()) return false;
+	if (!isMaintainHubSocketConnectionEnabled()) return false;
+	if (!getRemoteHost().trim()) return false;
+	return true;
+}
 /**
-* Apply after any settings mutation (Save, storage sync). Idempotent with {@link applyAirpadRuntimeFromAppSettings}.
+* PWA / mobile: restore hub ↔ endpoint after suspend, offline, or bfcache restore.
+* Requires Settings → maintain hub socket + a remote host (same rules as {@link applyHubSocketFromSettings}).
+*/
+function installAirpadHubLifecycleRecovery() {
+	if (hubLifecycleRecoveryInstalled || typeof window === "undefined" || typeof document === "undefined") return;
+	hubLifecycleRecoveryInstalled = true;
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState !== "hidden") return;
+		lastDocumentHiddenAt = Date.now();
+	});
+	const schedule = (fn) => {
+		globalThis.setTimeout(fn, 280);
+	};
+	const recoverAfterVisibility = () => {
+		if (!shouldRunHubRecovery()) return;
+		(async () => {
+			const { connectWS, getWS, initWebSocket, isWSConnected, reconnectTransportAfterLifecycleResume } = await import("./websocket.js");
+			initWebSocket(null);
+			const live = Boolean(getWS()?.connected);
+			if (lastDocumentHiddenAt > 0 && Date.now() - lastDocumentHiddenAt >= PWA_STALE_BACKGROUND_MS && (live || isWSConnected())) {
+				reconnectTransportAfterLifecycleResume("visibility");
+				return;
+			}
+			if (!live && !isWSConnected()) connectWS();
+		})();
+	};
+	const recoverAfterNetworkOrRestore = (reason) => {
+		if (!shouldRunHubRecovery()) return;
+		(async () => {
+			const { initWebSocket, reconnectTransportAfterLifecycleResume } = await import("./websocket.js");
+			initWebSocket(null);
+			reconnectTransportAfterLifecycleResume(reason);
+		})();
+	};
+	document.addEventListener("visibilitychange", () => {
+		if (document.visibilityState !== "visible") return;
+		schedule(recoverAfterVisibility);
+	});
+	window.addEventListener("online", () => schedule(() => recoverAfterNetworkOrRestore("online")));
+	window.addEventListener("pageshow", (ev) => {
+		if (!ev.persisted) return;
+		schedule(() => recoverAfterNetworkOrRestore("bfcache"));
+	});
+}
+/**
+* Apply after boot or any settings mutation (Save, storage sync). Idempotent with {@link applyAirpadRuntimeFromAppSettings}.
 */
 async function applyHubSocketFromSettings(settings) {
+	installAirpadHubLifecycleRecovery();
 	if (await shouldDeferCrxHubSocketBootstrap(settings)) return;
 	applyAirpadRuntimeFromAppSettings(settings);
 	if (isCapacitorCwsNativeShell() && isPreferNativeWebsocketEnabled()) return;
@@ -144,7 +200,7 @@ var bootLoader = class BootLoader {
 			if (persistedSettings) applyHubSocketFromSettings(persistedSettings).catch(() => void 0);
 			applyTheme(persistedSettings ?? DEFAULT_SETTINGS);
 			try {
-				const { initIngressPWA } = await import("./sw-handling.js").then((n) => n.s);
+				const { initIngressPWA } = await import("./sw-handling.js").then((n) => n.o);
 				await initIngressPWA();
 			} catch (e) {
 				console.warn("[BootLoader] Share-target / service worker ingress failed (non-fatal):", e);

@@ -66,7 +66,7 @@ var DEFAULT_SETTINGS = {
 	},
 	shell: {
 		preferNativeWebsocket: true,
-		maintainHubSocketConnection: true,
+		maintainHubSocketConnection: false,
 		enableRemoteClipboardBridge: true,
 		applyRemoteClipboardToDevice: true,
 		pushLocalClipboardToLan: false,

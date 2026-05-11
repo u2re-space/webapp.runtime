@@ -7,7 +7,7 @@ import { t as renderMathInElement } from "../vendor/katex2.js";
 import { t as g } from "../vendor/marked.js";
 import { t as src_default } from "../vendor/marked-katex-extension.js";
 import { n as fetchCachedShareFiles, t as consumeCachedShareTargetPayload } from "./ShareTargetGateway.js";
-import { i as buildInstructionPrompt } from "./utils2.js";
+import { i as buildInstructionPrompt } from "./utils.js";
 import { a as getCustomInstructions, o as getInstructionRegistry, s as setActiveInstruction } from "./CustomInstructions.js";
 import { o as toBase64 } from "../vendor/@toon-format_toon.js";
 import { t as processDataWithInstruction } from "./unified.js";

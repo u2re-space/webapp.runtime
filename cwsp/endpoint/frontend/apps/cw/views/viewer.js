@@ -8,9 +8,8 @@ import { a as ensureStyleSheet, o as reinitializeRegistry } from "../fest/icon.j
 import { t as purify } from "../vendor/dompurify.js";
 import { t as renderMathInElement } from "../vendor/katex2.js";
 import { t as createViewState } from "../chunks/types.js";
-import { t as createViewConstructor } from "../chunks/registry2.js";
-import { a as ViewerChannelAction, n as ExplorerChannelAction } from "../chunks/channel-actions.js";
-import { t as sendViewProtocolMessage } from "../chunks/UniformViewTransport.js";
+import { n as createViewConstructor, t as sendViewProtocolMessage } from "../chunks/UniformViewTransport.js";
+import { i as ViewerChannelAction, t as ExplorerChannelAction } from "../chunks/channel-actions.js";
 //#region src/frontend/views/viewer/theme.ts
 /** Effective scheme after resolving `system` (no prefers → dark). */
 function resolveViewerColorSchemePreference(mode) {

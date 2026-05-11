@@ -11,7 +11,6 @@ var VIEW_ORDER = [
 	"editor",
 	"explorer",
 	"workcenter",
-	"airpad",
 	"history",
 	"settings",
 	"print"

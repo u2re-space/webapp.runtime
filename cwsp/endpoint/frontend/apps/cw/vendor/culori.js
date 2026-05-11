@@ -4377,15 +4377,6 @@ var DEFAULT_STATE = {
 			cell: [2, 0],
 			action: "open-view",
 			shape: "squircle"
-		},
-		{
-			id: "airpad",
-			label: "AirPad",
-			icon: "paper-plane-tilt",
-			viewId: "airpad",
-			cell: [3, 0],
-			action: "open-view",
-			shape: "squircle"
 		}
 	]
 };
@@ -4643,7 +4634,6 @@ var DESKTOP_SHELL_VIEW_OPTIONS = [
 	MARKDOWN_VIEW_MANAGED_WINDOW_KEY,
 	"explorer",
 	"settings",
-	"airpad",
 	"workcenter",
 	"history",
 	"editor"

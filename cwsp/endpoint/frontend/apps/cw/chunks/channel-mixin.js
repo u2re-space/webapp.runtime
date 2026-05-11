@@ -35,12 +35,6 @@ var SERVICE_CHANNEL_CONFIG = {
 		component: COMPONENTS$1.FILE_EXPLORER,
 		description: "File explorer and browser"
 	},
-	airpad: {
-		broadcastName: "rs-airpad",
-		routeHash: "#airpad",
-		component: "airpad",
-		description: "Touch-friendly input pad"
-	},
 	print: {
 		broadcastName: BROADCAST_CHANNELS$1.PRINT_CHANNEL,
 		routeHash: ROUTE_HASHES$1.PRINT,
@@ -101,7 +95,6 @@ var VIEW_MESSAGE_FALLBACKS = {
 	settings: ["settings-update"],
 	history: ["history-update"],
 	home: ["home-update"],
-	airpad: ["content-load"],
 	print: ["content-view"]
 };
 var inferViewDestination = (viewId) => {

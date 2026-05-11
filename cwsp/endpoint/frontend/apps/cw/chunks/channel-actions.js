@@ -42,15 +42,10 @@ var SettingsChannelAction = {
 	Patch: "patch",
 	SettingsUpdate: "settings-update"
 };
-var AirpadChannelAction = {
-	Start: "start",
-	AirpadStart: "airpad-start",
-	Retry: "retry"
-};
 ({ ...FileWorkspaceUseAction });
 var HistoryChannelAction = {
 	Reload: "reload",
 	Refresh: "refresh"
 };
 //#endregion
-export { ViewerChannelAction as a, SettingsChannelAction as i, ExplorerChannelAction as n, HistoryChannelAction as r, AirpadChannelAction as t };
+export { ViewerChannelAction as i, HistoryChannelAction as n, SettingsChannelAction as r, ExplorerChannelAction as t };
