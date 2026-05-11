@@ -1,0 +1,13 @@
+{
+    "schemaVersion": 1,
+    "description": "Reachability matrix for CI (protocol-compat-matrix) and fleet docs. Topology: desktops L-110/L-111; coordinators L-200 + LAN sibling 192.168.0.201 + WAN ingress 45.147.121.152 (same coordinator identity); mobile L-196/L-208. Does not replace TLS or listen binds in endpoint-*.json.",
+    "endpoints": [
+        "https://45.147.121.152:8443/",
+        "https://192.168.0.200:8443/",
+        "https://192.168.0.201:8443/",
+        "https://192.168.0.110:8443/",
+        "https://192.168.0.111:8443/",
+        "https://192.168.0.196:8443/",
+        "https://192.168.0.208:8443/"
+    ]
+}
