@@ -1,12 +1,16 @@
 /**
- * PM2 — CWSP **TypeScript** entry (`server/index.ts` via tsx), cwd = cwsp package root.
+ * PM2 — CWSP **TypeScript** entry (`server/index.ts` via tsx), cwd = `runtime/cwsp/endpoint`.
  *
- *   cd runtime/cwsp/endpoint && pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env
+ *   cd runtime/cwsp/endpoint && pm2 start ecosystem/ecosystem.server.config.cjs --only cwsp --update-env
  *
  * Config profile (when `--config` / `CWS_PORTABLE_CONFIG_PATH` are unset):
- *   - Windows: defaults to `config/portable.config.110.json` (`--110` forces it)
- *   - Linux: defaults to `config/portable.config.json` (L-200 gateway; `--200` or `-200` forces it)
- *   - Override: `CWS_DEFAULT_PORTABLE_PROFILE=110|200`
+ *   - Default file: `config/portable.config.json` (overridden by device-specific path from deploy or env)
+ *   - TS bootstrap also honors `--110` / `--200`, `CWS_DEFAULT_PORTABLE_PROFILE`, and host OS heuristics — see `server/config/bootstrap.ts`.
+ *   - Multi-host: `deploy-cwsp-hosts` sets `CWS_PORTABLE_CONFIG_PATH` per SSH row (`config/devices.deploy.json`).
+ *
+ * Split peer / gateway overlays (merged at runtime): `config/clients.json`, `config/gateways.json`,
+ * `config/network.json`, plus `config/endpoint-*.json` fragments. Override directory with `CWS_CONFIG_DIR`
+ * (same as bootstrap) when PM2 cwd is not the package root or configs live elsewhere.
  *
  * `npm run distribute` runs `config:prepare` then deploys Windows + Linux hosts (`deploy-cwsp-hosts`).
  * Single-target sync: `npm run distribute:ssh`.
@@ -46,7 +50,7 @@ const extractArg = (flag) => {
 const extractConfigArg = () => extractArg("--config");
 const extractDataArg = () => extractArg("--data");
 
-const defaultConfigPath = path.join(__dirname, "portable.config.json");
+const defaultConfigPath = path.join(ROOT_DIR, "config", "portable.config.json");
 
 const resolvePortableConfigPath = () => {
     const explicitArg = resolveValue(extractConfigArg());

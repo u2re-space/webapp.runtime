@@ -15,12 +15,16 @@
         ],
         "tokens": ["REPLACE_WITH_GATEWAY_SECRET"],
         "flags": { "gateway": true },
-        "forward": [{ "id": "L-192.168.0.110" }],
-        "allowedForwards": ["L-192.168.0.110", "L-45.150.9.153"]
+        "forward": [{ "id": "L-192.168.0.110" }, { "id": "L-192.168.0.111" }],
+        "allowedForwards": ["L-192.168.0.110", "L-192.168.0.111", "L-45.150.9.153"]
       },
       "L-192.168.0.110": {
         "origins": ["https://192.168.0.110:8443", "https://192.168.0.110"],
         "tokens": ["REPLACE_WITH_WINDOWS_CWSP_TOKEN"]
+      },
+      "L-192.168.0.111": {
+        "origins": ["https://192.168.0.111:8443", "https://192.168.0.111"],
+        "tokens": ["REPLACE_WITH_WINDOWS_SECOND_DESKTOP_TOKEN"]
       },
       "L-45.150.9.153": {
         "origins": ["https://45.150.9.153:8443"],

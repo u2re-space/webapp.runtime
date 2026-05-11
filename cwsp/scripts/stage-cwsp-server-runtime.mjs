@@ -40,6 +40,7 @@ export async function collectCwspServerRuntimeNames(pkgRoot) {
         "control",
         "package.json",
         "tsconfig.json",
+        "ecosystem",
         "ecosystem.server.config.cjs",
         "ecosystem.portable.config.cjs"
     ]);

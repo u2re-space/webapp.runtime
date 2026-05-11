@@ -10,7 +10,8 @@ const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, "..");
 const PORTABLE_DIR = path.resolve(ROOT_DIR, "portable");
 const BUNDLE_DIR = path.resolve(PORTABLE_DIR, "endpoint-portable");
-const CROSSWORD_AIRPAD_DIR = path.resolve(ROOT_DIR, "../../apps/CrossWord/src/frontend/views/airpad");
+/** Symlink targets `modules/views/airpad-view/src` (CWSP helpers still bundled with CrossWord deps). */
+const CROSSWORD_AIRPAD_SOURCES = path.resolve(ROOT_DIR, "../../modules/views/airpad-view/src");
 
 const normalizePortList = (raw, fallback = []) => {
     const list = typeof raw === "string" ? raw.split(",") : Array.isArray(raw) ? raw : [];
@@ -181,10 +182,10 @@ const copyEntry = async (name) => {
             }
         } catch {
             try {
-                const fallbackInfo = await stat(CROSSWORD_AIRPAD_DIR);
+                const fallbackInfo = await stat(CROSSWORD_AIRPAD_SOURCES);
                 if (fallbackInfo.isDirectory()) {
-                    console.warn(`[portable] airpad symlink is broken. Falling back to ${CROSSWORD_AIRPAD_DIR}`);
-                    await cp(CROSSWORD_AIRPAD_DIR, dst, { recursive: true });
+                    console.warn(`[portable] airpad symlink is broken. Falling back to ${CROSSWORD_AIRPAD_SOURCES}`);
+                    await cp(CROSSWORD_AIRPAD_SOURCES, dst, { recursive: true });
                     return;
                 }
             } catch {

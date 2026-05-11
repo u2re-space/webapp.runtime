@@ -12,7 +12,7 @@
  * After deploy:
  *   cd REMOTE && npm install --include=dev --no-audit --no-fund
  *   npx tsx server/index.ts
- *   pm2 start config/ecosystem.server.config.cjs --only cwsp --update-env
+ *   pm2 start ecosystem/ecosystem.server.config.cjs --only cwsp --update-env
  *
  * For Windows+Linux matrix deploy use `npm run distribute` (endpoint package);
  * this script is `npm run distribute:ssh` (single SSH target from CWSP_DEPLOY_SSH).

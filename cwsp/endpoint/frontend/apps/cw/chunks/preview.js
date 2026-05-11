@@ -1,4 +1,4 @@
-import { f as isEnabledView } from "./views.js";
+import { d as isEnabledView } from "./views.js";
 import { n as affected } from "../fest/object.js";
 import { Z as H } from "../com/app.js";
 import "../fest/icon.js";
@@ -33,11 +33,6 @@ var MAIN_NAV_ITEMS = [
 		id: "workcenter",
 		name: "Work Center",
 		icon: "lightning"
-	},
-	{
-		id: "airpad",
-		name: "Airpad",
-		icon: "hand-pointing"
 	},
 	{
 		id: "settings",

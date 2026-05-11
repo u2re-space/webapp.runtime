@@ -24,7 +24,8 @@ const pm2Lines = Math.max(30, Number(process.env.CWS_AUTOMATION_PM2_LINES || 140
 const iterRetries = String(process.env.CWS_ITER_RETRIES || "1");
 const iterTimeout = String(process.env.CWS_ITER_TIMEOUT_MS || "3500");
 const iterEndpoints = String(
-    process.env.CWS_ITER_ENDPOINTS || "https://192.168.0.200:8443/,https://192.168.0.110:8443/,https://45.147.121.152:8443/"
+    process.env.CWS_ITER_ENDPOINTS ||
+        "https://192.168.0.200:8443/,https://192.168.0.201:8443/,https://192.168.0.110:8443/,https://192.168.0.111:8443/,https://45.147.121.152:8443/"
 ).trim();
 const activePeersEnv = String(process.env.CWS_AUTOMATION_ACTIVE_PEERS || "").trim();
 const skipAndroidRebuild = /^(1|true|yes)$/i.test(String(process.env.CWS_AUTOMATION_SKIP_ANDROID_REBUILD || "").trim());
@@ -197,7 +198,7 @@ const collectTlsProbeHosts = () => {
         .split(/[;,]/)
         .map((entry) => entry.trim())
         .filter(Boolean);
-    const hosts = new Set(["192.168.0.200", "192.168.0.110", "45.147.121.152"]);
+    const hosts = new Set(["192.168.0.200", "192.168.0.201", "192.168.0.110", "192.168.0.111", "45.147.121.152"]);
     for (const endpoint of values) {
         try {
             const host = new URL(endpoint).hostname?.trim();

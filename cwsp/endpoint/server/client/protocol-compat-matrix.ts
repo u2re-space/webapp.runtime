@@ -101,7 +101,7 @@ const main = () => {
         `nodes=${JSON.stringify(clipboardPacket.nodes || [])}`
     );
 
-    // 3) Node relation coverage: L-196 <-> L-110 + proxy H-200.
+    // 3) Node relation coverage: L-196 <-> desktops L-110/L-111 + coordinator H-200.
     const node196 = asRecord(clients["L-192.168.0.196"]);
     const node110 = asRecord(clients["L-192.168.0.110"]);
     const rel196 = asRecord(node196.relations);
@@ -112,16 +112,31 @@ const main = () => {
         `relation=${String(rel196["L-192.168.0.110"] || "")}`
     );
     addCheck(
+        "clients config has direct relation L-196 -> L-111",
+        typeof rel196["L-192.168.0.111"] === "string",
+        `relation=${String(rel196["L-192.168.0.111"] || "")}`
+    );
+    addCheck(
         "clients config has direct relation L-110 -> L-196",
         typeof rel110["L-192.168.0.196"] === "string",
         `relation=${String(rel110["L-192.168.0.196"] || "")}`
     );
 
+    const node111 = asRecord(clients["L-192.168.0.111"]);
+    const rel111 = asRecord(node111.relations);
+    addCheck(
+        "clients config has direct relation L-111 -> L-196",
+        typeof rel111["L-192.168.0.196"] === "string",
+        `relation=${String(rel111["L-192.168.0.196"] || "")}`
+    );
+
     const h200 = asRecord(gateways["H-192.168.0.200"]);
     const gatewayClients = asStringList(h200.clients);
     addCheck(
-        "gateway H-200 includes L-110 and L-196",
-        gatewayClients.includes("L-192.168.0.110") && gatewayClients.includes("L-192.168.0.196"),
+        "gateway H-200 includes L-110, L-111, and L-196",
+        gatewayClients.includes("L-192.168.0.110") &&
+            gatewayClients.includes("L-192.168.0.111") &&
+            gatewayClients.includes("L-192.168.0.196"),
         `clients=${gatewayClients.join(",")}`
     );
 
@@ -130,8 +145,11 @@ const main = () => {
     const needEndpoints = [
         "https://45.147.121.152:8443/",
         "https://192.168.0.200:8443/",
+        "https://192.168.0.201:8443/",
         "https://192.168.0.110:8443/",
-        "https://192.168.0.196:8443/"
+        "https://192.168.0.111:8443/",
+        "https://192.168.0.196:8443/",
+        "https://192.168.0.208:8443/"
     ];
     const missing = needEndpoints.filter((entry) => !endpoints.includes(entry));
     addCheck(

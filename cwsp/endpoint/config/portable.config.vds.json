@@ -1,0 +1,16 @@
+{
+    "_comment": "Smoke/CI launcher profile — override secrets via env or local overlay.",
+    "launcherEnv": {
+        "CWS_ASSOCIATED_ID": "L-192.168.0.196",
+        "CWS_ASSOCIATED_TOKEN": "n3v3rm1nd",
+        "CWS_BRIDGE_ENDPOINT_URL": "https://45.147.121.152:8443/",
+        "CWS_BRIDGE_ENDPOINTS": [
+            "https://45.147.121.152:8443/",
+            "https://192.168.0.200:8443/",
+            "https://192.168.0.201:8443/",
+            "https://192.168.0.110:8443/",
+            "https://192.168.0.111:8443/"
+        ],
+        "CWS_BRIDGE_PRECONNECT_TARGETS": ["L-192.168.0.200"]
+    }
+}

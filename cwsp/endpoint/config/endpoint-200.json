@@ -14,9 +14,10 @@
         "websocket": ["requestor", "initiator", "initiated", "responser", "exchanger"],
         "http": ["requestor", "responser"]
     },
-    "DirectForward": ["L-192.168.0.110", "self"],
+    "DirectForward": ["L-192.168.0.110", "L-192.168.0.111", "self"],
     "KnownIds": [
         "L-192.168.0.110",
+        "L-192.168.0.111",
         "L-192.168.0.196",
         "L-192.168.0.208"
     ],
@@ -24,6 +25,12 @@
         {
             "Id": "L-192.168.0.110",
             "Url": "https://192.168.0.110:8443",
+            "Acceptance": ["both-allowed", "auto"],
+            "Connection": ["allow-accept", "allow-request"]
+        },
+        {
+            "Id": "L-192.168.0.111",
+            "Url": "https://192.168.0.111:8443",
             "Acceptance": ["both-allowed", "auto"],
             "Connection": ["allow-accept", "allow-request"]
         }
@@ -46,6 +53,14 @@
             "accessToken": ["optional", "bypass"]
         },
         "voice": {
+            "action": "bypass",
+            "accessToken": ["optional", "bypass"]
+        },
+        "contacts": {
+            "action": "bypass",
+            "accessToken": ["optional", "bypass"]
+        },
+        "sms": {
             "action": "bypass",
             "accessToken": ["optional", "bypass"]
         }

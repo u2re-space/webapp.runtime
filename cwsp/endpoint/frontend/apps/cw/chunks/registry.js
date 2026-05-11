@@ -462,12 +462,6 @@ function registerDefaultViews() {
 		loader: () => import("./src5.js")
 	});
 	ViewRegistry.register({
-		id: "airpad",
-		name: "Airpad",
-		icon: "hand-pointing",
-		loader: () => import("./src3.js")
-	});
-	ViewRegistry.register({
 		id: "editor",
 		name: "Editor",
 		icon: "pencil",

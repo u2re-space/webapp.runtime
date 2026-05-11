@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * Everything listed as `external` in `build-portable.mjs` must be installed in portable `node_modules`.
  */
 /** Shipped next to `cwsp.mjs` for `CWS_PORTABLE_CONFIG_PATH` defaults and multi-target presets. */
-const PORTABLE_CONFIG_NAMES = ["portable.config.json", "portable.config.110.json", "portable.config.vds.json"];
+const PORTABLE_CONFIG_NAMES = ["portable.config.json", "portable.config.110.json", "portable.config.111.json", "portable.config.vds.json"];
 
 const PORTABLE_BUNDLE_DEPENDENCIES = {
     fastify: "^5.8.4",

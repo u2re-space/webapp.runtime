@@ -4,19 +4,25 @@
  * AI-READ: use this when the host runs `dist/portable/cwsp.mjs`; use
  * `ecosystem.server.config.cjs` instead when debugging the TypeScript source
  * runtime directly via `tsx server/index.ts`.
+ *
+ * Multi-host: prefer `deploy-cwsp-hosts` (sets `CWS_PORTABLE_CONFIG_PATH` before PM2); or export the same env and run `pm2 start ecosystem/ecosystem.portable.config.cjs`.
  */
 const fs = require("node:fs");
 const path = require("node:path");
-const ROOT_DIR = path.resolve(__dirname, ".");
-const distDirCandidates = [path.join(ROOT_DIR, "./dist/portable"), path.join(ROOT_DIR, "dist/portable")];
+/** CWSP package root (`runtime/cwsp/endpoint`), not the `ecosystem/` folder. */
+const ROOT_DIR = path.resolve(__dirname, "..");
+const distDirCandidates = [path.join(ROOT_DIR, "dist", "portable"), path.join(ROOT_DIR, "./dist/portable")];
 const distDir = distDirCandidates.find((candidate) => fs.existsSync(candidate)) || distDirCandidates[0];
 
 /**
  * PM2 — **compiled portable** (`npm run build:portable` → `dist/portable/cwsp.mjs`).
- *   cd runtime/cwsp && npm run build:portable && pm2 start ecosystem.portable.config.cjs --only cwsp --update-env
+ *   cd runtime/cwsp/endpoint && npm run build:portable && pm2 start ecosystem/ecosystem.portable.config.cjs --only cwsp --update-env
  *
- * For **TS source** (tsx + `server/index.ts`), use `ecosystem.server.config.cjs` instead:
- *   pm2 start ecosystem.server.config.cjs --only cwsp-server --update-env
+ * For **TS source** (tsx + `server/index.ts`), use `ecosystem/ecosystem.server.config.cjs` instead:
+ *   pm2 start ecosystem/ecosystem.server.config.cjs --only cwsp --update-env
+ *
+ * Optional association / split-config overrides (same semantics as CLI `--config-dir` → `bootstrap`):
+ *   CWS_CONFIG_DIR — directory containing clients.json, gateways.json, network.json, endpoint-*.json
  */
 const resolveValue = (value) => {
     if (Array.isArray(value)) return value.join(",");

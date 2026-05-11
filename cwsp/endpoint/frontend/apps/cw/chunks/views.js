@@ -3,7 +3,6 @@ var VIEW_ENABLED_VIEWER = "viewer";
 var VIEW_ENABLED_EDITOR = "editor";
 var VIEW_ENABLED_WORKCENTER = "workcenter";
 var VIEW_ENABLED_EXPLORER = "explorer";
-var VIEW_ENABLED_AIRPAD = "airpad";
 var VIEW_ENABLED_SETTINGS = "settings";
 var VIEW_ENABLED_HISTORY = "history";
 var VIEW_ENABLED_HOME = "home";
@@ -14,7 +13,7 @@ var VIEW_FLAGS = {
 	editor: VIEW_ENABLED_EDITOR,
 	workcenter: VIEW_ENABLED_WORKCENTER,
 	explorer: VIEW_ENABLED_EXPLORER,
-	airpad: VIEW_ENABLED_AIRPAD,
+	airpad: "",
 	settings: VIEW_ENABLED_SETTINGS,
 	history: VIEW_ENABLED_HISTORY,
 	home: VIEW_ENABLED_HOME,
@@ -31,4 +30,4 @@ var pickEnabledView = (preferred = DEFAULT_VIEW_ID, fallback = DEFAULT_VIEW_ID) 
 	return "viewer";
 };
 //#endregion
-export { VIEW_ENABLED_EXPLORER as a, VIEW_ENABLED_PRINT as c, VIEW_ENABLED_WORKCENTER as d, isEnabledView as f, VIEW_ENABLED_EDITOR as i, VIEW_ENABLED_SETTINGS as l, ENABLED_VIEW_IDS as n, VIEW_ENABLED_HISTORY as o, pickEnabledView as p, VIEW_ENABLED_AIRPAD as r, VIEW_ENABLED_HOME as s, DEFAULT_VIEW_ID as t, VIEW_ENABLED_VIEWER as u };
+export { VIEW_ENABLED_HISTORY as a, VIEW_ENABLED_SETTINGS as c, isEnabledView as d, pickEnabledView as f, VIEW_ENABLED_EXPLORER as i, VIEW_ENABLED_VIEWER as l, ENABLED_VIEW_IDS as n, VIEW_ENABLED_HOME as o, VIEW_ENABLED_EDITOR as r, VIEW_ENABLED_PRINT as s, DEFAULT_VIEW_ID as t, VIEW_ENABLED_WORKCENTER as u };

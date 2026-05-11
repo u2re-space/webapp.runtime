@@ -19,6 +19,7 @@ const main = async () => {
         "network.json",
         "portable.config.json",
         "portable.config.110.json",
+        "portable.config.111.json",
         "portable.config.vds.json",
         "portable-core.json",
         "portable-endpoint.json"

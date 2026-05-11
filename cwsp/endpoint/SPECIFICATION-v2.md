@@ -10,7 +10,8 @@ This document describes the current v2 network contract used across:
 - `apps/CrossWord/src/frontend`
 - `apps/CrossWord/src/pwa`
 - `apps/CrossWord/src/crx`
-- AirPad views and rails
+- `apps/CWSAndroid` (NativeScript clipboard + unified `/ws` hub, bundled AirPad input)
+- AirPad-capable views (shared libs; native shell is preferred for interactive AirPad UX)
 - native bridges that reuse the same envelope semantics
 
 This specification describes the unified websocket-first transport:
@@ -383,6 +384,10 @@ Older pre-v2 transport-hint query names are not supported; use the `cwsp_*` keys
 
 These are transport diagnostics hints, not the canonical packet payload.
 
+Additional optional handshake hint (ignored by gateways that do not read it):
+
+- `cwspEnvelope` — semantic version tag for tooling and forward compatibility (`v2` suggested for current JSON-canonical coordinators).
+
 #### Client wire identity (handshake query)
 
 WebSocket / Engine.IO handshakes send `connectionType` and `archetype` query parameters. Defaults match `server/socket/client-contract.ts` and `shared/cws-client-wire-defaults.ts` (`exchanger-initiator`, `server-v2`).
@@ -394,6 +399,20 @@ CrossWord / Settings UI maps these from `AppSettings`:
 - `core.socket.protocolLanesJson` — optional JSON object mirroring per-node config-v2 `Protocols` (lane → role strings); reserved for tooling / future wire hints
 
 When settings are not loaded (standalone bundles), the same values can be supplied via `globalThis.AIRPAD_CONFIG.connectionType` / `.archetype` or `globalThis.CWS_CONNECTION_TYPE` / `globalThis.CWS_ARCHETYPE` (see `runtime/cwsp/endpoint/frontend/apps/cw/views/airpad2.js`).
+
+### CWSAndroid (NativeScript) native peer
+
+The Android shell uses `@valor/nativescript-websockets` (or compatible) toward **`wss://<host>/ws`** with the **same canonical JSON envelope** as the frontend bridge:
+
+| Area | Behavior |
+| --- | --- |
+| Identity | `clientId`, `token`/`userKey`, optional `accessToken`/`clientAccessToken` (see `server/socket/ws-gateway.ts`). |
+| Wire profile | Often `connectionType=exchanger-initiator`, `archetype=nativescript-cwsp`, `cwspEnvelope=v2` (see `apps/CWSAndroid/app/src/network/cwsp-ws.ts`). |
+| Clipboard | Ask/result + duplicate suppression consistent with coordinator (`clipboard:get|read|write|update`). |
+| AirPad | Mouse/keyboard as canonical `mouse:*`, `keyboard:*`, or wrappers `airpad:mouse`, `airpad:keyboard`; outbound targets derive from synced settings coordinator fields. |
+| Contacts / SMS | HTTP surfaces (`/core/ops/contacts`, `/core/ops/sms` family) mirror packet intents; realtime `contacts:*` / `sms:send` normalized to `purpose` **`contact`** / **`sms`** (handlers may be gated by `endpoint-*.json` `inputs`). |
+
+Native clients should assume **Socket.IO is off by default** and must operate on **`/ws` + HTTPS** on production endpoints.
 
 ### PWA / service worker
 
@@ -521,6 +540,19 @@ The runtime settings layer centers on:
 - `core.ops.httpTargets`: HTTP dispatch fallback targets
 - `core.ops.allowInsecureTls`: explicit TLS relaxation for environments that need it
 
+### Split config directory (`runtime/cwsp/endpoint/config`)
+
+For multi-node fleets, overlays live beside portable JSON:
+
+| File | Role |
+| --- | --- |
+| `clients.json` | Peer identity overlays: `relations`, `peerProfile` / capabilities, aliases merged with fragments. |
+| `gateways.json` | Logical hubs (`H-…`), client membership lists used for broadcasts and association hints. |
+| `network.json` | WAN/LAN matrix and runtime hints (clipboard targets, tooling defaults). |
+| `endpoint-<id>.json` | Host-specific fragments; `inputs.contacts`, `inputs.sms` gates for reserved actions. |
+
+`CWS_CONFIG_DIR` (bootstrap) selects the directory explicitly when cwd-based discovery is unreliable (PM2 portable layouts, custom deploy roots).
+
 ## Stable Action Names
 
 The following action names should be treated as stable contract names unless there is a strong migration reason:
@@ -545,6 +577,8 @@ The following action names should be treated as stable contract names unless the
 - `network:dispatch`
 - `notification:speak`
 - `sms:send`
+- `contacts:list` (HTTP + normalized dispatch)
+- legacy / compatibility: `contact:ask`, `contact:delivery` (alternate phrasing retained from early payloads; coordinators normalize toward `purpose: contact`)
 
 ## Compatibility Notes
 
@@ -574,16 +608,16 @@ How &ould works our network.
 ### Topology
 
 **L-192.168.0.110 <---> L-192.168.0.196**
-- clipboard (via android application, and cwsp endpoint server)
-- `airpad` signals (PWA/WebView application)
+- clipboard (via Android application — `CWSAndroid` — and CWSP endpoint server)
+- AirPad/input signals (**native shell or** legacy PWA/WebView)
   - mouse
   - keyboard
   - clipboard
 - tunneling through 192.168.0.200:8443 / 45.147.121.152:8443 if in LTE/NAT mode, using identification client token
 
 **L-192.168.0.110 <---> L-192.168.0.208**
-- clipboard (via android application, and cwsp endpoint server)
-- `airpad` signals (PWA/WebView application)
+- clipboard (via Android application — `CWSAndroid` — and CWSP endpoint server)
+- AirPad/input signals (**native shell or** legacy PWA/WebView)
   - mouse
   - keyboard
   - clipboard
@@ -595,7 +629,7 @@ How &ould works our network.
 
 **L-192.168.0.110 <---> {[ 192.168.0.200:8443 / 45.147.121.152:8443 ]}**
 - initiated or initiator exchanger (bridge/tunnel/link)
-- `L-192.168.0.110` is AirPad controllable (by PWA apps)
+- `L-192.168.0.110` is AirPad controllable (**CWSAndroid shell** or legacy PWA/WebView)
   - Or directly, or through bridge/proxy
 - `L-192.168.0.110` is one of `clipboard` (and/or other data) synchronize/exchanger member
   - Devices through bridge/proxy can/may ask or pass `clipboard` (and/or other data) data

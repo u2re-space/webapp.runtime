@@ -1,9 +1,8 @@
 import { g as removeAdopted, p as loadAsAdopted } from "../fest/dom.js";
 import { Z as H } from "../com/app.js";
-import { r as waitForDomPaint } from "./DocTools.js";
 import { t as createViewConstructor } from "./registry2.js";
 import { t as AirpadChannelAction } from "./channel-actions.js";
-import { i as disconnectAirPadSession, n as unmountAirpadRuntime, r as setRemoteKeyboardEnabled } from "./main.js";
+import { a as disconnectAirPadSession, i as waitForDomPaint, n as unmountAirpadRuntime, r as setRemoteKeyboardEnabled } from "./main.js";
 //#region ../../modules/views/airpad-view/src/component/AirpadController.ts
 var AirpadController = class {
 	initialized = false;

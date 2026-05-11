@@ -369,11 +369,13 @@ const resolveSourceEndpointPolicy = (app: any, requestBody: any, request: any): 
     // if unresolved, keep Android clipboard fanout available for known sender identities.
     const lowerSourceHints = sourceHints.map((entry) => normalizeClipboardId(entry));
     const looksLikeLaptop110 = requestIps.includes("192.168.0.110") || lowerSourceHints.includes("l-192.168.0.110");
+    const looksLikeLaptop111 = requestIps.includes("192.168.0.111") || lowerSourceHints.includes("l-192.168.0.111");
     const looksLikeWanClient =
         lowerSourceHints.includes("l-wan-client") || lowerSourceHints.includes("l-u2re-space");
-    if (looksLikeLaptop110 || looksLikeWanClient) {
+    if (looksLikeLaptop110 || looksLikeLaptop111 || looksLikeWanClient) {
+        const laptopId = looksLikeLaptop111 ? "l-192.168.0.111" : "l-192.168.0.110";
         return {
-            sourceId: looksLikeWanClient ? "l-wan-client" : "l-192.168.0.110",
+            sourceId: looksLikeWanClient ? "l-wan-client" : laptopId,
             targets: ["l-192.168.0.196", "l-192.168.0.208"]
         };
     }
